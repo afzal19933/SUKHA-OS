@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/authStore";
 import { useFirestore, useDoc, useMemoFirebase, useCollection } from "@/firebase";
-import { doc, updateDoc, collection } from "firebase/firestore";
+import { doc, updateDoc, collection, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, Building, Percent, Plus, ShieldCheck } from "lucide-react";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
@@ -22,6 +22,7 @@ import {
   DialogTitle, 
   DialogTrigger 
 } from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 
 export default function SettingsPage() {
   const { entityId, role: currentUserRole, setEntityId } = useAuthStore();
@@ -44,9 +45,17 @@ export default function SettingsPage() {
   const { data: gst, isLoading: gstLoading } = useDoc(gstRef);
 
   const [propForm, setPropForm] = useState({ name: "", address: "", phone: "", email: "" });
-  const [gstForm, setGstForm] = useState({ gstin: "", sacCode: "", gstRate: "12", cgstRate: "6", sgstRate: "6" });
+  const [gstForm, setGstForm] = useState({ 
+    gstin: "", 
+    sacCode: "", 
+    roomGstRate: "5", 
+    roomCgstRate: "2.5", 
+    roomSgstRate: "2.5",
+    serviceGstRate: "18",
+    serviceCgstRate: "9",
+    serviceSgstRate: "9"
+  });
   
-  // New Entity Form State
   const [isNewEntityOpen, setIsNewEntityOpen] = useState(false);
   const [newEntity, setNewEntity] = useState({ name: "", address: "", phone: "" });
 
@@ -63,9 +72,12 @@ export default function SettingsPage() {
       setGstForm({
         gstin: gst.gstin || "",
         sacCode: gst.sacCode || "",
-        gstRate: gst.gstRate?.toString() || "12",
-        cgstRate: gst.cgstRate?.toString() || "6",
-        sgstRate: gst.sgstRate?.toString() || "6"
+        roomGstRate: gst.roomGstRate?.toString() || "5",
+        roomCgstRate: gst.roomCgstRate?.toString() || "2.5",
+        roomSgstRate: gst.roomSgstRate?.toString() || "2.5",
+        serviceGstRate: gst.serviceGstRate?.toString() || "18",
+        serviceCgstRate: gst.serviceCgstRate?.toString() || "9",
+        serviceSgstRate: gst.serviceSgstRate?.toString() || "9"
       });
     }
   }, [property, gst]);
@@ -77,17 +89,49 @@ export default function SettingsPage() {
     toast({ title: "Property updated successfully" });
   };
 
+  const handleGstRateChange = (type: 'room' | 'service', value: string) => {
+    const rate = parseFloat(value) || 0;
+    const half = (rate / 2).toFixed(2);
+    
+    if (type === 'room') {
+      setGstForm({
+        ...gstForm,
+        roomGstRate: value,
+        roomCgstRate: half,
+        roomSgstRate: half
+      });
+    } else {
+      setGstForm({
+        ...gstForm,
+        serviceGstRate: value,
+        serviceCgstRate: half,
+        serviceSgstRate: half
+      });
+    }
+  };
+
   const handleUpdateGst = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!gstRef || !isAdmin) return;
-    await updateDoc(gstRef, {
+    
+    const updateData = {
       ...gstForm,
-      gstRate: parseFloat(gstForm.gstRate),
-      cgstRate: parseFloat(gstForm.cgstRate),
-      sgstRate: parseFloat(gstForm.sgstRate),
+      roomGstRate: parseFloat(gstForm.roomGstRate),
+      roomCgstRate: parseFloat(gstForm.roomCgstRate),
+      roomSgstRate: parseFloat(gstForm.roomSgstRate),
+      serviceGstRate: parseFloat(gstForm.serviceGstRate),
+      serviceCgstRate: parseFloat(gstForm.serviceCgstRate),
+      serviceSgstRate: parseFloat(gstForm.serviceSgstRate),
+      entityId,
       updatedAt: new Date().toISOString()
-    });
-    toast({ title: "Tax settings updated" });
+    };
+
+    try {
+      await setDoc(gstRef, updateData, { merge: true });
+      toast({ title: "Tax settings updated" });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Update failed", description: "Check permissions." });
+    }
   };
 
   const handleAddEntity = (e: React.FormEvent) => {
@@ -112,7 +156,6 @@ export default function SettingsPage() {
     addDocumentNonBlocking(propsRef, entityData);
     toast({ title: "New Entity Added", description: `Property "${newEntity.name}" has been created.` });
     
-    // Automatically switch to the new entity
     setEntityId(newId);
     setIsNewEntityOpen(false);
     setNewEntity({ name: "", address: "", phone: "" });
@@ -229,10 +272,10 @@ export default function SettingsPage() {
                   <Percent className="w-5 h-5 text-primary" />
                   <CardTitle>GST Configuration</CardTitle>
                 </div>
-                <CardDescription>Regional tax rates for invoicing.</CardDescription>
+                <CardDescription>Regional tax rates for room rent and monthly services.</CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleUpdateGst} className="space-y-6">
+                <form onSubmit={handleUpdateGst} className="space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label>GSTIN Number</Label>
@@ -243,23 +286,90 @@ export default function SettingsPage() {
                       <Input placeholder="9963" value={gstForm.sacCode} onChange={e => setGstForm({...gstForm, sacCode: e.target.value})} disabled={!isAdmin} />
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t">
-                    <div className="space-y-2">
-                      <Label>Overall GST (%)</Label>
-                      <Input type="number" value={gstForm.gstRate} onChange={e => setGstForm({...gstForm, gstRate: e.target.value})} disabled={!isAdmin} />
+
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-sm font-semibold mb-4 flex items-center gap-2 text-primary">
+                        Room Rent GST (Typical: 5%)
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="space-y-2">
+                          <Label>Total GST (%)</Label>
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            value={gstForm.roomGstRate} 
+                            onChange={e => handleGstRateChange('room', e.target.value)} 
+                            disabled={!isAdmin} 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>CGST (%)</Label>
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            value={gstForm.roomCgstRate} 
+                            onChange={e => setGstForm({...gstForm, roomCgstRate: e.target.value})} 
+                            disabled={!isAdmin} 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>SGST (%)</Label>
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            value={gstForm.roomSgstRate} 
+                            onChange={e => setGstForm({...gstForm, roomSgstRate: e.target.value})} 
+                            disabled={!isAdmin} 
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>CGST (%)</Label>
-                      <Input type="number" value={gstForm.cgstRate} onChange={e => setGstForm({...gstForm, cgstRate: e.target.value})} disabled={!isAdmin} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>SGST (%)</Label>
-                      <Input type="number" value={gstForm.sgstRate} onChange={e => setGstForm({...gstForm, sgstRate: e.target.value})} disabled={!isAdmin} />
+
+                    <Separator />
+
+                    <div>
+                      <h3 className="text-sm font-semibold mb-4 flex items-center gap-2 text-primary">
+                        Service / Monthly Rent GST (Typical: 18%)
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="space-y-2">
+                          <Label>Total GST (%)</Label>
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            value={gstForm.serviceGstRate} 
+                            onChange={e => handleGstRateChange('service', e.target.value)} 
+                            disabled={!isAdmin} 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>CGST (%)</Label>
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            value={gstForm.serviceCgstRate} 
+                            onChange={e => setGstForm({...gstForm, serviceCgstRate: e.target.value})} 
+                            disabled={!isAdmin} 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>SGST (%)</Label>
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            value={gstForm.serviceSgstRate} 
+                            onChange={e => setGstForm({...gstForm, serviceSgstRate: e.target.value})} 
+                            disabled={!isAdmin} 
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
+
                   {isAdmin && (
                     <Button type="submit" className="shadow-md">
-                      <Save className="w-4 h-4 mr-2" /> Update Tax Config
+                      <Save className="w-4 h-4 mr-2" /> Save Tax Config
                     </Button>
                   )}
                 </form>

@@ -569,17 +569,29 @@
           "type": "string",
           "description": "The Service Accounting Code (SAC) relevant to hotel services."
         },
-        "gstRate": {
+        "roomGstRate": {
           "type": "number",
-          "description": "The default overall GST rate (e.g., 12.0)."
+          "description": "The GST rate for Room Rents (e.g., 5.0)."
         },
-        "cgstRate": {
+        "roomCgstRate": {
           "type": "number",
-          "description": "The default Central GST rate (e.g., 6.0)."
+          "description": "The CGST rate for Room Rents (e.g., 2.5)."
         },
-        "sgstRate": {
+        "roomSgstRate": {
           "type": "number",
-          "description": "The default State GST rate (e.g., 6.0)."
+          "description": "The SGST rate for Room Rents (e.g., 2.5)."
+        },
+        "serviceGstRate": {
+          "type": "number",
+          "description": "The GST rate for Services/Monthly Rent (e.g., 18.0)."
+        },
+        "serviceCgstRate": {
+          "type": "number",
+          "description": "The CGST rate for Services/Monthly Rent (e.g., 9.0)."
+        },
+        "serviceSgstRate": {
+          "type": "number",
+          "description": "The SGST rate for Services/Monthly Rent (e.g., 9.0)."
         },
         "isComposite": {
           "type": "boolean",
@@ -605,9 +617,12 @@
         "entityId",
         "gstin",
         "sacCode",
-        "gstRate",
-        "cgstRate",
-        "sgstRate",
+        "roomGstRate",
+        "roomCgstRate",
+        "roomSgstRate",
+        "serviceGstRate",
+        "serviceCgstRate",
+        "serviceSgstRate",
         "isComposite",
         "createdAt",
         "updatedAt"
