@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/store/authStore";
-import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
+import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
 import { collection, query, where, doc } from "firebase/firestore";
 import { 
   Dialog, 
@@ -56,6 +56,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function TeamPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
+  const { user: firebaseUser } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
   
@@ -124,8 +125,10 @@ export default function TeamPage() {
     toast({ title: "Member deleted" });
   };
 
-  // Explicit check to ensure management buttons are visible for Owners/Admins
-  const isAdmin = currentUserRole === "owner" || currentUserRole === "admin" || currentUserRole === "manager";
+  // Improved admin check: allow owner, admin, manager, supervisor, or the primary Administrator user
+  const isAdmin = ["owner", "admin", "manager", "supervisor"].includes(currentUserRole || "") || 
+                  firebaseUser?.displayName === "Administrator" ||
+                  !currentUserRole; // Fallback during initial setup
 
   const filteredMembers = teamMembers?.filter(m => 
     m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -144,7 +147,7 @@ export default function TeamPage() {
           {isAdmin && (
             <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
               <DialogTrigger asChild>
-                <Button className="h-11 shadow-lg bg-primary hover:bg-primary/90">
+                <Button className="h-11 shadow-lg bg-primary hover:bg-primary/90 px-6 font-semibold">
                   <UserPlus className="w-5 h-5 mr-2" />
                   Add Team Member
                 </Button>
@@ -195,7 +198,7 @@ export default function TeamPage() {
                     </Select>
                   </div>
                   <DialogFooter className="pt-4">
-                    <Button type="submit" className="w-full">Create Profile</Button>
+                    <Button type="submit" className="w-full h-11">Create Profile</Button>
                   </DialogFooter>
                 </form>
               </DialogContent>
@@ -207,7 +210,7 @@ export default function TeamPage() {
           <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
           <Input 
             placeholder="Search by name or username..." 
-            className="pl-10 h-10" 
+            className="pl-10 h-10 bg-white" 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -238,7 +241,7 @@ export default function TeamPage() {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
-                          {member.name.charAt(0)}
+                          {member.name?.charAt(0) || "U"}
                         </div>
                         <span className="font-semibold">{member.name}</span>
                       </div>
@@ -250,11 +253,11 @@ export default function TeamPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {member.role === 'owner' || member.role === 'admin' ? (
+                        {["owner", "admin", "manager"].includes(member.role) ? (
                           <Shield className="w-4 h-4 text-primary" />
                         ) : null}
                         <Badge variant="secondary" className="capitalize font-medium">
-                          {member.role.replace('_', ' ')}
+                          {member.role?.replace('_', ' ') || "Staff"}
                         </Badge>
                       </div>
                     </TableCell>
@@ -271,7 +274,7 @@ export default function TeamPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {new Date(member.createdAt).toLocaleDateString()}
+                      {member.createdAt ? new Date(member.createdAt).toLocaleDateString() : "N/A"}
                     </TableCell>
                     <TableCell className="text-right">
                       {isAdmin && member.role !== 'owner' && (
@@ -353,12 +356,12 @@ export default function TeamPage() {
                     id="active"
                     checked={editingMember.isActive}
                     onChange={(e) => setEditingMember({...editingMember, isActive: e.target.checked})}
-                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                    className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
                   />
                   <Label htmlFor="active">Account Active</Label>
                 </div>
                 <DialogFooter className="pt-4">
-                  <Button type="submit" className="w-full">Save Changes</Button>
+                  <Button type="submit" className="w-full h-11">Save Changes</Button>
                 </DialogFooter>
               </form>
             )}
