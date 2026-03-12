@@ -32,7 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn, formatAppDate, formatAppTime } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
-import { collection, doc, deleteDoc, updateDoc } from "firebase/firestore";
+import { collection, doc } from "firebase/firestore";
 import { 
   Dialog, 
   DialogContent, 
@@ -299,7 +299,7 @@ export default function ReservationsPage() {
                       <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">ID: {res.id.slice(0,8)}</div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="bg-secondary/50 font-bold px-2 py-0 h-5">Room {res.roomNumber}</Badge>
+                      <Badge variant="outline" className="bg-secondary/50 font-bold px-2 py-1 text-[10px] whitespace-nowrap">ROOM {res.roomNumber}</Badge>
                     </TableCell>
                     <TableCell>
                       <div className="text-xs flex items-center gap-2">
@@ -309,10 +309,10 @@ export default function ReservationsPage() {
                     </TableCell>
                     <TableCell>
                       <Badge className={cn(
-                        "capitalize text-[10px] px-2 py-0 h-5",
-                        res.status === "confirmed" && "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200",
-                        res.status === "checked_in" && "bg-primary/10 text-primary hover:bg-primary/10 border-primary/20",
-                        res.status === "pending" && "bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200",
+                        "text-[9px] px-2 py-0.5 font-bold uppercase whitespace-nowrap border",
+                        res.status === "confirmed" && "bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200",
+                        res.status === "checked_in" && "bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200",
+                        res.status === "pending" && "bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-200",
                         res.status === "checked_out" && "bg-gray-100 text-gray-700 hover:bg-gray-100 border-gray-200"
                       )}>
                         {(res.status || "confirmed").replace("_", " ")}
@@ -363,10 +363,10 @@ export default function ReservationsPage() {
                     <p className="text-xs text-muted-foreground font-mono">RES-ID: {selectedRes.id.toUpperCase()}</p>
                   </div>
                   <Badge className={cn(
-                    "capitalize px-3 py-1",
-                    selectedRes.status === "confirmed" && "bg-emerald-100 text-emerald-700",
-                    selectedRes.status === "checked_in" && "bg-primary/10 text-primary",
-                    selectedRes.status === "checked_out" && "bg-gray-100 text-gray-700"
+                    "text-[10px] uppercase font-bold px-3 py-1 border",
+                    selectedRes.status === "confirmed" && "bg-emerald-50 text-emerald-700 border-emerald-200",
+                    selectedRes.status === "checked_in" && "bg-blue-50 text-blue-700 border-blue-200",
+                    selectedRes.status === "checked_out" && "bg-gray-100 text-gray-700 border-gray-200"
                   )}>
                     {selectedRes.status.replace('_', ' ')}
                   </Badge>
