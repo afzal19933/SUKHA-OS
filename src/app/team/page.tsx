@@ -13,7 +13,8 @@ import {
   XCircle,
   Edit2,
   Trash2,
-  Loader2
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
@@ -65,6 +66,7 @@ export default function TeamPage() {
   const [editingMember, setEditingMember] = useState<any>(null);
   const [newMember, setNewMember] = useState({ name: "", username: "", role: "staff" });
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const teamQuery = useMemoFirebase(() => {
     if (!entityId) return null;
@@ -73,30 +75,64 @@ export default function TeamPage() {
 
   const { data: teamMembers, isLoading } = useCollection(teamQuery);
 
-  const handleAddMember = (e: React.FormEvent) => {
+  const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId) return;
-
-    const internalEmail = `${newMember.username.toLowerCase().trim()}@sukha.os`;
-    const tempId = crypto.randomUUID();
-    const memberRef = doc(db, "user_profiles", tempId);
     
-    const memberData = {
-      id: tempId,
-      entityId: entityId,
-      name: newMember.name,
-      email: internalEmail,
-      role: newMember.role,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      permissions: ["Dashboard", "Reservations", "Rooms", "Housekeeping", "Maintenance", "Laundry"]
-    };
+    if (!entityId) {
+      toast({
+        variant: "destructive",
+        title: "Configuration Error",
+        description: "Your property context is not loaded. Please try logging in again.",
+      });
+      return;
+    }
 
-    setDocumentNonBlocking(memberRef, memberData, { merge: true });
-    toast({ title: "Member added", description: `${newMember.name} has been added.` });
-    setIsInviteOpen(false);
-    setNewMember({ name: "", username: "", role: "staff" });
+    if (!newMember.username || !newMember.name) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please fill in all required fields.",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      const internalEmail = `${newMember.username.toLowerCase().trim()}@sukha.os`;
+      const tempId = typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36).substring(7);
+      const memberRef = doc(db, "user_profiles", tempId);
+      
+      const memberData = {
+        id: tempId,
+        entityId: entityId,
+        name: newMember.name,
+        email: internalEmail,
+        role: newMember.role,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        permissions: ["Dashboard", "Reservations", "Rooms", "Housekeeping", "Maintenance", "Laundry"]
+      };
+
+      setDocumentNonBlocking(memberRef, memberData, { merge: true });
+      
+      toast({ 
+        title: "Member profile created", 
+        description: `${newMember.name} has been added to the system.` 
+      });
+      
+      setIsInviteOpen(false);
+      setNewMember({ name: "", username: "", role: "staff" });
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Submission Error",
+        description: "Failed to create profile. Please try again.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleUpdateMember = (e: React.FormEvent) => {
@@ -125,10 +161,9 @@ export default function TeamPage() {
     toast({ title: "Member deleted" });
   };
 
-  // Improved admin check: allow owner, admin, manager, supervisor, or the primary Administrator user
   const isAdmin = ["owner", "admin", "manager", "supervisor"].includes(currentUserRole || "") || 
                   firebaseUser?.displayName === "Administrator" ||
-                  !currentUserRole; // Fallback during initial setup
+                  !currentUserRole;
 
   const filteredMembers = teamMembers?.filter(m => 
     m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -141,7 +176,7 @@ export default function TeamPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Team Management</h1>
-            <p className="text-muted-foreground mt-1">Manage staff, roles, and system access</p>
+            <p className="text-muted-foreground mt-1">Manage staff roles, system access, and profiles</p>
           </div>
           
           {isAdmin && (
@@ -156,35 +191,47 @@ export default function TeamPage() {
                 <DialogHeader>
                   <DialogTitle>Add New Member</DialogTitle>
                   <DialogDescription>
-                    Fill in details. Use a unique username for login.
+                    Create a new staff profile. Use a unique username for system login.
                   </DialogDescription>
                 </DialogHeader>
+                {!entityId && (
+                  <div className="bg-rose-50 text-rose-600 p-3 rounded-lg flex items-center gap-2 text-xs">
+                    <AlertCircle className="w-4 h-4" />
+                    Warning: Property context is still loading.
+                  </div>
+                )}
                 <form onSubmit={handleAddMember} className="space-y-4 pt-4">
                   <div className="space-y-2">
-                    <Label>Full Name</Label>
+                    <Label htmlFor="name">Full Name</Label>
                     <Input 
+                      id="name"
                       placeholder="Jane Smith" 
                       value={newMember.name}
                       onChange={(e) => setNewMember({...newMember, name: e.target.value})}
                       required 
+                      disabled={isSubmitting}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Username</Label>
+                    <Label htmlFor="username">Username (for Login)</Label>
                     <Input 
+                      id="username"
                       placeholder="janesmith" 
                       value={newMember.username}
                       onChange={(e) => setNewMember({...newMember, username: e.target.value})}
                       required 
+                      disabled={isSubmitting}
                     />
+                    <p className="text-[10px] text-muted-foreground">This will be used as their login credential.</p>
                   </div>
                   <div className="space-y-2">
-                    <Label>Role</Label>
+                    <Label htmlFor="role">Role</Label>
                     <Select 
                       value={newMember.role} 
                       onValueChange={(val) => setNewMember({...newMember, role: val})}
+                      disabled={isSubmitting}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="role">
                         <SelectValue placeholder="Select a role" />
                       </SelectTrigger>
                       <SelectContent>
@@ -198,7 +245,14 @@ export default function TeamPage() {
                     </Select>
                   </div>
                   <DialogFooter className="pt-4">
-                    <Button type="submit" className="w-full h-11">Create Profile</Button>
+                    <Button type="submit" className="w-full h-11" disabled={isSubmitting || !entityId}>
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Processing...
+                        </>
+                      ) : "Create Profile"}
+                    </Button>
                   </DialogFooter>
                 </form>
               </DialogContent>

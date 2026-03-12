@@ -73,6 +73,8 @@ export default function HousekeepingPage() {
     return collection(db, "hotel_properties", entityId, "rooms");
   }, [db, entityId]);
 
+  // Supervisors, Managers, and Owners assign tasks, but they cannot BE assigned a cleaning task.
+  // We only pull staff-level roles for the cleaning selection.
   const teamQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return query(
