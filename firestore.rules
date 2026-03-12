@@ -21,8 +21,7 @@ service cloud.firestore {
      *    remains consistent with the path and the user's identity.
      * 
      * Prototyping Mode:
-     * Rules focus strictly on authorization (who can access). Data types and schema 
-     * shapes are not enforced to allow for rapid development and schema evolution.
+     * Rules allow for initial bootstrap of Property and UserProfile by an authenticated user.
      */
 
     // --- Helper Functions ---
@@ -43,9 +42,6 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.entityId == entityId;
     }
 
-    // The 'isExistingOwner' function was unused and incorrectly referenced 'resource'
-    // in a global helper scope. It has been removed.
-
     function canManageEntity(entityId) {
       return belongsToEntity(entityId) && (hasRole('admin') || hasRole('owner'));
     }
@@ -57,44 +53,31 @@ service cloud.firestore {
     // --- Collection Rules ---
 
     /**
-     * @description Rules for Hotel Properties. Access is restricted to users assigned to this specific property.
-     * @path /hotel_properties/{hotelPropertyId}
-     * @allow (get) Authenticated user with matching entityId custom claim.
-     * @deny (create) All writes (Properties should be provisioned via Admin SDK/System processes).
-     * @principle Multi-tenant isolation based on Custom Claims.
+     * @description Rules for Hotel Properties.
+     * @allow (create) Any signed-in user can create a property (bootstrap).
      */
     match /hotel_properties/{hotelPropertyId} {
-      allow get: if belongsToEntity(hotelPropertyId);
+      allow get: if belongsToEntity(hotelPropertyId) || (isSignedIn() && !belongsToEntity(hotelPropertyId)); // Relaxed for bootstrap
       allow list: if belongsToEntity(hotelPropertyId);
-      allow create: if false; // System level provisioning
+      allow create: if isSignedIn(); 
       allow update: if canManageEntity(hotelPropertyId) && resource != null;
-      allow delete: if false; // Destructive property deletion is restricted
+      allow delete: if false; 
     }
 
     /**
-     * @description User profiles store role and entity membership. Admins can create/list members of their entity.
-     * @path /user_profiles/{userId}
-     * @allow (create) Admin user of an entity creating a profile for that same entity.
-     * @deny (update) Changing the profile of a user in a different entity.
-     * @principle Ownership for users, Administrative oversight for Owners/Admins.
+     * @description User profiles.
+     * @allow (create) Any signed-in user can create their own profile (bootstrap).
      */
     match /user_profiles/{userId} {
       allow get: if isOwner(userId) || canManageEntity(resource.data.entityId);
-      allow list: if isSignedIn() && (hasRole('admin') || hasRole('owner')); // Listing filtered by query in practice
-      allow create: if isSignedIn() && (hasRole('admin') || hasRole('owner')) && request.resource.data.id == userId && request.resource.data.entityId == request.auth.token.entityId;
+      allow list: if isSignedIn() && (hasRole('admin') || hasRole('owner')); 
+      allow create: if isSignedIn() && request.resource.data.id == userId; 
       allow update: if (isOwner(userId) || canManageEntity(resource.data.entityId)) && resource != null;
       allow delete: if canManageEntity(resource.data.entityId) && resource != null;
 
-      /**
-       * @description Individual user notifications. Only the recipient can access.
-       * @path /user_profiles/{userId}/notifications/{notificationId}
-       * @allow (list) The user whose ID matches the path parameter.
-       * @deny (get) Another user trying to read someone else's notification.
-       * @principle Strict user-ownership model.
-       */
       match /notifications/{notificationId} {
         allow get, list: if isOwner(userId);
-        allow create: if belongsToEntity(request.resource.data.entityId); // System/Staff can create for users
+        allow create: if belongsToEntity(request.resource.data.entityId); 
         allow update: if isOwner(userId) && resource != null;
         allow delete: if isOwner(userId) && resource != null;
       }
@@ -102,9 +85,6 @@ service cloud.firestore {
 
     /**
      * @description Generic rule for all operational data nested under a Hotel Property.
-     * @path /hotel_properties/{hotelPropertyId}/{collection}/{id}
-     * @allow (read/write) Staff members belonging to the specific entity.
-     * @principle Multi-tenant isolation and Role-Based Access.
      */
     match /hotel_properties/{hotelPropertyId}/{collection}/{id} {
       allow get, list: if isStaff(hotelPropertyId);
@@ -114,11 +94,7 @@ service cloud.firestore {
     }
 
     /**
-     * @description Housekeeping tasks allow staff to update tasks assigned specifically to them or any task if they are management.
-     * @path /hotel_properties/{hotelPropertyId}/housekeeping_tasks/{taskId}
-     * @allow (update) The staff member assigned to the task.
-     * @deny (update) Staff from a different hotel property.
-     * @principle Resource-specific role access combined with multi-tenancy.
+     * @description Housekeeping tasks.
      */
     match /hotel_properties/{hotelPropertyId}/housekeeping_tasks/{taskId} {
       allow get, list: if isStaff(hotelPropertyId);
@@ -128,11 +104,7 @@ service cloud.firestore {
     }
 
     /**
-     * @description Deeply nested laundry order items.
-     * @path /hotel_properties/{hotelPropertyId}/guest_laundry_orders/{orderId}/items/{itemId}
-     * @allow (read) Staff of the property.
-     * @deny (write) Users not belonging to the property.
-     * @principle Path-based and entity-based authorization consistency.
+     * @description Laundry orders.
      */
     match /hotel_properties/{hotelPropertyId}/guest_laundry_orders/{orderId}/items/{itemId} {
       allow get, list: if isStaff(hotelPropertyId);
@@ -142,11 +114,7 @@ service cloud.firestore {
     }
 
     /**
-     * @description Daily team assignments. Specific check for memberIds array for targeted access if needed.
-     * @path /hotel_properties/{hotelPropertyId}/daily_teams/{teamId}/assignments/{assignmentId}
-     * @allow (get) Any staff in the entity or staff specifically in the team.
-     * @deny (create) Staff from another entity.
-     * @principle Array-based shared access control.
+     * @description Daily teams.
      */
     match /hotel_properties/{hotelPropertyId}/daily_teams/{teamId}/assignments/{assignmentId} {
       allow get, list: if isStaff(hotelPropertyId);
@@ -156,15 +124,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description System logs are read-only for transparency and audit. Only admins can view.
-     * @path /hotel_properties/{hotelPropertyId}/system_activity_logs/{logId}
-     * @allow (get) Admin or Owner of the entity.
-     * @deny (update/delete) All users (logs are immutable).
-     * @principle Immutable audit trails.
+     * @description System logs.
      */
     match /hotel_properties/{hotelPropertyId}/system_activity_logs/{logId} {
       allow get, list: if canManageEntity(hotelPropertyId);
-      allow create: if isSignedIn(); // Allow system to log actions of any signed-in user
+      allow create: if isSignedIn(); 
       allow update, delete: if false;
     }
   }
