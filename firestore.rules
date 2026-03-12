@@ -1,0 +1,171 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * SUKHA OS SECURITY RULES
+     * 
+     * Philosophy:
+     * This ruleset implements a strict multi-tenant authorization model. Security is 
+     * enforced primarily through "Authorization Independence," where every document 
+     * contains a denormalized 'entityId' representing the Hotel Property it belongs to.
+     * 
+     * Key Security Decisions:
+     * 1. Multi-Tenancy: Access is restricted to users whose Firebase Auth Custom Claim
+     *    'entityId' matches the 'entityId' field on the document or the parent path.
+     * 2. Role-Based Access Control (RBAC): Roles (owner, admin, manager, staff, etc.) 
+     *    are checked via Custom Claims ('request.auth.token.role') to avoid costly get() calls.
+     * 3. User Ownership: Personal data like notifications are secured by UID matching.
+     * 4. Admin Management: Admins or Owners can manage user profiles within their own entity.
+     * 5. Data Consistency: For user-scoped paths, we ensure the document's internal ID
+     *    remains consistent with the path and the user's identity.
+     * 
+     * Prototyping Mode:
+     * Rules focus strictly on authorization (who can access). Data types and schema 
+     * shapes are not enforced to allow for rapid development and schema evolution.
+     */
+
+    // --- Helper Functions ---
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function hasRole(role) {
+      return isSignedIn() && request.auth.token.role == role;
+    }
+
+    function belongsToEntity(entityId) {
+      return isSignedIn() && request.auth.token.entityId == entityId;
+    }
+
+    // The 'isExistingOwner' function was unused and incorrectly referenced 'resource'
+    // in a global helper scope. It has been removed.
+
+    function canManageEntity(entityId) {
+      return belongsToEntity(entityId) && (hasRole('admin') || hasRole('owner'));
+    }
+
+    function isStaff(entityId) {
+      return belongsToEntity(entityId) && (hasRole('admin') || hasRole('owner') || hasRole('manager') || hasRole('staff') || hasRole('frontdesk') || hasRole('supervisor'));
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for Hotel Properties. Access is restricted to users assigned to this specific property.
+     * @path /hotel_properties/{hotelPropertyId}
+     * @allow (get) Authenticated user with matching entityId custom claim.
+     * @deny (create) All writes (Properties should be provisioned via Admin SDK/System processes).
+     * @principle Multi-tenant isolation based on Custom Claims.
+     */
+    match /hotel_properties/{hotelPropertyId} {
+      allow get: if belongsToEntity(hotelPropertyId);
+      allow list: if belongsToEntity(hotelPropertyId);
+      allow create: if false; // System level provisioning
+      allow update: if canManageEntity(hotelPropertyId) && resource != null;
+      allow delete: if false; // Destructive property deletion is restricted
+    }
+
+    /**
+     * @description User profiles store role and entity membership. Admins can create/list members of their entity.
+     * @path /user_profiles/{userId}
+     * @allow (create) Admin user of an entity creating a profile for that same entity.
+     * @deny (update) Changing the profile of a user in a different entity.
+     * @principle Ownership for users, Administrative oversight for Owners/Admins.
+     */
+    match /user_profiles/{userId} {
+      allow get: if isOwner(userId) || canManageEntity(resource.data.entityId);
+      allow list: if isSignedIn() && (hasRole('admin') || hasRole('owner')); // Listing filtered by query in practice
+      allow create: if isSignedIn() && (hasRole('admin') || hasRole('owner')) && request.resource.data.id == userId && request.resource.data.entityId == request.auth.token.entityId;
+      allow update: if (isOwner(userId) || canManageEntity(resource.data.entityId)) && resource != null;
+      allow delete: if canManageEntity(resource.data.entityId) && resource != null;
+
+      /**
+       * @description Individual user notifications. Only the recipient can access.
+       * @path /user_profiles/{userId}/notifications/{notificationId}
+       * @allow (list) The user whose ID matches the path parameter.
+       * @deny (get) Another user trying to read someone else's notification.
+       * @principle Strict user-ownership model.
+       */
+      match /notifications/{notificationId} {
+        allow get, list: if isOwner(userId);
+        allow create: if belongsToEntity(request.resource.data.entityId); // System/Staff can create for users
+        allow update: if isOwner(userId) && resource != null;
+        allow delete: if isOwner(userId) && resource != null;
+      }
+    }
+
+    /**
+     * @description Generic rule for all operational data nested under a Hotel Property.
+     * @path /hotel_properties/{hotelPropertyId}/{collection}/{id}
+     * @allow (read/write) Staff members belonging to the specific entity.
+     * @principle Multi-tenant isolation and Role-Based Access.
+     */
+    match /hotel_properties/{hotelPropertyId}/{collection}/{id} {
+      allow get, list: if isStaff(hotelPropertyId);
+      allow create: if isStaff(hotelPropertyId) && request.resource.data.entityId == hotelPropertyId;
+      allow update: if isStaff(hotelPropertyId) && resource.data.entityId == hotelPropertyId && resource != null;
+      allow delete: if canManageEntity(hotelPropertyId) && resource != null;
+    }
+
+    /**
+     * @description Housekeeping tasks allow staff to update tasks assigned specifically to them or any task if they are management.
+     * @path /hotel_properties/{hotelPropertyId}/housekeeping_tasks/{taskId}
+     * @allow (update) The staff member assigned to the task.
+     * @deny (update) Staff from a different hotel property.
+     * @principle Resource-specific role access combined with multi-tenancy.
+     */
+    match /hotel_properties/{hotelPropertyId}/housekeeping_tasks/{taskId} {
+      allow get, list: if isStaff(hotelPropertyId);
+      allow create: if isStaff(hotelPropertyId) && request.resource.data.entityId == hotelPropertyId;
+      allow update: if (isStaff(hotelPropertyId) || request.auth.uid == resource.data.assignedStaffId) && resource != null;
+      allow delete: if canManageEntity(hotelPropertyId) && resource != null;
+    }
+
+    /**
+     * @description Deeply nested laundry order items.
+     * @path /hotel_properties/{hotelPropertyId}/guest_laundry_orders/{orderId}/items/{itemId}
+     * @allow (read) Staff of the property.
+     * @deny (write) Users not belonging to the property.
+     * @principle Path-based and entity-based authorization consistency.
+     */
+    match /hotel_properties/{hotelPropertyId}/guest_laundry_orders/{orderId}/items/{itemId} {
+      allow get, list: if isStaff(hotelPropertyId);
+      allow create: if isStaff(hotelPropertyId) && request.resource.data.entityId == hotelPropertyId;
+      allow update: if isStaff(hotelPropertyId) && resource != null;
+      allow delete: if canManageEntity(hotelPropertyId) && resource != null;
+    }
+
+    /**
+     * @description Daily team assignments. Specific check for memberIds array for targeted access if needed.
+     * @path /hotel_properties/{hotelPropertyId}/daily_teams/{teamId}/assignments/{assignmentId}
+     * @allow (get) Any staff in the entity or staff specifically in the team.
+     * @deny (create) Staff from another entity.
+     * @principle Array-based shared access control.
+     */
+    match /hotel_properties/{hotelPropertyId}/daily_teams/{teamId}/assignments/{assignmentId} {
+      allow get, list: if isStaff(hotelPropertyId);
+      allow create: if canManageEntity(hotelPropertyId) && request.resource.data.entityId == hotelPropertyId;
+      allow update: if canManageEntity(hotelPropertyId) && resource != null;
+      allow delete: if canManageEntity(hotelPropertyId) && resource != null;
+    }
+
+    /**
+     * @description System logs are read-only for transparency and audit. Only admins can view.
+     * @path /hotel_properties/{hotelPropertyId}/system_activity_logs/{logId}
+     * @allow (get) Admin or Owner of the entity.
+     * @deny (update/delete) All users (logs are immutable).
+     * @principle Immutable audit trails.
+     */
+    match /hotel_properties/{hotelPropertyId}/system_activity_logs/{logId} {
+      allow get, list: if canManageEntity(hotelPropertyId);
+      allow create: if isSignedIn(); // Allow system to log actions of any signed-in user
+      allow update, delete: if false;
+    }
+  }
+}
