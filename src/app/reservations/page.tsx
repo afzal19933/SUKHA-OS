@@ -145,6 +145,9 @@ export default function ReservationsPage() {
     if (!entityId) return;
     const resRef = doc(db, "hotel_properties", entityId, "reservations", resId);
     
+    // Find the current reservation object for sync data
+    const currentRes = selectedRes?.id === resId ? selectedRes : reservations?.find(r => r.id === resId);
+
     const updateData: any = { 
       status, 
       updatedAt: new Date().toISOString() 
@@ -157,10 +160,13 @@ export default function ReservationsPage() {
     // Update the Reservation Document
     updateDocumentNonBlocking(resRef, updateData);
     
-    // SYNC WITH ROOM STATUS
-    const reservation = reservations?.find(r => r.id === resId);
-    if (reservation && rooms) {
-      const room = rooms.find(r => r.roomNumber === reservation.roomNumber);
+    // SYNC WITH PHYSICAL ROOM STATUS
+    if (currentRes && rooms) {
+      // Find room by roomNumber. Use robust comparison to handle leading zeros or string/number type shifts.
+      const room = rooms.find(r => 
+        r.roomNumber.toString().trim() === currentRes.roomNumber.toString().trim()
+      );
+      
       if (room) {
         const roomRef = doc(db, "hotel_properties", entityId, "rooms", room.id);
         let newRoomStatus = room.status;
@@ -168,12 +174,11 @@ export default function ReservationsPage() {
         if (status === 'checked_in') newRoomStatus = 'occupied';
         if (status === 'checked_out') newRoomStatus = 'dirty';
         
-        if (newRoomStatus !== room.status) {
-          updateDocumentNonBlocking(roomRef, { 
-            status: newRoomStatus, 
-            updatedAt: new Date().toISOString() 
-          });
-        }
+        // Sync the room status to Housekeeping
+        updateDocumentNonBlocking(roomRef, { 
+          status: newRoomStatus, 
+          updatedAt: new Date().toISOString() 
+        });
       }
     }
 
@@ -322,22 +327,22 @@ export default function ReservationsPage() {
                 </TableRow>
               ) : reservations && reservations.length > 0 ? (
                 reservations.map((res) => (
-                  <TableRow key={res.id}>
+                  <TableRow key={res.id} className="group">
                     <TableCell className="px-6 font-semibold whitespace-nowrap">
                       {res.guestName}
                     </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant="outline" className="bg-secondary/50 font-bold px-2 py-1 text-[10px] whitespace-nowrap uppercase">ROOM {res.roomNumber}</Badge>
+                    <TableCell className="text-center whitespace-nowrap">
+                      <Badge variant="outline" className="bg-secondary/50 font-bold px-2 py-1 text-[10px] uppercase">ROOM {res.roomNumber}</Badge>
+                    </TableCell>
+                    <TableCell className="text-center whitespace-nowrap text-xs font-medium">
+                      {formatAppDate(res.checkInDate)}
+                    </TableCell>
+                    <TableCell className="text-center whitespace-nowrap text-xs font-medium">
+                      {formatAppDate(res.checkOutDate)}
                     </TableCell>
                     <TableCell className="text-center whitespace-nowrap">
-                      <div className="text-xs font-medium">{formatAppDate(res.checkInDate)}</div>
-                    </TableCell>
-                    <TableCell className="text-center whitespace-nowrap">
-                      <div className="text-xs font-medium">{formatAppDate(res.checkOutDate)}</div>
-                    </TableCell>
-                    <TableCell className="text-center">
                       <Badge className={cn(
-                        "text-[9px] px-2 py-0.5 font-bold uppercase whitespace-nowrap border mx-auto",
+                        "text-[9px] px-2 py-0.5 font-bold uppercase border",
                         res.status === "confirmed" && "bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200",
                         res.status === "checked_in" && "bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200",
                         res.status === "pending" && "bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-200",
@@ -410,7 +415,9 @@ export default function ReservationsPage() {
                       <p className="text-xs font-semibold">Check-In Date</p>
                       <p className="text-sm font-medium">{formatAppDate(selectedRes.checkInDate)}</p>
                       {selectedRes.actualCheckInTime && (
-                        <p className="text-[10px] text-primary font-bold">Time: {formatAppTime(selectedRes.actualCheckInTime)}</p>
+                        <p className="text-[10px] text-primary font-bold flex items-center gap-1 mt-1">
+                          <Clock className="w-2.5 h-2.5" /> Arrived: {formatAppTime(selectedRes.actualCheckInTime)}
+                        </p>
                       )}
                     </div>
                     <div className="text-right flex-1">
@@ -429,11 +436,11 @@ export default function ReservationsPage() {
                   </p>
                 </div>
 
-                <DialogFooter className="flex-col gap-2 mt-4 sm:flex-col">
+                <DialogFooter className="flex-col gap-3 mt-4 sm:flex-col">
                   <div className="grid grid-cols-2 gap-2 w-full">
                     {selectedRes.status === 'confirmed' && (
                       <Button 
-                        className="w-full" 
+                        className="w-full h-10 font-bold" 
                         onClick={() => updateStatus(selectedRes.id, 'checked_in')}
                       >
                         <CheckCircle2 className="w-4 h-4 mr-2" /> Check-In
@@ -442,7 +449,7 @@ export default function ReservationsPage() {
                     {selectedRes.status === 'checked_in' && (
                       <Button 
                         variant="destructive"
-                        className="w-full" 
+                        className="w-full h-10 font-bold" 
                         onClick={() => updateStatus(selectedRes.id, 'checked_out')}
                       >
                         <LogOut className="w-4 h-4 mr-2" /> Check-Out
@@ -451,10 +458,18 @@ export default function ReservationsPage() {
                     
                     {isAdmin && (
                       <>
-                        <Button variant="outline" className="w-full" onClick={() => { setIsDetailsOpen(false); openEdit(selectedRes); }}>
-                          <Edit2 className="w-3.5 h-3.5 mr-2" /> Edit
+                        <Button 
+                          variant="outline" 
+                          className="w-full h-10 font-semibold" 
+                          onClick={() => { setIsDetailsOpen(false); openEdit(selectedRes); }}
+                        >
+                          <Edit2 className="w-3.5 h-3.5 mr-2" /> Edit Info
                         </Button>
-                        <Button variant="ghost" className="w-full text-rose-500 hover:text-rose-600 hover:bg-rose-50" onClick={() => { setIsDetailsOpen(false); handleDeleteReservation(selectedRes.id); }}>
+                        <Button 
+                          variant="ghost" 
+                          className="w-full h-10 font-semibold text-rose-500 hover:text-rose-600 hover:bg-rose-50" 
+                          onClick={() => { setIsDetailsOpen(false); handleDeleteReservation(selectedRes.id); }}
+                        >
                           <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
                         </Button>
                       </>
