@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { 
@@ -14,7 +14,8 @@ import {
   Edit2,
   Trash2,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
@@ -28,7 +29,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
-import { collection, query, where, doc } from "firebase/firestore";
+import { collection, query, where, doc, getDoc } from "firebase/firestore";
 import { 
   Dialog, 
   DialogContent, 
@@ -56,7 +57,7 @@ import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlo
 import { useToast } from "@/hooks/use-toast";
 
 export default function TeamPage() {
-  const { entityId, role: currentUserRole } = useAuthStore();
+  const { entityId, role: currentUserRole, setEntityId, setRole, setPermissions } = useAuthStore();
   const { user: firebaseUser } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
@@ -67,6 +68,7 @@ export default function TeamPage() {
   const [newMember, setNewMember] = useState({ name: "", username: "", role: "staff" });
   const [searchQuery, setSearchQuery] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResyncing, setIsResyncing] = useState(false);
 
   const teamQuery = useMemoFirebase(() => {
     if (!entityId) return null;
@@ -75,6 +77,28 @@ export default function TeamPage() {
 
   const { data: teamMembers, isLoading } = useCollection(teamQuery);
 
+  const handleResync = async () => {
+    if (!firebaseUser) return;
+    setIsResyncing(true);
+    try {
+      const docRef = doc(db, "user_profiles", firebaseUser.uid);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.entityId) setEntityId(data.entityId);
+        if (data.role) setRole(data.role);
+        if (data.permissions) setPermissions(data.permissions);
+        toast({ title: "Session Resynced", description: "Property context loaded successfully." });
+      } else {
+        toast({ variant: "destructive", title: "Resync Failed", description: "Profile document not found." });
+      }
+    } catch (err) {
+      toast({ variant: "destructive", title: "Resync Error", description: "Could not refresh profile." });
+    } finally {
+      setIsResyncing(false);
+    }
+  };
+
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -82,7 +106,7 @@ export default function TeamPage() {
       toast({
         variant: "destructive",
         title: "Configuration Error",
-        description: "Your property context is not loaded. Please try logging in again.",
+        description: "Your property context is not loaded. Try the resync option.",
       });
       return;
     }
@@ -112,7 +136,7 @@ export default function TeamPage() {
         isActive: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        permissions: ["Dashboard", "Reservations", "Rooms", "Housekeeping", "Maintenance", "Laundry"]
+        permissions: ["Dashboard", "Reservations", "Rooms", "Housekeeping", "Maintenance", "Laundry", "Invoices"]
       };
 
       setDocumentNonBlocking(memberRef, memberData, { merge: true });
@@ -179,85 +203,98 @@ export default function TeamPage() {
             <p className="text-muted-foreground mt-1">Manage staff roles, system access, and profiles</p>
           </div>
           
-          {isAdmin && (
-            <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
-              <DialogTrigger asChild>
-                <Button className="h-11 shadow-lg bg-primary hover:bg-primary/90 px-6 font-semibold">
-                  <UserPlus className="w-5 h-5 mr-2" />
-                  Add Team Member
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>Add New Member</DialogTitle>
-                  <DialogDescription>
-                    Create a new staff profile. Use a unique username for system login.
-                  </DialogDescription>
-                </DialogHeader>
-                {!entityId && (
-                  <div className="bg-rose-50 text-rose-600 p-3 rounded-lg flex items-center gap-2 text-xs">
-                    <AlertCircle className="w-4 h-4" />
-                    Warning: Property context is still loading.
-                  </div>
-                )}
-                <form onSubmit={handleAddMember} className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input 
-                      id="name"
-                      placeholder="Jane Smith" 
-                      value={newMember.name}
-                      onChange={(e) => setNewMember({...newMember, name: e.target.value})}
-                      required 
-                      disabled={isSubmitting}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="username">Username (for Login)</Label>
-                    <Input 
-                      id="username"
-                      placeholder="janesmith" 
-                      value={newMember.username}
-                      onChange={(e) => setNewMember({...newMember, username: e.target.value})}
-                      required 
-                      disabled={isSubmitting}
-                    />
-                    <p className="text-[10px] text-muted-foreground">This will be used as their login credential.</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Role</Label>
-                    <Select 
-                      value={newMember.role} 
-                      onValueChange={(val) => setNewMember({...newMember, role: val})}
-                      disabled={isSubmitting}
-                    >
-                      <SelectTrigger id="role">
-                        <SelectValue placeholder="Select a role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="manager">Manager</SelectItem>
-                        <SelectItem value="supervisor">Supervisor</SelectItem>
-                        <SelectItem value="staff">Staff</SelectItem>
-                        <SelectItem value="frontdesk">Front Desk</SelectItem>
-                        <SelectItem value="housekeeping">Housekeeping Staff</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <DialogFooter className="pt-4">
-                    <Button type="submit" className="w-full h-11" disabled={isSubmitting || !entityId}>
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Processing...
-                        </>
-                      ) : "Create Profile"}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
-          )}
+          <div className="flex items-center gap-2">
+            {!entityId && (
+              <Button 
+                variant="outline" 
+                onClick={handleResync} 
+                disabled={isResyncing}
+                className="h-11 px-4"
+              >
+                <RefreshCw className={cn("w-4 h-4 mr-2", isResyncing && "animate-spin")} />
+                Resync Session
+              </Button>
+            )}
+            {isAdmin && (
+              <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
+                <DialogTrigger asChild>
+                  <Button className="h-11 shadow-lg bg-primary hover:bg-primary/90 px-6 font-semibold">
+                    <UserPlus className="w-5 h-5 mr-2" />
+                    Add Team Member
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>Add New Member</DialogTitle>
+                    <DialogDescription>
+                      Create a new staff profile. Use a unique username for system login.
+                    </DialogDescription>
+                  </DialogHeader>
+                  {!entityId && (
+                    <div className="bg-rose-50 text-rose-600 p-3 rounded-lg flex items-center gap-2 text-xs">
+                      <AlertCircle className="w-4 h-4" />
+                      Warning: Property context is still loading. <button onClick={handleResync} className="underline font-bold">Try Resync</button>
+                    </div>
+                  )}
+                  <form onSubmit={handleAddMember} className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Full Name</Label>
+                      <Input 
+                        id="name"
+                        placeholder="Jane Smith" 
+                        value={newMember.name}
+                        onChange={(e) => setNewMember({...newMember, name: e.target.value})}
+                        required 
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="username">Username (for Login)</Label>
+                      <Input 
+                        id="username"
+                        placeholder="janesmith" 
+                        value={newMember.username}
+                        onChange={(e) => setNewMember({...newMember, username: e.target.value})}
+                        required 
+                        disabled={isSubmitting}
+                      />
+                      <p className="text-[10px] text-muted-foreground">This will be used as their login credential.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="role">Role</Label>
+                      <Select 
+                        value={newMember.role} 
+                        onValueChange={(val) => setNewMember({...newMember, role: val})}
+                        disabled={isSubmitting}
+                      >
+                        <SelectTrigger id="role">
+                          <SelectValue placeholder="Select a role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="manager">Manager</SelectItem>
+                          <SelectItem value="supervisor">Supervisor</SelectItem>
+                          <SelectItem value="staff">Staff</SelectItem>
+                          <SelectItem value="frontdesk">Front Desk</SelectItem>
+                          <SelectItem value="housekeeping">Housekeeping Staff</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <DialogFooter className="pt-4">
+                      <Button type="submit" className="w-full h-11" disabled={isSubmitting || !entityId}>
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Processing...
+                          </>
+                        ) : "Create Profile"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
         </div>
 
         <div className="relative max-w-md">
