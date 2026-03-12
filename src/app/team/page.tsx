@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -126,7 +125,7 @@ export default function TeamPage() {
         await setDoc(doc(db, "hotel_properties", hotelId), {
           id: hotelId,
           entityId: hotelId,
-          name: "Sukha Grand Property",
+          name: "Sukha Retreats",
           isActive: true,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),

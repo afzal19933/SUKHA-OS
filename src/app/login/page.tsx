@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -43,7 +42,7 @@ export default function LoginPage() {
     const propertyData = {
       id: hotelId,
       entityId: hotelId,
-      name: "Sukha Grand Property",
+      name: "Sukha Retreats",
       address: "Property Address TBD",
       phone: "9999999999",
       email: internalEmail,
