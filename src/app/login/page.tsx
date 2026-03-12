@@ -4,8 +4,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, setDoc, collection, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { doc } from "firebase/firestore";
+import { useAuth, useFirestore } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +21,9 @@ export default function LoginPage() {
   const [name, setName] = useState("");
   const [propertyName, setPropertyName] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  const auth = useAuth();
+  const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -37,7 +40,7 @@ export default function LoginPage() {
           displayName: name || email.split('@')[0] 
         });
 
-        // 2. Create a New Hotel Property (for the first owner)
+        // 2. Create a New Hotel Property
         const hotelId = crypto.randomUUID();
         const propertyRef = doc(db, "hotel_properties", hotelId);
         const propertyData = {
@@ -47,14 +50,13 @@ export default function LoginPage() {
           address: "TBD",
           phone: "TBD",
           email: email,
-          gstin: "TBD",
-          pan: "TBD",
           isActive: true,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
+          gstin: "TBD",
+          pan: "TBD"
         };
         
-        // Using non-blocking to initiate the write
         setDocumentNonBlocking(propertyRef, propertyData, { merge: true });
 
         // 3. Create User Profile
@@ -74,7 +76,7 @@ export default function LoginPage() {
 
         toast({
           title: "Account created",
-          description: `Welcome to Sukha OS, ${name}! Your property "${propertyData.name}" has been initialized.`,
+          description: `Welcome! Your property "${propertyData.name}" has been initialized.`,
         });
       } else {
         await signInWithEmailAndPassword(auth, email, password);
@@ -102,7 +104,7 @@ export default function LoginPage() {
           </div>
           <CardTitle className="text-3xl font-bold tracking-tight text-primary">SUKHA OS</CardTitle>
           <CardDescription className="text-muted-foreground">
-            {isSignUp ? "Create an account to manage your property" : "Enter your credentials to access the PMS"}
+            {isSignUp ? "Create an owner account for your property" : "Enter your credentials to access the PMS"}
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleAuth}>
@@ -119,7 +121,6 @@ export default function LoginPage() {
                       onChange={(e) => setName(e.target.value)}
                       required
                       className="h-11 pl-10"
-                      suppressHydrationWarning
                     />
                     <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
                   </div>
@@ -134,7 +135,6 @@ export default function LoginPage() {
                       onChange={(e) => setPropertyName(e.target.value)}
                       required
                       className="h-11 pl-10"
-                      suppressHydrationWarning
                     />
                     <Building2 className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
                   </div>
@@ -152,7 +152,6 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   className="h-11 pl-10"
-                  suppressHydrationWarning
                 />
                 <Mail className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
               </div>
@@ -168,14 +167,13 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   className="h-11 pl-10"
-                  suppressHydrationWarning
                 />
                 <KeyRound className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
               </div>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full h-11 font-semibold text-lg" disabled={loading} suppressHydrationWarning>
+            <Button type="submit" className="w-full h-11 font-semibold text-lg" disabled={loading}>
               {loading ? "Processing..." : isSignUp ? "Create Account" : "Sign In"}
             </Button>
             <div className="text-center">
@@ -184,7 +182,6 @@ export default function LoginPage() {
                 variant="link" 
                 className="text-sm"
                 onClick={() => setIsSignUp(!isSignUp)}
-                suppressHydrationWarning
               >
                 {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up"}
               </Button>

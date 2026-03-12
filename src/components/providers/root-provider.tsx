@@ -1,33 +1,39 @@
+
 "use client";
 
 import { useEffect } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/query-client";
-import { auth } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { FirebaseClientProvider } from "@/firebase";
 import { useAuthStore } from "@/store/authStore";
 import { Toaster } from "@/components/ui/toaster";
+import { useUser } from "@/firebase";
 
-export function RootProvider({ children }: { children: React.ReactNode }) {
+function AuthSync() {
+  const { user } = useUser();
   const { setUser } = useAuthStore();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const idTokenResult = await user.getIdTokenResult();
+    if (user) {
+      user.getIdTokenResult().then((idTokenResult) => {
         setUser(user, idTokenResult.claims);
-      } else {
-        setUser(null);
-      }
-    });
+      });
+    } else {
+      setUser(null);
+    }
+  }, [user, setUser]);
 
-    return () => unsubscribe();
-  }, [setUser]);
+  return null;
+}
 
+export function RootProvider({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
-      <Toaster />
+      <FirebaseClientProvider>
+        <AuthSync />
+        {children}
+        <Toaster />
+      </FirebaseClientProvider>
     </QueryClientProvider>
   );
 }
