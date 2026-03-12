@@ -21,7 +21,8 @@ import {
   DialogHeader, 
   DialogTitle, 
   DialogTrigger,
-  DialogDescription
+  DialogDescription,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { 
   Select, 
@@ -45,10 +46,16 @@ export default function RoomsPage() {
 
   const [isTypeOpen, setIsTypeOpen] = useState(false);
   const [isRoomOpen, setIsRoomOpen] = useState(false);
+  const [isEditRoomOpen, setIsEditRoomOpen] = useState(false);
+  const [isEditTypeOpen, setIsEditTypeOpen] = useState(false);
 
-  // Form states
+  // Form states for adding
   const [newType, setNewType] = useState({ name: "", rate: "", occupancy: "2" });
   const [newRoom, setNewRoom] = useState({ roomNumber: "", floor: "1", typeId: "" });
+
+  // Form states for editing
+  const [editingRoom, setEditingRoom] = useState<any>(null);
+  const [editingType, setEditingType] = useState<any>(null);
 
   // Data fetching
   const typesQuery = useMemoFirebase(() => {
@@ -79,9 +86,26 @@ export default function RoomsPage() {
       updatedAt: new Date().toISOString(),
     });
 
-    toast({ title: "Room Type Added" });
+    toast({ title: "Room Category Added" });
     setIsTypeOpen(false);
     setNewType({ name: "", rate: "", occupancy: "2" });
+  };
+
+  const handleUpdateType = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!entityId || !isAdmin || !editingType) return;
+
+    const docRef = doc(db, "hotel_properties", entityId, "room_types", editingType.id);
+    updateDocumentNonBlocking(docRef, {
+      name: editingType.name,
+      baseRate: parseFloat(editingType.baseRate),
+      maxOccupancy: parseInt(editingType.maxOccupancy),
+      updatedAt: new Date().toISOString(),
+    });
+
+    toast({ title: "Room Category Updated" });
+    setIsEditTypeOpen(false);
+    setEditingType(null);
   };
 
   const handleAddRoom = (e: React.FormEvent) => {
@@ -104,10 +128,47 @@ export default function RoomsPage() {
     setNewRoom({ roomNumber: "", floor: "1", typeId: "" });
   };
 
+  const handleUpdateRoom = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!entityId || !isAdmin || !editingRoom) return;
+
+    const docRef = doc(db, "hotel_properties", entityId, "rooms", editingRoom.id);
+    updateDocumentNonBlocking(docRef, {
+      roomNumber: editingRoom.roomNumber,
+      floor: parseInt(editingRoom.floor),
+      roomTypeId: editingRoom.roomTypeId,
+      updatedAt: new Date().toISOString(),
+    });
+
+    toast({ title: "Room Updated" });
+    setIsEditRoomOpen(false);
+    setEditingRoom(null);
+  };
+
   const deleteRoom = (id: string) => {
     if (!entityId || !isAdmin) return;
     deleteDocumentNonBlocking(doc(db, "hotel_properties", entityId, "rooms", id));
     toast({ title: "Room Deleted" });
+  };
+
+  const openEditRoom = (room: any) => {
+    setEditingRoom({
+      id: room.id,
+      roomNumber: room.roomNumber,
+      floor: room.floor.toString(),
+      roomTypeId: room.roomTypeId
+    });
+    setIsEditRoomOpen(true);
+  };
+
+  const openEditType = (type: any) => {
+    setEditingType({
+      id: type.id,
+      name: type.name,
+      baseRate: type.baseRate.toString(),
+      maxOccupancy: type.maxOccupancy.toString()
+    });
+    setIsEditTypeOpen(true);
   };
 
   return (
@@ -190,9 +251,14 @@ export default function RoomsPage() {
                         <span className="font-bold text-lg">Room {room.roomNumber}</span>
                       </div>
                       {isAdmin && (
-                        <Button variant="ghost" size="icon" onClick={() => deleteRoom(room.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button variant="ghost" size="icon" onClick={() => openEditRoom(room)} className="text-primary h-8 w-8">
+                            <Edit3 className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => deleteRoom(room.id)} className="text-destructive h-8 w-8">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       )}
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
@@ -258,11 +324,18 @@ export default function RoomsPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {roomTypes?.map(type => (
-                <Card key={type.id} className="border-none shadow-sm">
+                <Card key={type.id} className="border-none shadow-sm group">
                   <CardHeader className="p-6">
                     <div className="flex justify-between items-start">
                       <div className="space-y-1">
-                        <CardTitle className="text-xl">{type.name}</CardTitle>
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-xl">{type.name}</CardTitle>
+                          {isAdmin && (
+                            <Button variant="ghost" size="icon" onClick={() => openEditType(type)} className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Edit3 className="w-3.5 h-3.5 text-primary" />
+                            </Button>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground">Max Guests: {type.maxOccupancy}</p>
                       </div>
                       <div className="text-right">
@@ -282,6 +355,96 @@ export default function RoomsPage() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Edit Room Dialog */}
+        <Dialog open={isEditRoomOpen} onOpenChange={setIsEditRoomOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Room Details</DialogTitle>
+              <DialogDescription>Modify room number, floor or category.</DialogDescription>
+            </DialogHeader>
+            {editingRoom && (
+              <form onSubmit={handleUpdateRoom} className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label>Room Number</Label>
+                  <Input 
+                    value={editingRoom.roomNumber} 
+                    onChange={e => setEditingRoom({...editingRoom, roomNumber: e.target.value})}
+                    required 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Floor</Label>
+                  <Input 
+                    type="number" 
+                    value={editingRoom.floor} 
+                    onChange={e => setEditingRoom({...editingRoom, floor: e.target.value})}
+                    required 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Select value={editingRoom.roomTypeId} onValueChange={v => setEditingRoom({...editingRoom, roomTypeId: v})} required>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {roomTypes?.map(t => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <DialogFooter>
+                  <Button type="submit" className="w-full">Update Room</Button>
+                </DialogFooter>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Category Dialog */}
+        <Dialog open={isEditTypeOpen} onOpenChange={setIsEditTypeOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Room Category</DialogTitle>
+              <DialogDescription>Update pricing and capacity settings.</DialogDescription>
+            </DialogHeader>
+            {editingType && (
+              <form onSubmit={handleUpdateType} className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label>Category Name</Label>
+                  <Input 
+                    value={editingType.name} 
+                    onChange={e => setEditingType({...editingType, name: e.target.value})}
+                    required 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Base Rate (Per Night)</Label>
+                  <Input 
+                    type="number" 
+                    value={editingType.baseRate} 
+                    onChange={e => setEditingType({...editingType, baseRate: e.target.value})}
+                    required 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Max Occupancy</Label>
+                  <Input 
+                    type="number" 
+                    value={editingType.maxOccupancy} 
+                    onChange={e => setEditingType({...editingType, maxOccupancy: e.target.value})}
+                    required 
+                  />
+                </div>
+                <DialogFooter>
+                  <Button type="submit" className="w-full">Update Category</Button>
+                </DialogFooter>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
