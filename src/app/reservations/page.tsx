@@ -275,14 +275,14 @@ export default function ReservationsPage() {
 
         <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
           <Table>
-            <TableHeader className="bg-secondary/50 text-center">
+            <TableHeader className="bg-secondary/50">
               <TableRow>
-                <TableHead className="w-[25%]">Guest</TableHead>
-                <TableHead className="text-center">Room</TableHead>
-                <TableHead className="text-center">Check-In</TableHead>
-                <TableHead className="text-center">Check-Out</TableHead>
-                <TableHead className="text-center">Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="w-[22%] text-left px-6">Guest</TableHead>
+                <TableHead className="w-[12%] text-center">Room</TableHead>
+                <TableHead className="w-[18%] text-center">Check-In</TableHead>
+                <TableHead className="w-[18%] text-center">Check-Out</TableHead>
+                <TableHead className="w-[15%] text-center">Status</TableHead>
+                <TableHead className="w-[15%] text-right px-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -295,16 +295,16 @@ export default function ReservationsPage() {
               ) : reservations && reservations.length > 0 ? (
                 reservations.map((res) => (
                   <TableRow key={res.id}>
-                    <TableCell>
-                      <div className="font-semibold">{res.guestName}</div>
+                    <TableCell className="px-6 font-semibold whitespace-nowrap">
+                      {res.guestName}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="outline" className="bg-secondary/50 font-bold px-2 py-1 text-[10px] whitespace-nowrap">ROOM {res.roomNumber}</Badge>
+                      <Badge variant="outline" className="bg-secondary/50 font-bold px-2 py-1 text-[10px] whitespace-nowrap uppercase">ROOM {res.roomNumber}</Badge>
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center whitespace-nowrap">
                       <div className="text-xs font-medium">{formatAppDate(res.checkInDate)}</div>
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center whitespace-nowrap">
                       <div className="text-xs font-medium">{formatAppDate(res.checkOutDate)}</div>
                     </TableCell>
                     <TableCell className="text-center">
@@ -318,7 +318,7 @@ export default function ReservationsPage() {
                         {(res.status || "confirmed").replace("_", " ")}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right px-6">
                       <Button variant="outline" size="sm" className="h-8 text-xs font-semibold" onClick={() => openDetails(res)}>Details</Button>
                     </TableCell>
                   </TableRow>
