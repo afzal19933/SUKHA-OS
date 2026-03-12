@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -10,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { 
   Plus, 
-  Waves, 
+  WashingMachine, 
   Search, 
   Clock, 
   CheckCircle, 
@@ -100,9 +101,14 @@ export default function LaundryPage() {
   return (
     <AppLayout>
       <div className="max-w-7xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Laundry Services</h1>
-          <p className="text-muted-foreground mt-1">Manage guest orders and linen inventory</p>
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-primary/10 rounded-2xl">
+            <WashingMachine className="w-8 h-8 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Laundry Services</h1>
+            <p className="text-muted-foreground mt-1">Manage guest orders and linen inventory</p>
+          </div>
         </div>
 
         <Tabs defaultValue="orders" className="space-y-6">

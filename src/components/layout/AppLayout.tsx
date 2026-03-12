@@ -16,7 +16,7 @@ import {
   Users,
   User as UserIcon,
   Settings,
-  Waves,
+  WashingMachine,
   DoorOpen
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ const NAV_ITEMS = [
   { name: "Rooms", href: "/rooms", icon: DoorOpen },
   { name: "Housekeeping", href: "/housekeeping", icon: BedDouble },
   { name: "Maintenance", href: "/maintenance", icon: Wrench },
-  { name: "Laundry", href: "/laundry", icon: Waves },
+  { name: "Laundry", href: "/laundry", icon: WashingMachine },
   { name: "Invoices", href: "/invoices", icon: FileText },
   { name: "Team", href: "/team", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
