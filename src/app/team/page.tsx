@@ -30,7 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
-import { collection, query, where, doc, getDoc } from "firebase/firestore";
+import { collection, query, where, doc, getDoc, setDoc } from "firebase/firestore";
 import { 
   Dialog, 
   DialogContent, 
@@ -84,16 +84,50 @@ export default function TeamPage() {
     try {
       const docRef = doc(db, "user_profiles", firebaseUser.uid);
       const snap = await getDoc(docRef);
+      
       if (snap.exists()) {
         const data = snap.data();
         if (data.entityId) setEntityId(data.entityId);
         if (data.role) setRole(data.role);
         if (data.permissions) setPermissions(data.permissions);
         toast({ title: "Session Resynced", description: "Property context loaded successfully." });
+      } else if (firebaseUser.email?.startsWith('admin')) {
+        // Special case: If it's the admin user and profile is missing, bootstrap it
+        const hotelId = crypto.randomUUID();
+        const newProfile = {
+          id: firebaseUser.uid,
+          entityId: hotelId,
+          name: firebaseUser.displayName || "Administrator",
+          email: firebaseUser.email,
+          isActive: true,
+          role: "owner",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          permissions: ["Dashboard", "Reservations", "Rooms", "Housekeeping", "Maintenance", "Laundry", "Invoices", "Team", "Settings"]
+        };
+        
+        await setDoc(docRef, newProfile);
+        
+        // Also create a basic property doc
+        await setDoc(doc(db, "hotel_properties", hotelId), {
+          id: hotelId,
+          entityId: hotelId,
+          name: "Sukha Grand Property",
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+
+        setEntityId(hotelId);
+        setRole("owner");
+        setPermissions(newProfile.permissions);
+        
+        toast({ title: "Profile Initialized", description: "Default property and owner profile created." });
       } else {
         toast({ variant: "destructive", title: "Resync Failed", description: "Profile document not found." });
       }
     } catch (err) {
+      console.error(err);
       toast({ variant: "destructive", title: "Resync Error", description: "Could not refresh profile." });
     } finally {
       setIsResyncing(false);
@@ -112,20 +146,11 @@ export default function TeamPage() {
       return;
     }
 
-    if (!newMember.username || !newMember.name) {
-      toast({
-        variant: "destructive",
-        title: "Validation Error",
-        description: "Please fill in all required fields.",
-      });
-      return;
-    }
-
     setIsSubmitting(true);
     
     try {
       const internalEmail = `${newMember.username.toLowerCase().trim()}@sukha.os`;
-      const tempId = typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36).substring(7);
+      const tempId = crypto.randomUUID();
       const memberRef = doc(db, "user_profiles", tempId);
       
       const memberData = {
