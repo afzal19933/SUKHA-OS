@@ -1,3 +1,4 @@
+
 "use client";
 
 import { create } from 'zustand';
@@ -8,8 +9,10 @@ interface AuthState {
   user: User | null;
   role: string | null;
   entityId: string | null;
+  permissions: string[] | null;
   _hasHydrated: boolean;
   setUser: (user: User | null, claims?: Record<string, any>) => void;
+  setPermissions: (permissions: string[] | null) => void;
   setHasHydrated: (state: boolean) => void;
 }
 
@@ -19,12 +22,14 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       role: null,
       entityId: null,
+      permissions: null,
       _hasHydrated: false,
       setUser: (user, claims) => set({ 
         user, 
         role: claims?.role || null, 
         entityId: claims?.entityId || null 
       }),
+      setPermissions: (permissions) => set({ permissions }),
       setHasHydrated: (state) => set({ _hasHydrated: state }),
     }),
     {

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { 
@@ -40,11 +40,27 @@ const NAV_ITEMS = [
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user: firebaseUser, isUserLoading } = useUser();
-  const { _hasHydrated, role } = useAuthStore();
+  const { _hasHydrated, role, permissions } = useAuthStore();
   const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const filteredNavItems = useMemo(() => {
+    // Owners always see everything
+    if (role === 'owner') return NAV_ITEMS;
+    
+    // If permissions are set, filter by them
+    if (permissions && permissions.length > 0) {
+      return NAV_ITEMS.filter(item => 
+        item.name === "Dashboard" || // Dashboard is always visible
+        permissions.includes(item.name)
+      );
+    }
+
+    // Default: for new users or if no permissions set, show everything (or could restrict here)
+    return NAV_ITEMS;
+  }, [role, permissions]);
 
   useEffect(() => {
     if (_hasHydrated && !isUserLoading && !firebaseUser && pathname !== "/login") {
@@ -84,7 +100,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.map((item) => {
+          {filteredNavItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
             return (
               <Link
