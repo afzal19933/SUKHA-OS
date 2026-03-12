@@ -21,6 +21,14 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
 import { useAuth, useUser } from "@/firebase";
 import { signOut } from "firebase/auth";
 import Link from "next/link";
@@ -119,18 +127,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-
-        <div className="p-4 border-t space-y-2">
-          <Button 
-            variant="ghost" 
-            className={cn("w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10", !sidebarOpen && "px-2")}
-            onClick={handleLogout}
-            suppressHydrationWarning
-          >
-            <LogOut className="w-5 h-5 shrink-0" />
-            {sidebarOpen && <span className="ml-3">Logout</span>}
-          </Button>
-        </div>
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -146,16 +142,35 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </Button>
             
             <div className="flex items-center gap-3 pl-4 border-l">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-semibold leading-none">{firebaseUser?.displayName || "Admin User"}</p>
-                <p className="text-xs text-muted-foreground capitalize">{role || "Staff"}</p>
-              </div>
-              <Avatar>
-                <AvatarImage src={`https://picsum.photos/seed/${firebaseUser?.uid}/40/40`} />
-                <AvatarFallback className="bg-primary text-white">
-                  <UserIcon className="w-5 h-5" />
-                </AvatarFallback>
-              </Avatar>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className="flex items-center gap-3 cursor-pointer group hover:opacity-80 transition-opacity">
+                    <div className="text-right hidden sm:block">
+                      <p className="text-sm font-semibold leading-none">{firebaseUser?.displayName || "Admin User"}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{role || "Staff"}</p>
+                    </div>
+                    <Avatar className="ring-offset-2 ring-primary transition-all group-hover:ring-2">
+                      <AvatarImage src={`https://picsum.photos/seed/${firebaseUser?.uid}/40/40`} />
+                      <AvatarFallback className="bg-primary text-white">
+                        <UserIcon className="w-5 h-5" />
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => router.push('/settings')}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Logout</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </header>
