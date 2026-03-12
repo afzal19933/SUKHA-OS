@@ -713,6 +713,23 @@
         "updatedAt"
       ]
     },
+    "Expense": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Expense",
+      "type": "object",
+      "description": "Represents a business expense for the hotel property.",
+      "properties": {
+        "id": { "type": "string" },
+        "entityId": { "type": "string" },
+        "description": { "type": "string" },
+        "amount": { "type": "number" },
+        "category": { "type": "string", "enum": ["Utilities", "Maintenance", "Staffing", "Laundry", "Supplies", "Marketing", "Other"] },
+        "date": { "type": "string", "format": "date" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "entityId", "description", "amount", "category", "date", "createdAt", "updatedAt"]
+    },
     "HousekeepingTask": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "HousekeepingTask",
@@ -1243,14 +1260,7 @@
           "entityName": "HotelProperty",
           "schema": {
             "$ref": "#/backend/entities/HotelProperty"
-          },
-          "description": "Top-level collection for each hotel property, serving as the multi-tenancy root. Documents include their own 'id' field, which matches the 'hotelPropertyId' for direct tenant identification.",
-          "params": [
-            {
-              "name": "hotelPropertyId",
-              "description": "Unique identifier for the hotel property."
-            }
-          ]
+          }
         }
       },
       {
@@ -1259,345 +1269,23 @@
           "entityName": "UserProfile",
           "schema": {
             "$ref": "#/backend/entities/UserProfile"
-          },
-          "description": "Stores individual user profiles, with the document ID matching Firebase Auth's UID. Each profile includes 'entityId' and 'role' for multi-tenancy and RBAC, which are mirrored in Firebase Auth Custom Claims for Authorization Independence.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "Unique identifier for the user profile, matching Firebase Auth UID."
-            }
-          ]
+          }
         }
       },
       {
-        "path": "/hotel_properties/{hotelPropertyId}/room_types/{roomTypeId}",
+        "path": "/hotel_properties/{hotelPropertyId}/expenses/{expenseId}",
         "definition": {
-          "entityName": "RoomType",
-          "schema": {
-            "$ref": "#/backend/entities/RoomType"
-          },
-          "description": "Subcollection storing definitions of room types for a specific hotel property. Includes denormalized 'entityId' for Authorization Independence.",
-          "params": [
-            {
-              "name": "hotelPropertyId",
-              "description": "Unique identifier for the hotel property."
-            },
-            {
-              "name": "roomTypeId",
-              "description": "Unique identifier for the room type."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/rooms/{roomId}",
-        "definition": {
-          "entityName": "Room",
-          "schema": {
-            "$ref": "#/backend/entities/Room"
-          },
-          "description": "Subcollection representing individual physical rooms within a hotel property. Includes denormalized 'entityId' for Authorization Independence.",
-          "params": [
-            {
-              "name": "hotelPropertyId",
-              "description": "Unique identifier for the hotel property."
-            },
-            {
-              "name": "roomId",
-              "description": "Unique identifier for the room."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/guests/{guestId}",
-        "definition": {
-          "entityName": "Guest",
-          "schema": {
-            "$ref": "#/backend/entities/Guest"
-          },
-          "description": "Subcollection storing guest profiles for a specific hotel property. Includes denormalized 'entityId' for Authorization Independence.",
-          "params": [
-            {
-              "name": "hotelPropertyId",
-              "description": "Unique identifier for the hotel property."
-            },
-            {
-              "name": "guestId",
-              "description": "Unique identifier for the guest."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/booking_sources/{bookingSourceId}",
-        "definition": {
-          "entityName": "BookingSource",
-          "schema": {
-            "$ref": "#/backend/entities/BookingSource"
-          },
-          "description": "Subcollection listing booking channels for a specific hotel property. Includes denormalized 'entityId' for Authorization Independence.",
-          "params": [
-            {
-              "name": "hotelPropertyId",
-              "description": "Unique identifier for the hotel property."
-            },
-            {
-              "name": "bookingSourceId",
-              "description": "Unique identifier for the booking source."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/reservations/{reservationId}",
-        "definition": {
-          "entityName": "Reservation",
-          "schema": {
-            "$ref": "#/backend/entities/Reservation"
-          },
-          "description": "Subcollection managing reservations for a specific hotel property. Includes denormalized 'entityId' for Authorization Independence.",
-          "params": [
-            {
-              "name": "hotelPropertyId",
-              "description": "Unique identifier for the hotel property."
-            },
-            {
-              "name": "reservationId",
-              "description": "Unique identifier for the reservation."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/stays/{stayId}",
-        "definition": {
-          "entityName": "Stay",
-          "schema": {
-            "$ref": "#/backend/entities/Stay"
-          },
-          "description": "Subcollection tracking active and completed guest stays for a specific hotel property. Includes denormalized 'entityId' for Authorization Independence.",
-          "params": [
-            {
-              "name": "hotelPropertyId",
-              "description": "Unique identifier for the hotel property."
-            },
-            {
-              "name": "stayId",
-              "description": "Unique identifier for the stay."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/gst_settings/{gstSettingId}",
-        "definition": {
-          "entityName": "GstSetting",
-          "schema": {
-            "$ref": "#/backend/entities/GstSetting"
-          },
-          "description": "Subcollection for GST configuration settings, typically one document per hotel property. Includes denormalized 'entityId' for Authorization Independence.",
-          "params": [
-            {
-              "name": "hotelPropertyId",
-              "description": "Unique identifier for the hotel property."
-            },
-            {
-              "name": "gstSettingId",
-              "description": "Unique identifier for the GST setting (e.g., 'default')."
-            }
-          ]
+          "entityName": "Expense",
+          "schema": { "$ref": "#/backend/entities/Expense" }
         }
       },
       {
         "path": "/hotel_properties/{hotelPropertyId}/invoices/{invoiceId}",
         "definition": {
           "entityName": "Invoice",
-          "schema": {
-            "$ref": "#/backend/entities/Invoice"
-          },
-          "description": "Subcollection for financial invoices generated by a specific hotel property. Includes denormalized 'entityId' for Authorization Independence.",
-          "params": [
-            {
-              "name": "hotelPropertyId",
-              "description": "Unique identifier for the hotel property."
-            },
-            {
-              "name": "invoiceId",
-              "description": "Unique identifier for the invoice."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/housekeeping_tasks/{taskId}",
-        "definition": {
-          "entityName": "HousekeepingTask",
-          "schema": {
-            "$ref": "#/backend/entities/HousekeepingTask"
-          },
-          "description": "Subcollection for housekeeping and maintenance tasks for a specific hotel property. Includes denormalized 'entityId' and 'assignedStaffId' for Authorization Independence and efficient staff-specific queries.",
-          "params": [
-            {
-              "name": "hotelPropertyId",
-              "description": "Unique identifier for the hotel property."
-            },
-            {
-              "name": "taskId",
-              "description": "Unique identifier for the housekeeping task."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/user_profiles/{userId}/notifications/{notificationId}",
-        "definition": {
-          "entityName": "Notification",
-          "schema": {
-            "$ref": "#/backend/entities/Notification"
-          },
-          "description": "Subcollection for notifications specific to a user. Includes denormalized 'userId' (matching path parameter) and 'entityId' for Authorization Independence and direct user access.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "Unique identifier for the recipient user."
-            },
-            {
-              "name": "notificationId",
-              "description": "Unique identifier for the notification."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/system_activity_logs/{logId}",
-        "definition": {
-          "entityName": "SystemActivityLog",
-          "schema": {
-            "$ref": "#/backend/entities/SystemActivityLog"
-          },
-          "description": "Subcollection for system audit logs specific to a hotel property. Includes denormalized 'entityId' for Authorization Independence and 'performedBy' for auditing user actions.",
-          "params": [
-            {
-              "name": "hotelPropertyId",
-              "description": "Unique identifier for the hotel property."
-            },
-            {
-              "name": "logId",
-              "description": "Unique identifier for the activity log entry."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/laundry_items/{laundryItemId}",
-        "definition": {
-          "entityName": "LaundryItem",
-          "schema": {
-            "$ref": "#/backend/entities/LaundryItem"
-          },
-          "description": "Subcollection defining laundry services and items offered by a specific hotel property. Includes denormalized 'entityId' for Authorization Independence.",
-          "params": [
-            {
-              "name": "hotelPropertyId",
-              "description": "Unique identifier for the hotel property."
-            },
-            {
-              "name": "laundryItemId",
-              "description": "Unique identifier for the laundry item."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/guest_laundry_orders/{guestLaundryOrderId}",
-        "definition": {
-          "entityName": "GuestLaundryOrder",
-          "schema": {
-            "$ref": "#/backend/entities/GuestLaundryOrder"
-          },
-          "description": "Subcollection recording guest laundry orders for a specific hotel property. Includes denormalized 'entityId', 'guestId', 'roomId', 'guestName', and 'roomNumber' for Authorization Independence and efficient querying.",
-          "params": [
-            {
-              "name": "hotelPropertyId",
-              "description": "Unique identifier for the hotel property."
-            },
-            {
-              "name": "guestLaundryOrderId",
-              "description": "Unique identifier for the guest laundry order."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/guest_laundry_orders/{guestLaundryOrderId}/items/{guestLaundryOrderItemId}",
-        "definition": {
-          "entityName": "GuestLaundryOrderItem",
-          "schema": {
-            "$ref": "#/backend/entities/GuestLaundryOrderItem"
-          },
-          "description": "Subcollection detailing individual items within a guest's laundry order. Includes denormalized 'entityId' and 'guestLaundryOrderId' for Authorization Independence.",
-          "params": [
-            {
-              "name": "hotelPropertyId",
-              "description": "Unique identifier for the hotel property."
-            },
-            {
-              "name": "guestLaundryOrderId",
-              "description": "Unique identifier for the parent guest laundry order."
-            },
-            {
-              "name": "guestLaundryOrderItemId",
-              "description": "Unique identifier for the specific item within the order."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/daily_teams/{dailyTeamId}",
-        "definition": {
-          "entityName": "DailyTeam",
-          "schema": {
-            "$ref": "#/backend/entities/DailyTeam"
-          },
-          "description": "Subcollection for daily staff team assignments, using Firestore TTL for automatic expiration. Includes denormalized 'entityId' for Authorization Independence.",
-          "params": [
-            {
-              "name": "hotelPropertyId",
-              "description": "Unique identifier for the hotel property."
-            },
-            {
-              "name": "dailyTeamId",
-              "description": "Unique identifier for the daily team record (often based on date)."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/daily_teams/{dailyTeamId}/assignments/{dailyTeamAssignmentId}",
-        "definition": {
-          "entityName": "DailyTeamAssignment",
-          "schema": {
-            "$ref": "#/backend/entities/DailyTeamAssignment"
-          },
-          "description": "Subcollection detailing specific team assignments (name, color, members) for a given daily team. Includes denormalized 'entityId' and 'dailyTeamId' for Authorization Independence, and 'memberIds' array for direct staff access control.",
-          "params": [
-            {
-              "name": "hotelPropertyId",
-              "description": "Unique identifier for the hotel property."
-            },
-            {
-              "name": "dailyTeamId",
-              "description": "Unique identifier for the parent daily team record."
-            },
-            {
-              "name": "dailyTeamAssignmentId",
-              "description": "Unique identifier for the specific team assignment."
-            }
-          ]
+          "schema": { "$ref": "#/backend/entities/Invoice" }
         }
       }
-    ],
-    "reasoning": "The recommended Firestore data structure for SUKHA OS is designed around a multi-tenant hierarchy, where 'HotelProperty' serves as the top-level entity, ensuring strong data isolation and simplified security rules. All core operational data (e.g., Rooms, Reservations, Stays, Housekeeping Tasks) are nested under the `/hotel_properties/{hotelPropertyId}` path. User-specific data, such as notifications, are primarily nested under `/user_profiles/{userId}` to enforce direct user ownership.\n\nAuthorization Independence is achieved primarily through the denormalization of authorization context into every document and via Firebase Auth Custom Claims, as explicitly requested by the user. Every document in a multi-tenant collection (virtually all collections except potentially global configurations, which are not present here) includes an `entityId` field that corresponds to its `HotelProperty` parent. When a user authenticates, a Cloud Function populates their custom claims with `request.auth.token.entityId` and `request.auth.token.role` based on their `UserProfile` document. Security rules will then directly compare `request.auth.token.entityId` with `resource.data.entityId` for all reads and writes. This eliminates the need for expensive and non-atomic `get()` operations in security rules to determine a user's tenancy context or a document's parentage.\n\nFor role-based access control (RBAC), the `UserProfile` document stores the user's `role`. This role is also included in custom claims, allowing security rules to check `request.auth.token.role` without an additional `get()` call. For finer-grained access, such as tasks assigned to specific staff or items within a guest's laundry order, relevant authorization fields like `assignedStaffId` (in `HousekeepingTask`) or `userId` (in `Notification`) are denormalized into the respective documents. This enables rules like `request.auth.uid == resource.data.assignedStaffId` for direct authorization.\n\nQuery as Authorization Predicates (QAPs) are robustly supported by this structure. Since `entityId` is present in every document and is verifiable via custom claims, any query against a top-level collection like `/hotel_properties/{hotelPropertyId}/rooms` will implicitly be secured by the `entityId` check. Similarly, `list` operations for user-specific data (e.g., `/user_profiles/{userId}/notifications`) are secure by design, as the path itself contains the `userId`, making `request.auth.uid == userId` an efficient predicate. For collections where specific staff need access to their assigned items (e.g., `housekeeping_tasks` queried with `where('assignedStaffId', '==', request.auth.uid)`), the denormalized `assignedStaffId` field enables the query to be directly authorized by rules without filtering after retrieval. Structural segregation is maintained by ensuring each collection holds documents with homogeneous security postures; for instance, all rooms under a specific hotel property are secured by the same `entityId` rule."
+    ]
   }
 }

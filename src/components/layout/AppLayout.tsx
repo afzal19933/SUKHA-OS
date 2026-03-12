@@ -9,7 +9,7 @@ import {
   CalendarDays, 
   BedDouble, 
   Wrench, 
-  FileText, 
+  Calculator, 
   Bell, 
   LogOut,
   Menu,
@@ -50,7 +50,7 @@ const NAV_ITEMS = [
   { name: "Housekeeping", href: "/housekeeping", icon: BedDouble },
   { name: "Maintenance", href: "/maintenance", icon: Wrench },
   { name: "Laundry", href: "/laundry", icon: WashingMachine },
-  { name: "Invoices", href: "/invoices", icon: FileText },
+  { name: "Accounting", href: "/accounting", icon: Calculator },
   { name: "Team", href: "/team", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
@@ -64,7 +64,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const filteredNavItems = useMemo(() => {
-    if (role === 'owner') return NAV_ITEMS;
+    if (role === 'owner' || role === 'admin') return NAV_ITEMS;
     if (permissions && permissions.length > 0) {
       return NAV_ITEMS.filter(item => 
         item.name === "Dashboard" || 
@@ -95,8 +95,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     await signOut(auth);
     router.push("/login");
   };
-
-  const currentProperty = availableProperties.find(p => p.id === entityId);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
