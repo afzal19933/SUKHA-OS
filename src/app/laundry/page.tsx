@@ -54,6 +54,7 @@ export default function LaundryPage() {
   const { toast } = useToast();
 
   const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
+  const canManageOrders = ["owner", "admin", "manager", "supervisor", "staff"].includes(currentUserRole || "");
 
   const [isItemOpen, setIsItemOpen] = useState(false);
   const [newItem, setNewItem] = useState({ name: "", type: "guest", hotelRate: "", vendorRate: "" });
@@ -71,7 +72,7 @@ export default function LaundryPage() {
   const { data: items, isLoading: itemsLoading } = useCollection(itemsQuery);
   const { data: orders, isLoading: ordersLoading } = useCollection(ordersQuery);
 
-  const handleAddItem = (e: React.FormEvent) => {
+  const handleAddServiceItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!entityId || !isAdmin) return;
 
@@ -91,8 +92,8 @@ export default function LaundryPage() {
     setNewItem({ name: "", type: "guest", hotelRate: "", vendorRate: "" });
   };
 
-  const updateStatus = (orderId: string, status: string) => {
-    if (!entityId) return;
+  const updateOrderStatus = (orderId: string, status: string) => {
+    if (!entityId || !canManageOrders) return;
     updateDocumentNonBlocking(doc(db, "hotel_properties", entityId, "guest_laundry_orders", orderId), {
       status,
       updatedAt: new Date().toISOString()
@@ -125,7 +126,9 @@ export default function LaundryPage() {
                 <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
                 <Input placeholder="Search guest name or room..." className="pl-10" />
               </div>
-              <Button className="shadow-lg"><Plus className="w-4 h-4 mr-2" /> New Order</Button>
+              {canManageOrders && (
+                <Button className="shadow-lg"><Plus className="w-4 h-4 mr-2" /> New Order</Button>
+              )}
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
@@ -164,9 +167,11 @@ export default function LaundryPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="sm" onClick={() => updateStatus(order.id, "returned")}>
-                            {order.status === "sent" ? "Mark Returned" : "Details"}
-                          </Button>
+                          {canManageOrders && (
+                            <Button variant="ghost" size="sm" onClick={() => updateOrderStatus(order.id, "returned")}>
+                              {order.status === "sent" ? "Mark Returned" : "Details"}
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
@@ -191,7 +196,7 @@ export default function LaundryPage() {
                       <DialogTitle>Add Service Item</DialogTitle>
                       <DialogDescription>Define a new item for laundry services.</DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={handleAddItem} className="space-y-4 pt-4">
+                    <form onSubmit={handleAddServiceItem} className="space-y-4 pt-4">
                       <div className="space-y-2">
                         <Label>Item Name</Label>
                         <Input 

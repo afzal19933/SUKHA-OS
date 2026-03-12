@@ -46,6 +46,7 @@ export default function MaintenancePage() {
   const { toast } = useToast();
 
   const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
+  const canUpdateStatus = ["owner", "admin", "manager", "supervisor", "staff"].includes(currentUserRole || "");
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newTask, setNewTask] = useState({ roomNumber: "", issue: "", priority: "medium" });
@@ -84,7 +85,7 @@ export default function MaintenancePage() {
   };
 
   const updateStatus = (taskId: string, status: string) => {
-    if (!entityId) return;
+    if (!entityId || !canUpdateStatus) return;
     const taskRef = doc(db, "hotel_properties", entityId, "housekeeping_tasks", taskId);
     updateDocumentNonBlocking(taskRef, { status, updatedAt: new Date().toISOString() });
     toast({ title: "Status updated" });
@@ -174,17 +175,19 @@ export default function MaintenancePage() {
                     </div>
                     <CardTitle className="text-xl">Room {task.roomId}</CardTitle>
                   </div>
-                  <Select onValueChange={(val) => updateStatus(task.id, val)} value={task.status}>
-                    <SelectTrigger className="w-8 h-8 p-0 border-none shadow-none focus:ring-0">
-                      <MoreVertical className="w-4 h-4" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Mark Pending</SelectItem>
-                      <SelectItem value="in_progress">Start Work</SelectItem>
-                      <SelectItem value="completed">Complete Task</SelectItem>
-                      <SelectItem value="cancelled">Cancel</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {canUpdateStatus && (
+                    <Select onValueChange={(val) => updateStatus(task.id, val)} value={task.status}>
+                      <SelectTrigger className="w-8 h-8 p-0 border-none shadow-none focus:ring-0">
+                        <MoreVertical className="w-4 h-4" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Mark Pending</SelectItem>
+                        <SelectItem value="in_progress">Start Work</SelectItem>
+                        <SelectItem value="completed">Complete Task</SelectItem>
+                        <SelectItem value="cancelled">Cancel</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
                 </CardHeader>
                 <CardContent className="p-6 pt-2 space-y-4">
                   <div className="p-3 bg-secondary rounded-xl flex items-start gap-3">
