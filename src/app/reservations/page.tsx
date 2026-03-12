@@ -69,12 +69,19 @@ export default function ReservationsPage() {
   });
   const [editResForm, setEditResForm] = useState<any>(null);
 
+  // Queries
   const reservationsQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return collection(db, "hotel_properties", entityId, "reservations");
   }, [db, entityId]);
 
+  const roomsQuery = useMemoFirebase(() => {
+    if (!entityId) return null;
+    return collection(db, "hotel_properties", entityId, "rooms");
+  }, [db, entityId]);
+
   const { data: reservations, isLoading } = useCollection(reservationsQuery);
+  const { data: rooms } = useCollection(roomsQuery);
 
   const handleAddReservation = (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,8 +154,29 @@ export default function ReservationsPage() {
       updateData.actualCheckInTime = new Date().toISOString();
     }
     
+    // Update the Reservation Document
     updateDocumentNonBlocking(resRef, updateData);
     
+    // SYNC WITH ROOM STATUS
+    const reservation = reservations?.find(r => r.id === resId);
+    if (reservation && rooms) {
+      const room = rooms.find(r => r.roomNumber === reservation.roomNumber);
+      if (room) {
+        const roomRef = doc(db, "hotel_properties", entityId, "rooms", room.id);
+        let newRoomStatus = room.status;
+        
+        if (status === 'checked_in') newRoomStatus = 'occupied';
+        if (status === 'checked_out') newRoomStatus = 'dirty';
+        
+        if (newRoomStatus !== room.status) {
+          updateDocumentNonBlocking(roomRef, { 
+            status: newRoomStatus, 
+            updatedAt: new Date().toISOString() 
+          });
+        }
+      }
+    }
+
     toast({ 
       title: "Status Updated", 
       description: `Reservation is now ${status.replace('_', ' ')}.` 
