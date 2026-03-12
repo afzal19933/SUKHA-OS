@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -128,7 +129,7 @@ export default function ReservationsPage() {
       guestName: newRes.guestName,
       roomNumber: newRes.roomNumber,
       checkInDate: newRes.checkIn,
-      checkOutDate: newRes.checkOut,
+      checkOutDate: newRes.checkOut || null,
       status: "confirmed",
       numberOfGuests: parseInt(newRes.guests),
       specialRequests: newRes.requests,
@@ -157,7 +158,7 @@ export default function ReservationsPage() {
       guestName: editResForm.guestName,
       roomNumber: editResForm.roomNumber,
       checkInDate: editResForm.checkInDate,
-      checkOutDate: editResForm.checkOutDate,
+      checkOutDate: editResForm.checkOutDate || null,
       numberOfGuests: parseInt(editResForm.numberOfGuests),
       specialRequests: editResForm.specialRequests,
       bookingSource: editResForm.bookingSource,
@@ -323,12 +324,11 @@ export default function ReservationsPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Check Out</Label>
+                      <Label>Check Out (Optional)</Label>
                       <Input 
                         type="date" 
                         value={newRes.checkOut}
                         onChange={(e) => setNewRes({...newRes, checkOut: e.target.value})}
-                        required 
                       />
                     </div>
                   </div>
@@ -392,7 +392,7 @@ export default function ReservationsPage() {
                       {formatAppDate(res.checkInDate)}
                     </TableCell>
                     <TableCell className="text-center whitespace-nowrap text-xs font-medium">
-                      {formatAppDate(res.checkOutDate)}
+                      {res.checkOutDate ? formatAppDate(res.checkOutDate) : "N/A"}
                     </TableCell>
                     <TableCell className="text-center whitespace-nowrap">
                       <Badge className={cn(
@@ -531,7 +531,7 @@ export default function ReservationsPage() {
                     </div>
                     <div className="text-right flex-1">
                       <p className="text-xs font-semibold">Check-Out</p>
-                      <p className="text-sm font-medium">{formatAppDate(selectedRes.checkOutDate)}</p>
+                      <p className="text-sm font-medium">{selectedRes.checkOutDate ? formatAppDate(selectedRes.checkOutDate) : "TBD"}</p>
                     </div>
                   </div>
                   {selectedRes.actualCheckInTime && (
@@ -667,12 +667,11 @@ export default function ReservationsPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Check Out</Label>
+                    <Label>Check Out (Optional)</Label>
                     <Input 
                       type="date" 
-                      value={editResForm.checkOutDate?.split('T')[0]}
+                      value={editResForm.checkOutDate?.split('T')[0] || ""}
                       onChange={(e) => setEditResForm({...editResForm, checkOutDate: e.target.value})}
-                      required 
                     />
                   </div>
                 </div>

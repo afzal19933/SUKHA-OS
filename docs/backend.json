@@ -403,7 +403,7 @@
         },
         "checkOutDate": {
           "type": "string",
-          "description": "The scheduled date and time for check-out.",
+          "description": "The scheduled date and time for check-out. Optional.",
           "format": "date-time"
         },
         "status": {
@@ -439,7 +439,6 @@
         "guestId",
         "roomTypeId",
         "checkInDate",
-        "checkOutDate",
         "status",
         "numberOfGuests",
         "bookingSourceId",
