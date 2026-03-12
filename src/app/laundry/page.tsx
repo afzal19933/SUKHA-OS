@@ -49,9 +49,11 @@ import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/no
 import { useToast } from "@/hooks/use-toast";
 
 export default function LaundryPage() {
-  const { entityId } = useAuthStore();
+  const { entityId, role: currentUserRole } = useAuthStore();
   const db = useFirestore();
   const { toast } = useToast();
+
+  const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
 
   const [isItemOpen, setIsItemOpen] = useState(false);
   const [newItem, setNewItem] = useState({ name: "", type: "guest", hotelRate: "", vendorRate: "" });
@@ -71,7 +73,7 @@ export default function LaundryPage() {
 
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId) return;
+    if (!entityId || !isAdmin) return;
 
     addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "laundry_items"), {
       entityId,
@@ -179,49 +181,51 @@ export default function LaundryPage() {
           <TabsContent value="price-list" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">Service Price List</h2>
-              <Dialog open={isItemOpen} onOpenChange={setIsItemOpen}>
-                <DialogTrigger asChild>
-                  <Button className="shadow-lg"><Plus className="w-4 h-4 mr-2" /> Add Service Item</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add Service Item</DialogTitle>
-                    <DialogDescription>Define a new item for laundry services.</DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleAddItem} className="space-y-4 pt-4">
-                    <div className="space-y-2">
-                      <Label>Item Name</Label>
-                      <Input 
-                        placeholder="Shirt, Bed Sheet, etc." 
-                        value={newItem.name} 
-                        onChange={e => setNewItem({...newItem, name: e.target.value})}
-                        required 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Type</Label>
-                      <Select value={newItem.type} onValueChange={v => setNewItem({...newItem, type: v})}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="guest">Guest Service</SelectItem>
-                          <SelectItem value="linen">Hotel Linen</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
+              {isAdmin && (
+                <Dialog open={isItemOpen} onOpenChange={setIsItemOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="shadow-lg"><Plus className="w-4 h-4 mr-2" /> Add Service Item</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add Service Item</DialogTitle>
+                      <DialogDescription>Define a new item for laundry services.</DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleAddItem} className="space-y-4 pt-4">
                       <div className="space-y-2">
-                        <Label>Guest Rate</Label>
-                        <Input type="number" placeholder="5.00" value={newItem.hotelRate} onChange={e => setNewItem({...newItem, hotelRate: e.target.value})} required />
+                        <Label>Item Name</Label>
+                        <Input 
+                          placeholder="Shirt, Bed Sheet, etc." 
+                          value={newItem.name} 
+                          onChange={e => setNewItem({...newItem, name: e.target.value})}
+                          required 
+                        />
                       </div>
                       <div className="space-y-2">
-                        <Label>Vendor Cost</Label>
-                        <Input type="number" placeholder="2.00" value={newItem.vendorRate} onChange={e => setNewItem({...newItem, vendorRate: e.target.value})} required />
+                        <Label>Type</Label>
+                        <Select value={newItem.type} onValueChange={v => setNewItem({...newItem, type: v})}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="guest">Guest Service</SelectItem>
+                            <SelectItem value="linen">Hotel Linen</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                    </div>
-                    <Button type="submit" className="w-full">Save Service Item</Button>
-                  </form>
-                </DialogContent>
-              </Dialog>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Guest Rate</Label>
+                          <Input type="number" placeholder="5.00" value={newItem.hotelRate} onChange={e => setNewItem({...newItem, hotelRate: e.target.value})} required />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Vendor Cost</Label>
+                          <Input type="number" placeholder="2.00" value={newItem.vendorRate} onChange={e => setNewItem({...newItem, vendorRate: e.target.value})} required />
+                        </div>
+                      </div>
+                      <Button type="submit" className="w-full">Save Service Item</Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

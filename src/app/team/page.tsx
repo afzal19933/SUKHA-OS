@@ -85,6 +85,8 @@ export default function TeamPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResyncing, setIsResyncing] = useState(false);
 
+  const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
+
   const teamQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return query(collection(db, "user_profiles"), where("entityId", "==", entityId));
@@ -148,8 +150,8 @@ export default function TeamPage() {
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId) {
-      toast({ variant: "destructive", title: "Configuration Error", description: "Property context not loaded. Try Resync." });
+    if (!entityId || !isAdmin) {
+      toast({ variant: "destructive", title: "Access Denied", description: "Only admins can add members." });
       return;
     }
     setIsSubmitting(true);
@@ -183,7 +185,7 @@ export default function TeamPage() {
 
   const handleUpdateMember = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId || !editingMember) return;
+    if (!entityId || !editingMember || !isAdmin) return;
     const memberRef = doc(db, "user_profiles", editingMember.id);
     updateDocumentNonBlocking(memberRef, {
       name: editingMember.name,
@@ -197,6 +199,7 @@ export default function TeamPage() {
   };
 
   const togglePermission = (userId: string, moduleName: string) => {
+    if (!isAdmin) return;
     const member = teamMembers?.find(m => m.id === userId);
     if (!member || member.role === 'owner') return;
 
@@ -218,6 +221,7 @@ export default function TeamPage() {
   };
 
   const handleDeleteMember = (member: any) => {
+    if (!isAdmin) return;
     if (member.role === 'owner') {
       toast({ variant: "destructive", title: "Action denied", description: "Owner account cannot be deleted." });
       return;
@@ -225,10 +229,6 @@ export default function TeamPage() {
     deleteDocumentNonBlocking(doc(db, "user_profiles", member.id));
     toast({ title: "Member deleted" });
   };
-
-  const isAdmin = ["owner", "admin", "manager", "supervisor"].includes(currentUserRole || "") || 
-                  firebaseUser?.displayName === "Administrator" ||
-                  !currentUserRole;
 
   const filteredMembers = teamMembers?.filter(m => 
     m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 

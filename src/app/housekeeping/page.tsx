@@ -68,13 +68,14 @@ export default function HousekeepingPage() {
   const [newRoom, setNewRoom] = useState({ roomNumber: "", floor: "1", type: "Standard" });
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
+  const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
+  const canAssignTasks = ["owner", "admin", "manager", "supervisor", "staff", "frontdesk"].includes(currentUserRole || "");
+
   const roomsQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return collection(db, "hotel_properties", entityId, "rooms");
   }, [db, entityId]);
 
-  // Supervisors, Managers, and Owners assign tasks, but they cannot BE assigned a cleaning task.
-  // We only pull staff-level roles for the cleaning selection.
   const teamQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return query(
@@ -113,7 +114,7 @@ export default function HousekeepingPage() {
 
   const handleAddRoom = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId) return;
+    if (!entityId || !isAdmin) return;
 
     const roomsRef = collection(db, "hotel_properties", entityId, "rooms");
     const roomData = {
@@ -134,7 +135,7 @@ export default function HousekeepingPage() {
 
   const handleAssignTask = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId || !selectedRoom) return;
+    if (!entityId || !selectedRoom || !canAssignTasks) return;
 
     const staff = staffMembers?.find(s => s.id === assignment.staffId);
     const newStatus = selectedRoom.status === 'occupied_dirty' ? 'occupied_cleaning' : 'cleaning';
@@ -167,7 +168,7 @@ export default function HousekeepingPage() {
   };
 
   const updateStatus = (room: any, status: string) => {
-    if (!entityId) return;
+    if (!entityId || !canAssignTasks) return;
     
     if (status === "cleaning" || status === "occupied_cleaning") {
       setSelectedRoom(room);
@@ -188,8 +189,6 @@ export default function HousekeepingPage() {
     
     toast({ title: "Status updated" });
   };
-
-  const isSupervisorOrAdmin = ["owner", "admin", "manager", "supervisor"].includes(currentUserRole || "");
 
   const StatCard = ({ id, label, value, icon: Icon, colorClass, active }: any) => (
     <Card 
@@ -222,7 +221,7 @@ export default function HousekeepingPage() {
                 <FilterX className="w-3.5 h-3.5 mr-1" /> Clear Filter
               </Button>
             )}
-            {isSupervisorOrAdmin && (
+            {isAdmin && (
               <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="h-8 text-[10px]">
@@ -302,7 +301,7 @@ export default function HousekeepingPage() {
                       <span className="text-base font-bold tracking-tight">Room {room.roomNumber}</span>
                       <span className="text-[8px] text-muted-foreground uppercase font-bold">Floor {room.floor}</span>
                     </div>
-                    {isSupervisorOrAdmin && (
+                    {canAssignTasks && (
                       <Select onValueChange={(val) => updateStatus(room, val)} value={room.status}>
                         <SelectTrigger className="w-6 h-6 p-0 border-none shadow-none focus:ring-0">
                           <MoreVertical className="w-3 h-3" />

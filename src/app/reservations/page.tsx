@@ -33,9 +33,12 @@ import { useToast } from "@/hooks/use-toast";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 export default function ReservationsPage() {
-  const { entityId } = useAuthStore();
+  const { entityId, role: currentUserRole } = useAuthStore();
   const db = useFirestore();
   const { toast } = useToast();
+
+  const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
+
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newRes, setNewRes] = useState({ guestName: "", roomNumber: "", checkIn: "", checkOut: "" });
 
@@ -48,7 +51,7 @@ export default function ReservationsPage() {
 
   const handleAddReservation = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId) return;
+    if (!entityId || !isAdmin) return;
 
     const resRef = collection(db, "hotel_properties", entityId, "reservations");
     const resData = {
@@ -84,65 +87,67 @@ export default function ReservationsPage() {
             <p className="text-muted-foreground mt-1">Manage guest stays and bookings</p>
           </div>
 
-          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-            <DialogTrigger asChild>
-              <Button className="h-11 px-6 font-semibold shadow-lg">
-                <Plus className="w-5 h-5 mr-2" />
-                New Reservation
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Add Reservation</DialogTitle>
-                <DialogDescription>Quickly add a new guest booking.</DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleAddReservation} className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="guestName">Guest Name</Label>
-                  <Input 
-                    id="guestName" 
-                    placeholder="John Doe" 
-                    value={newRes.guestName}
-                    onChange={(e) => setNewRes({...newRes, guestName: e.target.value})}
-                    required 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="roomNumber">Room #</Label>
-                  <Input 
-                    id="roomNumber" 
-                    placeholder="101" 
-                    value={newRes.roomNumber}
-                    onChange={(e) => setNewRes({...newRes, roomNumber: e.target.value})}
-                    required 
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+          {isAdmin && (
+            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+              <DialogTrigger asChild>
+                <Button className="h-11 px-6 font-semibold shadow-lg">
+                  <Plus className="w-5 h-5 mr-2" />
+                  New Reservation
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Add Reservation</DialogTitle>
+                  <DialogDescription>Quickly add a new guest booking.</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleAddReservation} className="space-y-4 pt-4">
                   <div className="space-y-2">
-                    <Label>Check In</Label>
+                    <Label htmlFor="guestName">Guest Name</Label>
                     <Input 
-                      type="date" 
-                      value={newRes.checkIn}
-                      onChange={(e) => setNewRes({...newRes, checkIn: e.target.value})}
+                      id="guestName" 
+                      placeholder="John Doe" 
+                      value={newRes.guestName}
+                      onChange={(e) => setNewRes({...newRes, guestName: e.target.value})}
                       required 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Check Out</Label>
+                    <Label htmlFor="roomNumber">Room #</Label>
                     <Input 
-                      type="date" 
-                      value={newRes.checkOut}
-                      onChange={(e) => setNewRes({...newRes, checkOut: e.target.value})}
+                      id="roomNumber" 
+                      placeholder="101" 
+                      value={newRes.roomNumber}
+                      onChange={(e) => setNewRes({...newRes, roomNumber: e.target.value})}
                       required 
                     />
                   </div>
-                </div>
-                <DialogFooter className="pt-4">
-                  <Button type="submit" className="w-full">Confirm Booking</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Check In</Label>
+                      <Input 
+                        type="date" 
+                        value={newRes.checkIn}
+                        onChange={(e) => setNewRes({...newRes, checkIn: e.target.value})}
+                        required 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Check Out</Label>
+                      <Input 
+                        type="date" 
+                        value={newRes.checkOut}
+                        onChange={(e) => setNewRes({...newRes, checkOut: e.target.value})}
+                        required 
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter className="pt-4">
+                    <Button type="submit" className="w-full">Confirm Booking</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">

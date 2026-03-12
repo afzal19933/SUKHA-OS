@@ -41,9 +41,12 @@ import { useToast } from "@/hooks/use-toast";
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 export default function MaintenancePage() {
-  const { entityId } = useAuthStore();
+  const { entityId, role: currentUserRole } = useAuthStore();
   const db = useFirestore();
   const { toast } = useToast();
+
+  const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
+
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newTask, setNewTask] = useState({ roomNumber: "", issue: "", priority: "medium" });
 
@@ -59,7 +62,7 @@ export default function MaintenancePage() {
 
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId) return;
+    if (!entityId || !isAdmin) return;
 
     const taskRef = collection(db, "hotel_properties", entityId, "housekeeping_tasks");
     const taskData = {
@@ -96,54 +99,56 @@ export default function MaintenancePage() {
             <p className="text-muted-foreground mt-1">Track and manage property repairs</p>
           </div>
           
-          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-            <DialogTrigger asChild>
-              <Button className="h-11 shadow-lg">
-                <Plus className="w-5 h-5 mr-2" />
-                New Work Order
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>New Work Order</DialogTitle>
-                <DialogDescription>Log a new maintenance request.</DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleAddTask} className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label>Room Number</Label>
-                  <Input 
-                    placeholder="101" 
-                    value={newTask.roomNumber}
-                    onChange={(e) => setNewTask({...newTask, roomNumber: e.target.value})}
-                    required 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Issue Description</Label>
-                  <Input 
-                    placeholder="e.g. A/C not cooling" 
-                    value={newTask.issue}
-                    onChange={(e) => setNewTask({...newTask, issue: e.target.value})}
-                    required 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Priority Level</Label>
-                  <Select value={newTask.priority} onValueChange={(val) => setNewTask({...newTask, priority: val})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="high">High (Urgent)</SelectItem>
-                      <SelectItem value="medium">Medium (Today)</SelectItem>
-                      <SelectItem value="low">Low (Routine)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button type="submit" className="w-full">Log Request</Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+          {isAdmin && (
+            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+              <DialogTrigger asChild>
+                <Button className="h-11 shadow-lg">
+                  <Plus className="w-5 h-5 mr-2" />
+                  New Work Order
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>New Work Order</DialogTitle>
+                  <DialogDescription>Log a new maintenance request.</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleAddTask} className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Label>Room Number</Label>
+                    <Input 
+                      placeholder="101" 
+                      value={newTask.roomNumber}
+                      onChange={(e) => setNewTask({...newTask, roomNumber: e.target.value})}
+                      required 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Issue Description</Label>
+                    <Input 
+                      placeholder="e.g. A/C not cooling" 
+                      value={newTask.issue}
+                      onChange={(e) => setNewTask({...newTask, issue: e.target.value})}
+                      required 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Priority Level</Label>
+                    <Select value={newTask.priority} onValueChange={(val) => setNewTask({...newTask, priority: val})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="high">High (Urgent)</SelectItem>
+                        <SelectItem value="medium">Medium (Today)</SelectItem>
+                        <SelectItem value="low">Low (Routine)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button type="submit" className="w-full">Log Request</Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         {isLoading ? (

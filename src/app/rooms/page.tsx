@@ -38,9 +38,11 @@ import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlo
 import { useToast } from "@/hooks/use-toast";
 
 export default function RoomsPage() {
-  const { entityId } = useAuthStore();
+  const { entityId, role: currentUserRole } = useAuthStore();
   const db = useFirestore();
   const { toast } = useToast();
+
+  const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
 
   const [isTypeOpen, setIsTypeOpen] = useState(false);
   const [isRoomOpen, setIsRoomOpen] = useState(false);
@@ -65,7 +67,7 @@ export default function RoomsPage() {
 
   const handleAddType = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId) return;
+    if (!entityId || !isAdmin) return;
 
     const colRef = collection(db, "hotel_properties", entityId, "room_types");
     addDocumentNonBlocking(colRef, {
@@ -85,7 +87,7 @@ export default function RoomsPage() {
 
   const handleAddRoom = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId) return;
+    if (!entityId || !isAdmin) return;
 
     const colRef = collection(db, "hotel_properties", entityId, "rooms");
     addDocumentNonBlocking(colRef, {
@@ -104,7 +106,7 @@ export default function RoomsPage() {
   };
 
   const deleteRoom = (id: string) => {
-    if (!entityId) return;
+    if (!entityId || !isAdmin) return;
     deleteDocumentNonBlocking(doc(db, "hotel_properties", entityId, "rooms", id));
     toast({ title: "Room Deleted" });
   };
@@ -128,51 +130,53 @@ export default function RoomsPage() {
           <TabsContent value="inventory" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">Rooms List</h2>
-              <Dialog open={isRoomOpen} onOpenChange={setIsRoomOpen}>
-                <DialogTrigger asChild>
-                  <Button className="shadow-lg"><Plus className="w-4 h-4 mr-2" /> Add Room</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add Physical Room</DialogTitle>
-                    <DialogDescription>Assign a room number to a category.</DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleAddRoom} className="space-y-4 pt-4">
-                    <div className="space-y-2">
-                      <Label>Room Number</Label>
-                      <Input 
-                        placeholder="101" 
-                        value={newRoom.roomNumber} 
-                        onChange={e => setNewRoom({...newRoom, roomNumber: e.target.value})}
-                        required 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Floor</Label>
-                      <Input 
-                        type="number" 
-                        value={newRoom.floor} 
-                        onChange={e => setNewRoom({...newRoom, floor: e.target.value})}
-                        required 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Category</Label>
-                      <Select value={newRoom.typeId} onValueChange={v => setNewRoom({...newRoom, typeId: v})} required>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {roomTypes?.map(t => (
-                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button type="submit" className="w-full">Create Room</Button>
-                  </form>
-                </DialogContent>
-              </Dialog>
+              {isAdmin && (
+                <Dialog open={isRoomOpen} onOpenChange={setIsRoomOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="shadow-lg"><Plus className="w-4 h-4 mr-2" /> Add Room</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add Physical Room</DialogTitle>
+                      <DialogDescription>Assign a room number to a category.</DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleAddRoom} className="space-y-4 pt-4">
+                      <div className="space-y-2">
+                        <Label>Room Number</Label>
+                        <Input 
+                          placeholder="101" 
+                          value={newRoom.roomNumber} 
+                          onChange={e => setNewRoom({...newRoom, roomNumber: e.target.value})}
+                          required 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Floor</Label>
+                        <Input 
+                          type="number" 
+                          value={newRoom.floor} 
+                          onChange={e => setNewRoom({...newRoom, floor: e.target.value})}
+                          required 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Category</Label>
+                        <Select value={newRoom.typeId} onValueChange={v => setNewRoom({...newRoom, typeId: v})} required>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roomTypes?.map(t => (
+                              <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button type="submit" className="w-full">Create Room</Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
 
             {roomsLoading ? (
@@ -186,9 +190,11 @@ export default function RoomsPage() {
                         <DoorOpen className="w-4 h-4 text-primary" />
                         <span className="font-bold text-lg">Room {room.roomNumber}</span>
                       </div>
-                      <Button variant="ghost" size="icon" onClick={() => deleteRoom(room.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {isAdmin && (
+                        <Button variant="ghost" size="icon" onClick={() => deleteRoom(room.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
                       <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Floor {room.floor}</p>
@@ -205,48 +211,50 @@ export default function RoomsPage() {
           <TabsContent value="categories" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">Categories & Pricing</h2>
-              <Dialog open={isTypeOpen} onOpenChange={setIsTypeOpen}>
-                <DialogTrigger asChild>
-                  <Button className="shadow-lg"><Plus className="w-4 h-4 mr-2" /> New Category</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create Room Type</DialogTitle>
-                    <DialogDescription>Define a new category and its base rate.</DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleAddType} className="space-y-4 pt-4">
-                    <div className="space-y-2">
-                      <Label>Category Name</Label>
-                      <Input 
-                        placeholder="Deluxe King" 
-                        value={newType.name} 
-                        onChange={e => setNewType({...newType, name: e.target.value})}
-                        required 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Base Rate (Per Night)</Label>
-                      <Input 
-                        type="number" 
-                        placeholder="1500" 
-                        value={newType.rate} 
-                        onChange={e => setNewType({...newType, rate: e.target.value})}
-                        required 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Max Occupancy</Label>
-                      <Input 
-                        type="number" 
-                        value={newType.occupancy} 
-                        onChange={e => setNewType({...newType, occupancy: e.target.value})}
-                        required 
-                      />
-                    </div>
-                    <Button type="submit" className="w-full">Save Category</Button>
-                  </form>
-                </DialogContent>
-              </Dialog>
+              {isAdmin && (
+                <Dialog open={isTypeOpen} onOpenChange={setIsTypeOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="shadow-lg"><Plus className="w-4 h-4 mr-2" /> New Category</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Create Room Type</DialogTitle>
+                      <DialogDescription>Define a new category and its base rate.</DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleAddType} className="space-y-4 pt-4">
+                      <div className="space-y-2">
+                        <Label>Category Name</Label>
+                        <Input 
+                          placeholder="Deluxe King" 
+                          value={newType.name} 
+                          onChange={e => setNewType({...newType, name: e.target.value})}
+                          required 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Base Rate (Per Night)</Label>
+                        <Input 
+                          type="number" 
+                          placeholder="1500" 
+                          value={newType.rate} 
+                          onChange={e => setNewType({...newType, rate: e.target.value})}
+                          required 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Max Occupancy</Label>
+                        <Input 
+                          type="number" 
+                          value={newType.occupancy} 
+                          onChange={e => setNewType({...newType, occupancy: e.target.value})}
+                          required 
+                        />
+                      </div>
+                      <Button type="submit" className="w-full">Save Category</Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

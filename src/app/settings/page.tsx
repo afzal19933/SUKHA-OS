@@ -15,9 +15,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, Building, Percent } from "lucide-react";
 
 export default function SettingsPage() {
-  const { entityId } = useAuthStore();
+  const { entityId, role: currentUserRole } = useAuthStore();
   const db = useFirestore();
   const { toast } = useToast();
+
+  const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
 
   const propertyRef = useMemoFirebase(() => {
     if (!entityId) return null;
@@ -57,14 +59,14 @@ export default function SettingsPage() {
 
   const handleUpdateProperty = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!propertyRef) return;
+    if (!propertyRef || !isAdmin) return;
     await updateDoc(propertyRef, { ...propForm, updatedAt: new Date().toISOString() });
     toast({ title: "Property updated successfully" });
   };
 
   const handleUpdateGst = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!gstRef) return;
+    if (!gstRef || !isAdmin) return;
     await updateDoc(gstRef, {
       ...gstForm,
       gstRate: parseFloat(gstForm.gstRate),
@@ -107,24 +109,26 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Business Name</Label>
-                      <Input value={propForm.name} onChange={e => setPropForm({...propForm, name: e.target.value})} />
+                      <Input value={propForm.name} onChange={e => setPropForm({...propForm, name: e.target.value})} disabled={!isAdmin} />
                     </div>
                     <div className="space-y-2">
                       <Label>Contact Email</Label>
-                      <Input type="email" value={propForm.email} onChange={e => setPropForm({...propForm, email: e.target.value})} />
+                      <Input type="email" value={propForm.email} onChange={e => setPropForm({...propForm, email: e.target.value})} disabled={!isAdmin} />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Address</Label>
-                    <Input value={propForm.address} onChange={e => setPropForm({...propForm, address: e.target.value})} />
+                    <Input value={propForm.address} onChange={e => setPropForm({...propForm, address: e.target.value})} disabled={!isAdmin} />
                   </div>
                   <div className="space-y-2 w-full md:w-1/2">
                     <Label>Phone Number</Label>
-                    <Input value={propForm.phone} onChange={e => setPropForm({...propForm, phone: e.target.value})} />
+                    <Input value={propForm.phone} onChange={e => setPropForm({...propForm, phone: e.target.value})} disabled={!isAdmin} />
                   </div>
-                  <Button type="submit" className="mt-4 shadow-md">
-                    <Save className="w-4 h-4 mr-2" /> Save Profile
-                  </Button>
+                  {isAdmin && (
+                    <Button type="submit" className="mt-4 shadow-md">
+                      <Save className="w-4 h-4 mr-2" /> Save Profile
+                    </Button>
+                  )}
                 </form>
               </CardContent>
             </Card>
@@ -144,30 +148,32 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label>GSTIN Number</Label>
-                      <Input placeholder="Enter GSTIN" value={gstForm.gstin} onChange={e => setGstForm({...gstForm, gstin: e.target.value})} />
+                      <Input placeholder="Enter GSTIN" value={gstForm.gstin} onChange={e => setGstForm({...gstForm, gstin: e.target.value})} disabled={!isAdmin} />
                     </div>
                     <div className="space-y-2">
                       <Label>SAC Code</Label>
-                      <Input placeholder="9963" value={gstForm.sacCode} onChange={e => setGstForm({...gstForm, sacCode: e.target.value})} />
+                      <Input placeholder="9963" value={gstForm.sacCode} onChange={e => setGstForm({...gstForm, sacCode: e.target.value})} disabled={!isAdmin} />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t">
                     <div className="space-y-2">
                       <Label>Overall GST (%)</Label>
-                      <Input type="number" value={gstForm.gstRate} onChange={e => setGstForm({...gstForm, gstRate: e.target.value})} />
+                      <Input type="number" value={gstForm.gstRate} onChange={e => setGstForm({...gstForm, gstRate: e.target.value})} disabled={!isAdmin} />
                     </div>
                     <div className="space-y-2">
                       <Label>CGST (%)</Label>
-                      <Input type="number" value={gstForm.cgstRate} onChange={e => setGstForm({...gstForm, cgstRate: e.target.value})} />
+                      <Input type="number" value={gstForm.cgstRate} onChange={e => setGstForm({...gstForm, cgstRate: e.target.value})} disabled={!isAdmin} />
                     </div>
                     <div className="space-y-2">
                       <Label>SGST (%)</Label>
-                      <Input type="number" value={gstForm.sgstRate} onChange={e => setGstForm({...gstForm, sgstRate: e.target.value})} />
+                      <Input type="number" value={gstForm.sgstRate} onChange={e => setGstForm({...gstForm, sgstRate: e.target.value})} disabled={!isAdmin} />
                     </div>
                   </div>
-                  <Button type="submit" className="shadow-md">
-                    <Save className="w-4 h-4 mr-2" /> Update Tax Config
-                  </Button>
+                  {isAdmin && (
+                    <Button type="submit" className="shadow-md">
+                      <Save className="w-4 h-4 mr-2" /> Update Tax Config
+                    </Button>
+                  )}
                 </form>
               </CardContent>
             </Card>
