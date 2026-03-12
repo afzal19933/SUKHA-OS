@@ -3,7 +3,7 @@
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Search } from "lucide-react";
+import { Download, FileText, Search, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
   Table, 
@@ -15,15 +15,27 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-
-const MOCK_INVOICES = [
-  { id: "INV-2024-001", guest: "John Doe", date: "2024-05-18", amount: "$540.00", status: "paid" },
-  { id: "INV-2024-002", guest: "Jane Smith", date: "2024-05-19", amount: "$1,280.00", status: "unpaid" },
-  { id: "INV-2024-003", guest: "Bob Wilson", date: "2024-05-20", amount: "$320.00", status: "partial" },
-  { id: "INV-2024-004", guest: "Alice Johnson", date: "2024-05-21", amount: "$890.00", status: "paid" },
-];
+import { useAuthStore } from "@/store/authStore";
+import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
+import { collection, query, orderBy } from "firebase/firestore";
 
 export default function InvoicesPage() {
+  const { entityId } = useAuthStore();
+  const db = useFirestore();
+
+  const invoiceQuery = useMemoFirebase(() => {
+    if (!entityId) return null;
+    return query(
+      collection(db, "hotel_properties", entityId, "invoices"),
+      orderBy("createdAt", "desc")
+    );
+  }, [db, entityId]);
+
+  const { data: invoices, isLoading } = useCollection(invoiceQuery);
+
+  const totalRevenue = invoices?.reduce((acc, inv) => acc + (inv.totalAmount || 0), 0) || 0;
+  const outstanding = invoices?.reduce((acc, inv) => acc + (inv.balance || 0), 0) || 0;
+
   return (
     <AppLayout>
       <div className="space-y-8 max-w-7xl mx-auto">
@@ -38,8 +50,8 @@ export default function InvoicesPage() {
               <FileText className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Revenue (MTD)</p>
-              <h3 className="text-2xl font-bold">$42,850.00</h3>
+              <p className="text-sm font-medium text-muted-foreground">Total Revenue</p>
+              <h3 className="text-2xl font-bold">${totalRevenue.toLocaleString()}</h3>
             </div>
           </div>
           <div className="p-6 bg-white rounded-2xl border shadow-sm flex items-center gap-4">
@@ -48,7 +60,7 @@ export default function InvoicesPage() {
             </div>
             <div>
               <p className="text-sm font-medium text-muted-foreground">Outstanding</p>
-              <h3 className="text-2xl font-bold">$3,120.00</h3>
+              <h3 className="text-2xl font-bold">${outstanding.toLocaleString()}</h3>
             </div>
           </div>
           <div className="p-6 bg-white rounded-2xl border shadow-sm flex items-center gap-4">
@@ -56,8 +68,8 @@ export default function InvoicesPage() {
               <Download className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Recent Payouts</p>
-              <h3 className="text-2xl font-bold">$12,400.00</h3>
+              <p className="text-sm font-medium text-muted-foreground">Processed</p>
+              <h3 className="text-2xl font-bold">{invoices?.length || 0} Invoices</h3>
             </div>
           </div>
         </div>
@@ -75,37 +87,49 @@ export default function InvoicesPage() {
             <TableHeader className="bg-secondary/50">
               <TableRow>
                 <TableHead>Invoice #</TableHead>
-                <TableHead>Guest Name</TableHead>
-                <TableHead>Issued Date</TableHead>
+                <TableHead>Date</TableHead>
                 <TableHead>Total Amount</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {MOCK_INVOICES.map((inv) => (
-                <TableRow key={inv.id}>
-                  <TableCell className="font-mono text-xs font-semibold">{inv.id}</TableCell>
-                  <TableCell className="font-medium">{inv.guest}</TableCell>
-                  <TableCell>{inv.date}</TableCell>
-                  <TableCell className="font-bold">{inv.amount}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={cn(
-                      "capitalize",
-                      inv.status === "paid" && "bg-emerald-50 text-emerald-600 border-emerald-100",
-                      inv.status === "unpaid" && "bg-rose-50 text-rose-600 border-rose-100",
-                      inv.status === "partial" && "bg-amber-50 text-amber-600 border-amber-100"
-                    )}>
-                      {inv.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="icon">
-                      <Download className="w-4 h-4" />
-                    </Button>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : invoices && invoices.length > 0 ? (
+                invoices.map((inv) => (
+                  <TableRow key={inv.id}>
+                    <TableCell className="font-mono text-xs font-semibold">{inv.invoiceNumber}</TableCell>
+                    <TableCell>{new Date(inv.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell className="font-bold">${inv.totalAmount?.toLocaleString()}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cn(
+                        "capitalize",
+                        inv.status === "paid" && "bg-emerald-50 text-emerald-600 border-emerald-100",
+                        inv.status === "issued" && "bg-rose-50 text-rose-600 border-rose-100",
+                        inv.status === "draft" && "bg-amber-50 text-amber-600 border-amber-100"
+                      )}>
+                        {inv.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon">
+                        <Download className="w-4 h-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                    No invoices generated yet.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
