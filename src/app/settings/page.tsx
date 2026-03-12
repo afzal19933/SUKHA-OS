@@ -9,13 +9,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/authStore";
-import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
-import { doc, updateDoc } from "firebase/firestore";
+import { useFirestore, useDoc, useMemoFirebase, useCollection } from "@/firebase";
+import { doc, updateDoc, collection } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Building, Percent } from "lucide-react";
+import { Loader2, Save, Building, Percent, Plus, ShieldCheck } from "lucide-react";
+import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger 
+} from "@/components/ui/dialog";
 
 export default function SettingsPage() {
-  const { entityId, role: currentUserRole } = useAuthStore();
+  const { entityId, role: currentUserRole, setEntityId } = useAuthStore();
   const db = useFirestore();
   const { toast } = useToast();
 
@@ -36,6 +45,10 @@ export default function SettingsPage() {
 
   const [propForm, setPropForm] = useState({ name: "", address: "", phone: "", email: "" });
   const [gstForm, setGstForm] = useState({ gstin: "", sacCode: "", gstRate: "12", cgstRate: "6", sgstRate: "6" });
+  
+  // New Entity Form State
+  const [isNewEntityOpen, setIsNewEntityOpen] = useState(false);
+  const [newEntity, setNewEntity] = useState({ name: "", address: "", phone: "" });
 
   useEffect(() => {
     if (property) {
@@ -77,6 +90,34 @@ export default function SettingsPage() {
     toast({ title: "Tax settings updated" });
   };
 
+  const handleAddEntity = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+
+    const newId = crypto.randomUUID();
+    const propsRef = collection(db, "hotel_properties");
+    
+    const entityData = {
+      id: newId,
+      entityId: newId,
+      name: newEntity.name,
+      address: newEntity.address,
+      phone: newEntity.phone,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      email: propForm.email || ""
+    };
+
+    addDocumentNonBlocking(propsRef, entityData);
+    toast({ title: "New Entity Added", description: `Property "${newEntity.name}" has been created.` });
+    
+    // Automatically switch to the new entity
+    setEntityId(newId);
+    setIsNewEntityOpen(false);
+    setNewEntity({ name: "", address: "", phone: "" });
+  };
+
   if (propLoading || gstLoading) {
     return <AppLayout><div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div></AppLayout>;
   }
@@ -84,9 +125,56 @@ export default function SettingsPage() {
   return (
     <AppLayout>
       <div className="max-w-5xl mx-auto space-y-8 pb-10">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">System Settings</h1>
-          <p className="text-muted-foreground mt-1">Configure property profile and billing configuration</p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">System Settings</h1>
+            <p className="text-muted-foreground mt-1">Configure property profile and billing configuration</p>
+          </div>
+          {isAdmin && (
+            <Dialog open={isNewEntityOpen} onOpenChange={setIsNewEntityOpen}>
+              <DialogTrigger asChild>
+                <Button className="h-10 shadow-lg">
+                  <Plus className="w-4 h-4 mr-2" /> Add Another Entity
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Register New Property</DialogTitle>
+                  <DialogDescription>Create a new hotel entity for multi-property management.</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleAddEntity} className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Label>Property Name</Label>
+                    <Input 
+                      placeholder="e.g. Sukha Resorts North" 
+                      value={newEntity.name} 
+                      onChange={e => setNewEntity({...newEntity, name: e.target.value})}
+                      required 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Address</Label>
+                    <Input 
+                      placeholder="Physical location" 
+                      value={newEntity.address} 
+                      onChange={e => setNewEntity({...newEntity, address: e.target.value})}
+                      required 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone</Label>
+                    <Input 
+                      placeholder="Contact number" 
+                      value={newEntity.phone} 
+                      onChange={e => setNewEntity({...newEntity, phone: e.target.value})}
+                      required 
+                    />
+                  </div>
+                  <Button type="submit" className="w-full">Create Property</Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         <Tabs defaultValue="profile" className="space-y-6">

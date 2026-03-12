@@ -17,7 +17,9 @@ import {
   User as UserIcon,
   Settings,
   WashingMachine,
-  DoorOpen
+  DoorOpen,
+  Building2,
+  ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -29,6 +31,13 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth, useUser } from "@/firebase";
 import { signOut } from "firebase/auth";
 import Link from "next/link";
@@ -48,25 +57,20 @@ const NAV_ITEMS = [
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user: firebaseUser, isUserLoading } = useUser();
-  const { _hasHydrated, role, permissions } = useAuthStore();
+  const { _hasHydrated, role, permissions, entityId, setEntityId, availableProperties } = useAuthStore();
   const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const filteredNavItems = useMemo(() => {
-    // Owners always see everything
     if (role === 'owner') return NAV_ITEMS;
-    
-    // If permissions are set, filter by them
     if (permissions && permissions.length > 0) {
       return NAV_ITEMS.filter(item => 
-        item.name === "Dashboard" || // Dashboard is always visible
+        item.name === "Dashboard" || 
         permissions.includes(item.name)
       );
     }
-
-    // Default: for new users or if no permissions set, show everything (or could restrict here)
     return NAV_ITEMS;
   }, [role, permissions]);
 
@@ -91,6 +95,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     await signOut(auth);
     router.push("/login");
   };
+
+  const currentProperty = availableProperties.find(p => p.id === entityId);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -131,9 +137,30 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="h-16 bg-white border-b flex items-center justify-between px-6 shrink-0">
-          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} suppressHydrationWarning>
-            <Menu className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} suppressHydrationWarning>
+              <Menu className="w-5 h-5" />
+            </Button>
+
+            {/* Entity Selector */}
+            {availableProperties.length > 0 && (
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-secondary/50 rounded-lg border border-border/50">
+                <Building2 className="w-4 h-4 text-primary" />
+                <Select value={entityId || ""} onValueChange={(val) => setEntityId(val)}>
+                  <SelectTrigger className="w-[180px] h-8 border-none bg-transparent p-0 focus:ring-0 shadow-none font-semibold text-xs">
+                    <SelectValue placeholder="Select Property" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableProperties.map((prop) => (
+                      <SelectItem key={prop.id} value={prop.id} className="text-xs">
+                        {prop.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
 
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" className="relative" suppressHydrationWarning>
