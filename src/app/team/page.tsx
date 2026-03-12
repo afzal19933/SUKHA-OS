@@ -5,12 +5,11 @@ import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { 
-  Plus, 
   Search, 
   UserPlus, 
   Shield, 
   MoreVertical,
-  Mail,
+  User,
   CheckCircle2,
   XCircle
 } from "lucide-react";
@@ -25,9 +24,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/store/authStore";
-import { useCollection, useMemoFirebase } from "@/firebase";
+import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
 import { collection, query, where, doc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { 
   Dialog, 
   DialogContent, 
@@ -50,15 +48,16 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function TeamPage() {
   const { entityId, role } = useAuthStore();
+  const db = useFirestore();
   const { toast } = useToast();
   const [isInviteOpen, setIsInviteOpen] = useState(false);
-  const [newMember, setNewMember] = useState({ name: "", email: "", role: "staff" });
+  const [newMember, setNewMember] = useState({ name: "", username: "", role: "staff" });
 
   // 1. Fetch all users belonging to this entity
   const teamQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return query(collection(db, "user_profiles"), where("entityId", "==", entityId));
-  }, [entityId]);
+  }, [db, entityId]);
 
   const { data: teamMembers, isLoading } = useCollection(teamQuery);
 
@@ -66,9 +65,9 @@ export default function TeamPage() {
     e.preventDefault();
     if (!entityId) return;
 
-    // In a real app, this would send an invite email and create a pending record.
-    // Here, we create the user_profile record. The user will "claim" it when they sign up with this email.
-    // Note: This is an MVP approach.
+    // Use internal email mapping for the username
+    const internalEmail = `${newMember.username.toLowerCase().trim()}@sukha.os`;
+
     const tempId = crypto.randomUUID();
     const memberRef = doc(db, "user_profiles", tempId);
     
@@ -76,7 +75,7 @@ export default function TeamPage() {
       id: tempId,
       entityId: entityId,
       name: newMember.name,
-      email: newMember.email,
+      email: internalEmail, // Stores the derived identity
       role: newMember.role,
       isActive: true,
       createdAt: new Date().toISOString(),
@@ -91,7 +90,7 @@ export default function TeamPage() {
     });
 
     setIsInviteOpen(false);
-    setNewMember({ name: "", email: "", role: "staff" });
+    setNewMember({ name: "", username: "", role: "staff" });
   };
 
   const isAdmin = role === "owner" || role === "admin";
@@ -117,7 +116,7 @@ export default function TeamPage() {
                 <DialogHeader>
                   <DialogTitle>Add New Member</DialogTitle>
                   <DialogDescription>
-                    Fill in the details below to add a member to your property.
+                    Fill in the details below. Users will sign in with their unique username.
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleAddMember} className="space-y-4 pt-4">
@@ -132,13 +131,12 @@ export default function TeamPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
+                    <Label htmlFor="username">Username</Label>
                     <Input 
-                      id="email" 
-                      type="email" 
-                      placeholder="jane@hotel.com" 
-                      value={newMember.email}
-                      onChange={(e) => setNewMember({...newMember, email: e.target.value})}
+                      id="username" 
+                      placeholder="janesmith" 
+                      value={newMember.username}
+                      onChange={(e) => setNewMember({...newMember, username: e.target.value})}
                       required 
                     />
                   </div>
@@ -172,7 +170,7 @@ export default function TeamPage() {
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Search by name or email..." className="pl-10 h-10" />
+            <Input placeholder="Search by name or username..." className="pl-10 h-10" />
           </div>
         </div>
 
@@ -181,6 +179,7 @@ export default function TeamPage() {
             <TableHeader className="bg-secondary/50">
               <TableRow>
                 <TableHead>Member</TableHead>
+                <TableHead>Username</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Joined</TableHead>
@@ -190,7 +189,7 @@ export default function TeamPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     Loading team members...
                   </TableCell>
                 </TableRow>
@@ -198,12 +197,12 @@ export default function TeamPage() {
                 teamMembers.map((member) => (
                   <TableRow key={member.id}>
                     <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-semibold">{member.name}</span>
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Mail className="w-3 h-3" /> {member.email}
-                        </span>
-                      </div>
+                      <span className="font-semibold">{member.name}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs font-mono bg-secondary px-2 py-1 rounded">
+                        {member.email?.split('@')[0]}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -241,7 +240,7 @@ export default function TeamPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     No team members found.
                   </TableCell>
                 </TableRow>
