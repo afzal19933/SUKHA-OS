@@ -275,19 +275,20 @@ export default function ReservationsPage() {
 
         <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
           <Table>
-            <TableHeader className="bg-secondary/50">
+            <TableHeader className="bg-secondary/50 text-center">
               <TableRow>
-                <TableHead>Guest</TableHead>
-                <TableHead>Room</TableHead>
-                <TableHead>Dates</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead className="w-[25%]">Guest</TableHead>
+                <TableHead className="text-center">Room</TableHead>
+                <TableHead className="text-center">Check-In</TableHead>
+                <TableHead className="text-center">Check-Out</TableHead>
+                <TableHead className="text-center">Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
+                  <TableCell colSpan={6} className="text-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
                   </TableCell>
                 </TableRow>
@@ -295,21 +296,20 @@ export default function ReservationsPage() {
                 reservations.map((res) => (
                   <TableRow key={res.id}>
                     <TableCell>
-                      <div className="font-medium">{res.guestName}</div>
-                      <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">ID: {res.id.slice(0,8)}</div>
+                      <div className="font-semibold">{res.guestName}</div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">
                       <Badge variant="outline" className="bg-secondary/50 font-bold px-2 py-1 text-[10px] whitespace-nowrap">ROOM {res.roomNumber}</Badge>
                     </TableCell>
-                    <TableCell>
-                      <div className="text-xs flex items-center gap-2">
-                        <Calendar className="w-3 h-3 text-muted-foreground" />
-                        {formatAppDate(res.checkInDate)} — {formatAppDate(res.checkOutDate)}
-                      </div>
+                    <TableCell className="text-center">
+                      <div className="text-xs font-medium">{formatAppDate(res.checkInDate)}</div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">
+                      <div className="text-xs font-medium">{formatAppDate(res.checkOutDate)}</div>
+                    </TableCell>
+                    <TableCell className="text-center">
                       <Badge className={cn(
-                        "text-[9px] px-2 py-0.5 font-bold uppercase whitespace-nowrap border",
+                        "text-[9px] px-2 py-0.5 font-bold uppercase whitespace-nowrap border mx-auto",
                         res.status === "confirmed" && "bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200",
                         res.status === "checked_in" && "bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200",
                         res.status === "pending" && "bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-200",
@@ -319,25 +319,13 @@ export default function ReservationsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="sm" className="h-8 text-xs font-semibold" onClick={() => openDetails(res)}>Details</Button>
-                        {isAdmin && (
-                          <>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(res)}>
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleDeleteReservation(res.id)}>
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                      <Button variant="outline" size="sm" className="h-8 text-xs font-semibold" onClick={() => openDetails(res)}>Details</Button>
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12 text-muted-foreground text-sm">
+                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground text-sm">
                     No reservations found. Create your first one above.
                   </TableCell>
                 </TableRow>
@@ -360,7 +348,7 @@ export default function ReservationsPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="text-xl font-bold">{selectedRes.guestName}</h3>
-                    <p className="text-xs text-muted-foreground font-mono">RES-ID: {selectedRes.id.toUpperCase()}</p>
+                    <p className="text-[10px] text-muted-foreground font-mono uppercase">ID: {selectedRes.id.toUpperCase()}</p>
                   </div>
                   <Badge className={cn(
                     "text-[10px] uppercase font-bold px-3 py-1 border",
@@ -407,38 +395,44 @@ export default function ReservationsPage() {
                 <Separator />
 
                 <div className="space-y-2">
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Booking Source</p>
-                  <p className="text-sm font-medium capitalize flex items-center gap-2">
-                    <Clock className="w-3.5 h-3.5" /> {selectedRes.bookingSourceId || 'Walk-in'}
-                  </p>
-                </div>
-
-                <div className="space-y-2">
                   <p className="text-[10px] text-muted-foreground uppercase font-bold">Special Requests</p>
                   <p className="text-sm bg-secondary/50 p-3 rounded-lg border italic min-h-[60px]">
                     {selectedRes.specialRequests || 'No special requests recorded for this booking.'}
                   </p>
                 </div>
 
-                <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
-                  {selectedRes.status === 'confirmed' && (
-                    <Button 
-                      className="w-full sm:flex-1" 
-                      onClick={() => updateStatus(selectedRes.id, 'checked_in')}
-                    >
-                      <CheckCircle2 className="w-4 h-4 mr-2" /> Check-In Guest
-                    </Button>
-                  )}
-                  {selectedRes.status === 'checked_in' && (
-                    <Button 
-                      variant="destructive"
-                      className="w-full sm:flex-1" 
-                      onClick={() => updateStatus(selectedRes.id, 'checked_out')}
-                    >
-                      <LogOut className="w-4 h-4 mr-2" /> Check-Out Guest
-                    </Button>
-                  )}
-                  <Button variant="outline" className="w-full sm:w-auto" onClick={() => setIsDetailsOpen(false)}>Close</Button>
+                <DialogFooter className="flex-col gap-2 mt-4 sm:flex-col">
+                  <div className="grid grid-cols-2 gap-2 w-full">
+                    {selectedRes.status === 'confirmed' && (
+                      <Button 
+                        className="w-full" 
+                        onClick={() => updateStatus(selectedRes.id, 'checked_in')}
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-2" /> Check-In
+                      </Button>
+                    )}
+                    {selectedRes.status === 'checked_in' && (
+                      <Button 
+                        variant="destructive"
+                        className="w-full" 
+                        onClick={() => updateStatus(selectedRes.id, 'checked_out')}
+                      >
+                        <LogOut className="w-4 h-4 mr-2" /> Check-Out
+                      </Button>
+                    )}
+                    
+                    {isAdmin && (
+                      <>
+                        <Button variant="outline" className="w-full" onClick={() => { setIsDetailsOpen(false); openEdit(selectedRes); }}>
+                          <Edit2 className="w-3.5 h-3.5 mr-2" /> Edit
+                        </Button>
+                        <Button variant="ghost" className="w-full text-rose-500 hover:text-rose-600 hover:bg-rose-50" onClick={() => { setIsDetailsOpen(false); handleDeleteReservation(selectedRes.id); }}>
+                          <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                  <Button variant="secondary" className="w-full" onClick={() => setIsDetailsOpen(false)}>Close Details</Button>
                 </DialogFooter>
               </div>
             )}
