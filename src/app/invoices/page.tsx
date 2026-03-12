@@ -43,32 +43,32 @@ export default function InvoicesPage() {
           <p className="text-xs text-muted-foreground mt-0.5">Invoices, payments and financial tracking</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 bg-white rounded-xl border shadow-sm flex items-center gap-3">
-            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
-              <FileText className="w-5 h-5" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="p-3 bg-white rounded-xl border shadow-sm flex items-center gap-2.5">
+            <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+              <FileText className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Revenue</p>
-              <h3 className="text-lg font-bold">${totalRevenue.toLocaleString()}</h3>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Total Revenue</p>
+              <h3 className="text-base font-bold">₹{totalRevenue.toLocaleString()}</h3>
             </div>
           </div>
-          <div className="p-4 bg-white rounded-xl border shadow-sm flex items-center gap-3">
-            <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
-              <FileText className="w-5 h-5" />
+          <div className="p-3 bg-white rounded-xl border shadow-sm flex items-center gap-2.5">
+            <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg">
+              <FileText className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Outstanding</p>
-              <h3 className="text-lg font-bold">${outstanding.toLocaleString()}</h3>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Outstanding</p>
+              <h3 className="text-base font-bold">₹{outstanding.toLocaleString()}</h3>
             </div>
           </div>
-          <div className="p-4 bg-white rounded-xl border shadow-sm flex items-center gap-3">
-            <div className="p-2 bg-primary/10 text-primary rounded-lg">
-              <Download className="w-5 h-5" />
+          <div className="p-3 bg-white rounded-xl border shadow-sm flex items-center gap-2.5">
+            <div className="p-1.5 bg-primary/10 text-primary rounded-lg">
+              <Download className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Processed</p>
-              <h3 className="text-lg font-bold">{invoices?.length || 0} Invoices</h3>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Processed</p>
+              <h3 className="text-base font-bold">{invoices?.length || 0} Invoices</h3>
             </div>
           </div>
         </div>
@@ -103,8 +103,8 @@ export default function InvoicesPage() {
                 invoices.map((inv) => (
                   <TableRow key={inv.id}>
                     <TableCell className="font-mono text-[10px] font-semibold">{inv.invoiceNumber}</TableCell>
-                    <TableCell className="text-sm">{new Date(inv.createdAt).toLocaleDateString()}</TableCell>
-                    <TableCell className="font-bold text-sm">${inv.totalAmount?.toLocaleString()}</TableCell>
+                    <TableCell className="text-sm">{inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : 'N/A'}</TableCell>
+                    <TableCell className="font-bold text-sm">₹{inv.totalAmount?.toLocaleString()}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn(
                         "capitalize text-[10px] px-2 py-0",

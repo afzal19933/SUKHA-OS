@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -155,7 +154,7 @@ export default function LaundryPage() {
                           <div className="text-xs text-muted-foreground">Room {order.roomNumber}</div>
                         </TableCell>
                         <TableCell>{order.itemIds?.length || 0} items</TableCell>
-                        <TableCell className="font-bold">${order.hotelTotal}</TableCell>
+                        <TableCell className="font-bold">₹{order.hotelTotal}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className={cn(
                             "capitalize",
@@ -251,12 +250,12 @@ export default function LaundryPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-[10px] text-muted-foreground uppercase font-bold">Guest Price</p>
-                        <p className="text-xl font-bold">${item.hotelRate}</p>
+                        <p className="text-xl font-bold">₹{item.hotelRate}</p>
                       </div>
                       <ArrowRight className="w-4 h-4 text-muted-foreground opacity-30" />
                       <div className="text-right">
                         <p className="text-[10px] text-muted-foreground uppercase font-bold">Vendor Cost</p>
-                        <p className="text-lg font-semibold text-muted-foreground">${item.vendorRate}</p>
+                        <p className="text-lg font-semibold text-muted-foreground">₹{item.vendorRate}</p>
                       </div>
                     </div>
                   </CardContent>

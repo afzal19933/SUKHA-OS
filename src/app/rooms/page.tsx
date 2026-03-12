@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -267,7 +266,7 @@ export default function RoomsPage() {
                         <p className="text-sm text-muted-foreground">Max Guests: {type.maxOccupancy}</p>
                       </div>
                       <div className="text-right">
-                        <span className="text-2xl font-bold text-primary">${type.baseRate}</span>
+                        <span className="text-2xl font-bold text-primary">₹{type.baseRate}</span>
                         <p className="text-[10px] text-muted-foreground uppercase font-bold">Base Rate</p>
                       </div>
                     </div>

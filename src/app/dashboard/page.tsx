@@ -1,4 +1,3 @@
-
 "use client";
 
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -76,7 +75,7 @@ export default function DashboardPage() {
   const PRIMARY_STATS = [
     { label: "Total Occupancy", value: `${occupancyRate}%`, icon: Users, change: "Live", trend: "neutral" },
     { label: "Vacant Ready", value: stats.vacantReady.toString(), icon: ShieldCheck, change: "Rooms", trend: "up" },
-    { label: "Today's Revenue", value: `$${todayRevenue.toLocaleString()}`, icon: TrendingUp, change: "+0%", trend: "up" },
+    { label: "Today's Revenue", value: `₹${todayRevenue.toLocaleString()}`, icon: TrendingUp, change: "+0%", trend: "up" },
     { label: "Today's Arrival", value: (todayReservations?.length || 0).toString(), icon: CalendarCheck2, change: "Confirmed", trend: "neutral" },
   ];
 
