@@ -17,7 +17,9 @@ import {
   Clock,
   Edit2,
   Trash2,
-  ArrowRightLeft
+  ArrowRightLeft,
+  CreditCard,
+  Globe
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
@@ -46,6 +48,31 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { Separator } from "@/components/ui/separator";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+
+const BOOKING_SOURCES = [
+  "Direct", 
+  "Walkin", 
+  "MMT", 
+  "Agoda", 
+  "Airbnb", 
+  "Ayursiha", 
+  "Travel Agent", 
+  "Corporate"
+];
+
+const ID_TYPES = [
+  "Aadhar",
+  "D.L",
+  "PAN",
+  "Passport"
+];
 
 export default function ReservationsPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
@@ -65,8 +92,16 @@ export default function ReservationsPage() {
     checkIn: "", 
     checkOut: "",
     guests: "1",
-    requests: ""
+    requests: "",
+    bookingSource: "Direct"
   });
+
+  const [checkInForm, setCheckInForm] = useState({
+    nationality: "Indian",
+    idType: "Aadhar",
+    idNumber: ""
+  });
+
   const [editResForm, setEditResForm] = useState<any>(null);
 
   // Queries
@@ -97,7 +132,7 @@ export default function ReservationsPage() {
       status: "confirmed",
       numberOfGuests: parseInt(newRes.guests),
       specialRequests: newRes.requests,
-      bookingSourceId: "walk-in",
+      bookingSource: newRes.bookingSource,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -106,11 +141,11 @@ export default function ReservationsPage() {
 
     toast({
       title: "Reservation created",
-      description: `Confirmed for ${newRes.guestName} in room ${newRes.roomNumber}.`,
+      description: `Confirmed for ${newRes.guestName} via ${newRes.bookingSource}.`,
     });
 
     setIsAddOpen(false);
-    setNewRes({ guestName: "", roomNumber: "", checkIn: "", checkOut: "", guests: "1", requests: "" });
+    setNewRes({ guestName: "", roomNumber: "", checkIn: "", checkOut: "", guests: "1", requests: "", bookingSource: "Direct" });
   };
 
   const handleUpdateReservation = (e: React.FormEvent) => {
@@ -125,6 +160,7 @@ export default function ReservationsPage() {
       checkOutDate: editResForm.checkOutDate,
       numberOfGuests: parseInt(editResForm.numberOfGuests),
       specialRequests: editResForm.specialRequests,
+      bookingSource: editResForm.bookingSource,
       updatedAt: new Date().toISOString(),
     };
 
@@ -145,7 +181,6 @@ export default function ReservationsPage() {
     if (!entityId) return;
     const resRef = doc(db, "hotel_properties", entityId, "reservations", resId);
     
-    // Find the current reservation object for sync data
     const currentRes = selectedRes?.id === resId ? selectedRes : reservations?.find(r => r.id === resId);
 
     const updateData: any = { 
@@ -155,14 +190,14 @@ export default function ReservationsPage() {
 
     if (status === 'checked_in') {
       updateData.actualCheckInTime = new Date().toISOString();
+      updateData.nationality = checkInForm.nationality;
+      updateData.idType = checkInForm.idType;
+      updateData.idNumber = checkInForm.idNumber;
     }
     
-    // Update the Reservation Document
     updateDocumentNonBlocking(resRef, updateData);
     
-    // SYNC WITH PHYSICAL ROOM STATUS
     if (currentRes && rooms) {
-      // Find room by roomNumber. Use robust comparison to handle leading zeros or string/number type shifts.
       const room = rooms.find(r => 
         r.roomNumber.toString().trim() === currentRes.roomNumber.toString().trim()
       );
@@ -174,7 +209,6 @@ export default function ReservationsPage() {
         if (status === 'checked_in') newRoomStatus = 'occupied';
         if (status === 'checked_out') newRoomStatus = 'dirty';
         
-        // Sync the room status to Housekeeping
         updateDocumentNonBlocking(roomRef, { 
           status: newRoomStatus, 
           updatedAt: new Date().toISOString() 
@@ -194,6 +228,11 @@ export default function ReservationsPage() {
 
   const openDetails = (res: any) => {
     setSelectedRes(res);
+    setCheckInForm({
+      nationality: res.nationality || "Indian",
+      idType: res.idType || "Aadhar",
+      idNumber: res.idNumber || ""
+    });
     setIsDetailsOpen(true);
   };
 
@@ -247,6 +286,21 @@ export default function ReservationsPage() {
                       />
                     </div>
                     <div className="space-y-2">
+                      <Label htmlFor="bookingSource">Booking Source</Label>
+                      <Select value={newRes.bookingSource} onValueChange={(val) => setNewRes({...newRes, bookingSource: val})}>
+                        <SelectTrigger id="bookingSource">
+                          <SelectValue placeholder="Select source" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BOOKING_SOURCES.map(source => (
+                            <SelectItem key={source} value={source}>{source}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
                       <Label htmlFor="guests">Number of Guests</Label>
                       <Input 
                         id="guests" 
@@ -257,8 +311,6 @@ export default function ReservationsPage() {
                         required 
                       />
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Check In</Label>
                       <Input 
@@ -268,6 +320,8 @@ export default function ReservationsPage() {
                         required 
                       />
                     </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Check Out</Label>
                       <Input 
@@ -369,7 +423,7 @@ export default function ReservationsPage() {
 
         {/* Details Dialog */}
         <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-          <DialogContent className="sm:max-w-[450px]">
+          <DialogContent className="sm:max-w-[480px]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Info className="w-5 h-5 text-primary" />
@@ -381,7 +435,7 @@ export default function ReservationsPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="text-xl font-bold">{selectedRes.guestName}</h3>
-                    <p className="text-[10px] text-muted-foreground font-mono uppercase">ID: {selectedRes.id.toUpperCase()}</p>
+                    <p className="text-[10px] text-muted-foreground font-mono uppercase">Source: {selectedRes.bookingSource || 'Walk-in'}</p>
                   </div>
                   <Badge className={cn(
                     "text-[10px] uppercase font-bold px-3 py-1 border",
@@ -393,7 +447,7 @@ export default function ReservationsPage() {
                   </Badge>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6 bg-secondary/30 p-4 rounded-xl border">
+                <div className="grid grid-cols-2 gap-4 bg-secondary/30 p-4 rounded-xl border">
                   <div className="space-y-1">
                     <p className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1.5">
                       <MapPin className="w-3 h-3" /> Room Information
@@ -408,31 +462,92 @@ export default function ReservationsPage() {
                   </div>
                 </div>
 
+                {/* Check-In Details Form (Only visible during confirmation phase) */}
+                {selectedRes.status === 'confirmed' && (
+                  <div className="space-y-4 p-4 border rounded-xl bg-primary/5">
+                    <p className="text-xs font-bold uppercase text-primary flex items-center gap-2">
+                      <CreditCard className="w-4 h-4" /> Guest KYC Details
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] uppercase text-muted-foreground">Nationality</Label>
+                        <Input 
+                          placeholder="e.g. Indian" 
+                          className="h-9 text-sm" 
+                          value={checkInForm.nationality}
+                          onChange={(e) => setCheckInForm({...checkInForm, nationality: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] uppercase text-muted-foreground">ID Type</Label>
+                        <Select value={checkInForm.idType} onValueChange={(val) => setCheckInForm({...checkInForm, idType: val})}>
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ID_TYPES.map(type => (
+                              <SelectItem key={type} value={type}>{type}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] uppercase text-muted-foreground">ID Number</Label>
+                      <Input 
+                        placeholder="Enter ID Number" 
+                        className="h-9 text-sm"
+                        value={checkInForm.idNumber}
+                        onChange={(e) => setCheckInForm({...checkInForm, idNumber: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Display KYC if already checked in */}
+                {selectedRes.status !== 'confirmed' && selectedRes.idType && (
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2 bg-secondary/50 rounded-lg">
+                      <p className="text-[8px] uppercase font-bold text-muted-foreground">Nationality</p>
+                      <p className="text-xs font-bold">{selectedRes.nationality}</p>
+                    </div>
+                    <div className="p-2 bg-secondary/50 rounded-lg">
+                      <p className="text-[8px] uppercase font-bold text-muted-foreground">ID Type</p>
+                      <p className="text-xs font-bold">{selectedRes.idType}</p>
+                    </div>
+                    <div className="p-2 bg-secondary/50 rounded-lg">
+                      <p className="text-[8px] uppercase font-bold text-muted-foreground">ID Number</p>
+                      <p className="text-xs font-bold">{selectedRes.idNumber}</p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
                     <Calendar className="w-4 h-4 text-muted-foreground" />
                     <div className="flex-1">
-                      <p className="text-xs font-semibold">Check-In Date</p>
+                      <p className="text-xs font-semibold">Check-In</p>
                       <p className="text-sm font-medium">{formatAppDate(selectedRes.checkInDate)}</p>
-                      {selectedRes.actualCheckInTime && (
-                        <p className="text-[10px] text-primary font-bold flex items-center gap-1 mt-1">
-                          <Clock className="w-2.5 h-2.5" /> Arrived: {formatAppTime(selectedRes.actualCheckInTime)}
-                        </p>
-                      )}
                     </div>
                     <div className="text-right flex-1">
-                      <p className="text-xs font-semibold">Check-Out Date</p>
+                      <p className="text-xs font-semibold">Check-Out</p>
                       <p className="text-sm font-medium">{formatAppDate(selectedRes.checkOutDate)}</p>
                     </div>
                   </div>
+                  {selectedRes.actualCheckInTime && (
+                    <div className="flex items-center gap-2 text-primary bg-primary/5 p-2 rounded-lg">
+                      <Clock className="w-3.5 h-3.5" />
+                      <p className="text-[10px] font-bold">Arrived At: {formatAppTime(selectedRes.actualCheckInTime)}</p>
+                    </div>
+                  )}
                 </div>
 
                 <Separator />
 
                 <div className="space-y-2">
                   <p className="text-[10px] text-muted-foreground uppercase font-bold">Special Requests</p>
-                  <p className="text-sm bg-secondary/50 p-3 rounded-lg border italic min-h-[60px]">
-                    {selectedRes.specialRequests || 'No special requests recorded for this booking.'}
+                  <p className="text-sm bg-secondary/50 p-3 rounded-lg border italic min-h-[50px]">
+                    {selectedRes.specialRequests || 'No special requests.'}
                   </p>
                 </div>
 
@@ -442,8 +557,9 @@ export default function ReservationsPage() {
                       <Button 
                         className="w-full h-10 font-bold" 
                         onClick={() => updateStatus(selectedRes.id, 'checked_in')}
+                        disabled={!checkInForm.idNumber}
                       >
-                        <CheckCircle2 className="w-4 h-4 mr-2" /> Check-In
+                        <CheckCircle2 className="w-4 h-4 mr-2" /> Complete Check-In
                       </Button>
                     )}
                     {selectedRes.status === 'checked_in' && (
@@ -452,7 +568,7 @@ export default function ReservationsPage() {
                         className="w-full h-10 font-bold" 
                         onClick={() => updateStatus(selectedRes.id, 'checked_out')}
                       >
-                        <LogOut className="w-4 h-4 mr-2" /> Check-Out
+                        <LogOut className="w-4 h-4 mr-2" /> Final Check-Out
                       </Button>
                     )}
                     
@@ -505,7 +621,7 @@ export default function ReservationsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="flex items-center gap-1.5">
-                      <ArrowRightLeft className="w-3 h-3 text-primary" /> Shift to Room #
+                      <ArrowRightLeft className="w-3 h-3 text-primary" /> Room #
                     </Label>
                     <Input 
                       value={editResForm.roomNumber}
@@ -514,6 +630,21 @@ export default function ReservationsPage() {
                       className="border-primary/50 bg-primary/5"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label>Booking Source</Label>
+                    <Select value={editResForm.bookingSource} onValueChange={(val) => setEditResForm({...editResForm, bookingSource: val})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BOOKING_SOURCES.map(source => (
+                          <SelectItem key={source} value={source}>{source}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Guests</Label>
                     <Input 
@@ -524,8 +655,6 @@ export default function ReservationsPage() {
                       required 
                     />
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Check In</Label>
                     <Input 
@@ -535,6 +664,8 @@ export default function ReservationsPage() {
                       required 
                     />
                   </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Check Out</Label>
                     <Input 
