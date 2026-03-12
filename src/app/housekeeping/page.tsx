@@ -90,7 +90,6 @@ export default function HousekeepingPage() {
   const { data: staffMembers } = useCollection(teamQuery);
   const { data: activeTasks } = useCollection(tasksQuery);
 
-  // Statistics Calculation
   const stats = useMemo(() => {
     if (!rooms) return { total: 0, available: 0, cleaning: 0, occupied: 0, dirty: 0, maintenance: 0 };
     return rooms.reduce((acc: any, room: any) => {
@@ -181,18 +180,18 @@ export default function HousekeepingPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-8 max-w-7xl mx-auto">
+      <div className="space-y-6 max-w-5xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Housekeeping</h1>
-            <p className="text-muted-foreground mt-1">Real-time room status and cleaning operations</p>
+            <h1 className="text-2xl font-bold tracking-tight">Housekeeping</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Real-time room status and cleaning operations</p>
           </div>
           
           <div className="flex items-center gap-3">
             {isSupervisorOrAdmin && (
               <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" className="h-10">
+                  <Button variant="outline" className="h-9 text-xs">
                     <Plus className="w-4 h-4 mr-2" />
                     New Physical Room
                   </Button>
@@ -239,74 +238,73 @@ export default function HousekeepingPage() {
           </div>
         </div>
 
-        {/* Status Dashboard Summary */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <Card className="border-none shadow-sm bg-white">
-            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-              <DoorOpen className="w-5 h-5 text-muted-foreground mb-2" />
-              <span className="text-2xl font-bold">{stats.total}</span>
-              <span className="text-[10px] uppercase font-bold text-muted-foreground">Total Rooms</span>
+            <CardContent className="p-3 flex flex-col items-center justify-center text-center">
+              <DoorOpen className="w-4 h-4 text-muted-foreground mb-1.5" />
+              <span className="text-xl font-bold">{stats.total}</span>
+              <span className="text-[9px] uppercase font-bold text-muted-foreground">Total</span>
             </CardContent>
           </Card>
           <Card className="border-none shadow-sm bg-white">
-            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-              <ShieldCheck className="w-5 h-5 text-emerald-500 mb-2" />
-              <span className="text-2xl font-bold text-emerald-600">{stats.available}</span>
-              <span className="text-[10px] uppercase font-bold text-emerald-500">Clean</span>
+            <CardContent className="p-3 flex flex-col items-center justify-center text-center">
+              <ShieldCheck className="w-4 h-4 text-emerald-500 mb-1.5" />
+              <span className="text-xl font-bold text-emerald-600">{stats.available}</span>
+              <span className="text-[9px] uppercase font-bold text-emerald-500">Clean</span>
             </CardContent>
           </Card>
           <Card className="border-none shadow-sm bg-white">
-            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-              <AlertTriangle className="w-5 h-5 text-orange-500 mb-2" />
-              <span className="text-2xl font-bold text-orange-600">{stats.dirty}</span>
-              <span className="text-[10px] uppercase font-bold text-orange-500">Dirty</span>
+            <CardContent className="p-3 flex flex-col items-center justify-center text-center">
+              <AlertTriangle className="w-4 h-4 text-orange-500 mb-1.5" />
+              <span className="text-xl font-bold text-orange-600">{stats.dirty}</span>
+              <span className="text-[9px] uppercase font-bold text-orange-500">Dirty</span>
             </CardContent>
           </Card>
           <Card className="border-none shadow-sm bg-white">
-            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-              <Brush className="w-5 h-5 text-primary mb-2" />
-              <span className="text-2xl font-bold text-primary">{stats.cleaning}</span>
-              <span className="text-[10px] uppercase font-bold text-primary">Cleaning</span>
+            <CardContent className="p-3 flex flex-col items-center justify-center text-center">
+              <Brush className="w-4 h-4 text-primary mb-1.5" />
+              <span className="text-xl font-bold text-primary">{stats.cleaning}</span>
+              <span className="text-[9px] uppercase font-bold text-primary">Cleaning</span>
             </CardContent>
           </Card>
           <Card className="border-none shadow-sm bg-white">
-            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-              <Clock className="w-5 h-5 text-blue-500 mb-2" />
-              <span className="text-2xl font-bold text-blue-600">{stats.occupied}</span>
-              <span className="text-[10px] uppercase font-bold text-blue-500">Occupied</span>
+            <CardContent className="p-3 flex flex-col items-center justify-center text-center">
+              <Clock className="w-4 h-4 text-blue-500 mb-1.5" />
+              <span className="text-xl font-bold text-blue-600">{stats.occupied}</span>
+              <span className="text-[9px] uppercase font-bold text-blue-500">Occupied</span>
             </CardContent>
           </Card>
           <Card className="border-none shadow-sm bg-white">
-            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-              <AlertCircle className="w-5 h-5 text-rose-500 mb-2" />
-              <span className="text-2xl font-bold text-rose-600">{stats.maintenance}</span>
-              <span className="text-[10px] uppercase font-bold text-rose-500">Repair</span>
+            <CardContent className="p-3 flex flex-col items-center justify-center text-center">
+              <AlertCircle className="w-4 h-4 text-rose-500 mb-1.5" />
+              <span className="text-xl font-bold text-rose-600">{stats.maintenance}</span>
+              <span className="text-[9px] uppercase font-bold text-rose-500">Repair</span>
             </CardContent>
           </Card>
         </div>
 
         {isLoading ? (
           <div className="flex justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
           </div>
         ) : rooms && rooms.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {rooms.sort((a,b) => a.roomNumber.localeCompare(b.roomNumber)).map((room) => {
               const config = STATUS_CONFIG[room.status] || STATUS_CONFIG.available;
               const activeTask = activeTasks?.find(t => t.roomId === room.id);
               
               return (
                 <Card key={room.id} className="border-none shadow-sm hover:shadow-md transition-all group overflow-hidden bg-white">
-                  <div className={cn("h-1.5", config.bg.replace("bg-", "bg-opacity-100 bg-"))} />
-                  <CardHeader className="p-4 pb-0 flex flex-row items-center justify-between space-y-0">
+                  <div className={cn("h-1", config.bg.replace("bg-", "bg-opacity-100 bg-"))} />
+                  <CardHeader className="p-3 pb-0 flex flex-row items-center justify-between space-y-0">
                     <div className="flex flex-col">
-                      <span className="text-2xl font-bold tracking-tight">Room {room.roomNumber}</span>
-                      <span className="text-[10px] text-muted-foreground uppercase font-bold">Floor {room.floor}</span>
+                      <span className="text-lg font-bold tracking-tight">Room {room.roomNumber}</span>
+                      <span className="text-[9px] text-muted-foreground uppercase font-bold">Floor {room.floor}</span>
                     </div>
                     {isSupervisorOrAdmin && (
                       <Select onValueChange={(val) => updateStatus(room, val)} value={room.status}>
-                        <SelectTrigger className="w-8 h-8 p-0 border-none shadow-none focus:ring-0">
-                          <MoreVertical className="w-4 h-4" />
+                        <SelectTrigger className="w-7 h-7 p-0 border-none shadow-none focus:ring-0">
+                          <MoreVertical className="w-3.5 h-3.5" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="available">Clean / Ready</SelectItem>
@@ -318,27 +316,27 @@ export default function HousekeepingPage() {
                       </Select>
                     )}
                   </CardHeader>
-                  <CardContent className="p-4 pt-4 space-y-4">
-                    <div className={cn("flex items-center gap-2 p-2 rounded-lg", config.bg)}>
-                      <config.icon className={cn("w-4 h-4", config.color)} />
-                      <span className={cn("text-[11px] font-bold uppercase", config.color)}>{config.label}</span>
+                  <CardContent className="p-3 pt-3 space-y-3">
+                    <div className={cn("flex items-center gap-1.5 p-1.5 rounded-lg", config.bg)}>
+                      <config.icon className={cn("w-3.5 h-3.5", config.color)} />
+                      <span className={cn("text-[10px] font-bold uppercase", config.color)}>{config.label}</span>
                     </div>
                     
                     {activeTask && room.status === 'cleaning' ? (
-                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-secondary/30 p-2 rounded-md border border-secondary">
-                        <UserCheck className="w-3.5 h-3.5 text-primary" />
+                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-secondary/30 p-1.5 rounded-md border border-secondary">
+                        <UserCheck className="w-3 h-3 text-primary" />
                         <span className="truncate font-medium">{activeTask.assignedStaffName}</span>
                       </div>
                     ) : (
-                      <div className="h-[29px]" /> // Maintain height
+                      <div className="h-[25px]" />
                     )}
 
-                    <div className="flex items-center justify-between pt-2 border-t">
-                      <Badge variant="outline" className="text-[10px] uppercase px-1.5 py-0 bg-secondary/20">
+                    <div className="flex items-center justify-between pt-1.5 border-t">
+                      <Badge variant="outline" className="text-[9px] uppercase px-1.5 py-0 bg-secondary/20">
                         {room.roomTypeId}
                       </Badge>
-                      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <History className="w-3 h-3" />
+                      <span className="text-[9px] text-muted-foreground flex items-center gap-1">
+                        <History className="w-2.5 h-2.5" />
                         {room.updatedAt ? new Date(room.updatedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'N/A'}
                       </span>
                     </div>
@@ -348,14 +346,13 @@ export default function HousekeepingPage() {
             })}
           </div>
         ) : (
-          <div className="text-center py-20 bg-white rounded-3xl border border-dashed flex flex-col items-center">
-            <DoorOpen className="w-12 h-12 text-muted-foreground/20 mb-4" />
-            <h3 className="text-lg font-semibold">No rooms configured</h3>
-            <p className="text-muted-foreground">Add physical rooms to start tracking housekeeping.</p>
+          <div className="text-center py-16 bg-white rounded-2xl border border-dashed flex flex-col items-center">
+            <DoorOpen className="w-10 h-10 text-muted-foreground/20 mb-3" />
+            <h3 className="text-base font-semibold">No rooms configured</h3>
+            <p className="text-sm text-muted-foreground">Add physical rooms to start tracking housekeeping.</p>
           </div>
         )}
 
-        {/* Assignment Dialog */}
         <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
           <DialogContent>
             <DialogHeader>
@@ -401,7 +398,7 @@ export default function HousekeepingPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <DialogFooter className="pt-4">
+              <DialogFooter className="pt-2">
                 <Button type="submit" className="w-full">Confirm Assignment</Button>
               </DialogFooter>
             </form>

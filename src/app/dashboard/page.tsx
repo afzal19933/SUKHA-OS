@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
 import { collection, query, where } from "firebase/firestore";
-import { format, startOfDay, endOfDay } from "date-fns";
+import { startOfDay, endOfDay } from "date-fns";
 
 export default function DashboardPage() {
   const { entityId } = useAuthStore();
@@ -43,7 +43,6 @@ export default function DashboardPage() {
   // Fetch Today's Reservations
   const todayResQuery = useMemoFirebase(() => {
     if (!entityId) return null;
-    const today = new Date().toISOString().split('T')[0];
     return query(
       collection(db, "hotel_properties", entityId, "reservations"),
       where("checkInDate", ">=", startOfDay(new Date()).toISOString()),
@@ -75,7 +74,6 @@ export default function DashboardPage() {
     { label: "Expected Check-ins", value: (todayReservations?.length || 0).toString(), icon: CalendarCheck2, change: "Today", trend: "neutral" },
   ];
 
-  // Placeholder for chart data while Firestore logs grow
   const chartData = [
     { name: "Mon", occupancy: 45, revenue: 1200 },
     { name: "Tue", occupancy: 52, revenue: 2100 },
@@ -87,8 +85,8 @@ export default function DashboardPage() {
   if (roomsLoading) {
     return (
       <AppLayout>
-        <div className="flex items-center justify-center h-[60vh]">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="flex items-center justify-center h-[50vh]">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
         </div>
       </AppLayout>
     );
@@ -96,44 +94,44 @@ export default function DashboardPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-8 max-w-7xl mx-auto">
+      <div className="space-y-6 max-w-5xl mx-auto">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Overview</h1>
-          <p className="text-muted-foreground mt-1">Welcome back! Real-time performance for your property.</p>
+          <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Real-time performance for your property.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {STATS.map((stat) => (
             <Card key={stat.label} className="border-none shadow-sm hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-2 bg-secondary rounded-xl">
-                    <stat.icon className="w-6 h-6 text-primary" />
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-1.5 bg-secondary rounded-lg">
+                    <stat.icon className="w-5 h-5 text-primary" />
                   </div>
                   <div className={cn(
-                    "flex items-center text-sm font-medium",
+                    "flex items-center text-xs font-medium",
                     stat.trend === "up" ? "text-emerald-500" : stat.trend === "down" ? "text-rose-500" : "text-muted-foreground"
                   )}>
                     {stat.change}
-                    {stat.trend === "up" && <ArrowUpRight className="w-4 h-4 ml-1" />}
-                    {stat.trend === "down" && <ArrowDownRight className="w-4 h-4 ml-1" />}
+                    {stat.trend === "up" && <ArrowUpRight className="w-3.5 h-3.5 ml-0.5" />}
+                    {stat.trend === "down" && <ArrowDownRight className="w-3.5 h-3.5 ml-0.5" />}
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
-                  <h3 className="text-3xl font-bold mt-1">{stat.value}</h3>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{stat.label}</p>
+                  <h3 className="text-2xl font-bold mt-0.5">{stat.value}</h3>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="border-none shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg">Growth Trends</CardTitle>
+            <CardHeader className="py-4">
+              <CardTitle className="text-base">Growth Trends</CardTitle>
             </CardHeader>
-            <CardContent className="h-[300px]">
+            <CardContent className="h-[240px] p-4 pt-0">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
                   <defs>
@@ -143,31 +141,31 @@ export default function DashboardPage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 11}} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 11}} />
                   <Tooltip 
-                    contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
+                    contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '11px'}}
                   />
-                  <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
+                  <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2.5} fillOpacity={1} fill="url(#colorRevenue)" />
                 </AreaChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
           <Card className="border-none shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg">Occupancy Level (%)</CardTitle>
+            <CardHeader className="py-4">
+              <CardTitle className="text-base">Occupancy Level (%)</CardTitle>
             </CardHeader>
-            <CardContent className="h-[300px]">
+            <CardContent className="h-[240px] p-4 pt-0">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 11}} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 11}} />
                   <Tooltip 
-                    contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
+                    contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '11px'}}
                   />
-                  <Line type="monotone" dataKey="occupancy" stroke="hsl(var(--accent))" strokeWidth={3} dot={{r: 4, strokeWidth: 2}} activeDot={{r: 6}} />
+                  <Line type="monotone" dataKey="occupancy" stroke="hsl(var(--accent))" strokeWidth={2.5} dot={{r: 3, strokeWidth: 1.5}} activeDot={{r: 5}} />
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
