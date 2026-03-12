@@ -1,21 +1,25 @@
+
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { doc, setDoc, collection, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Building2, KeyRound, Mail, User } from "lucide-react";
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [propertyName, setPropertyName] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
@@ -25,13 +29,52 @@ export default function LoginPage() {
     setLoading(true);
     try {
       if (isSignUp) {
+        // 1. Create Auth User
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(userCredential.user, { 
+        const user = userCredential.user;
+
+        await updateProfile(user, { 
           displayName: name || email.split('@')[0] 
         });
+
+        // 2. Create a New Hotel Property (for the first owner)
+        const hotelId = crypto.randomUUID();
+        const propertyRef = doc(db, "hotel_properties", hotelId);
+        const propertyData = {
+          id: hotelId,
+          entityId: hotelId,
+          name: propertyName || "My New Hotel",
+          address: "TBD",
+          phone: "TBD",
+          email: email,
+          gstin: "TBD",
+          pan: "TBD",
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        
+        // Using non-blocking to initiate the write
+        setDocumentNonBlocking(propertyRef, propertyData, { merge: true });
+
+        // 3. Create User Profile
+        const userProfileRef = doc(db, "user_profiles", user.uid);
+        const userProfileData = {
+          id: user.uid,
+          entityId: hotelId,
+          name: name || email.split('@')[0],
+          email: email,
+          isActive: true,
+          role: "owner", // First user is the owner
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        setDocumentNonBlocking(userProfileRef, userProfileData, { merge: true });
+
         toast({
           title: "Account created",
-          description: "Welcome to Sukha OS! Redirecting to dashboard...",
+          description: `Welcome to Sukha OS, ${name}! Your property "${propertyData.name}" has been initialized.`,
         });
       } else {
         await signInWithEmailAndPassword(auth, email, password);
@@ -65,20 +108,38 @@ export default function LoginPage() {
         <form onSubmit={handleAuth}>
           <CardContent className="space-y-4">
             {isSignUp && (
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <div className="relative">
-                  <Input
-                    id="name"
-                    placeholder="John Doe"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    className="h-11 pl-10"
-                  />
-                  <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Full Name</Label>
+                  <div className="relative">
+                    <Input
+                      id="name"
+                      placeholder="John Doe"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                      className="h-11 pl-10"
+                      suppressHydrationWarning
+                    />
+                    <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                  </div>
                 </div>
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="propertyName">Hotel/Property Name</Label>
+                  <div className="relative">
+                    <Input
+                      id="propertyName"
+                      placeholder="Grand Sukha Resort"
+                      value={propertyName}
+                      onChange={(e) => setPropertyName(e.target.value)}
+                      required
+                      className="h-11 pl-10"
+                      suppressHydrationWarning
+                    />
+                    <Building2 className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                  </div>
+                </div>
+              </>
             )}
             <div className="space-y-2">
               <Label htmlFor="email">Work Email</Label>
@@ -91,6 +152,7 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   className="h-11 pl-10"
+                  suppressHydrationWarning
                 />
                 <Mail className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
               </div>
@@ -106,13 +168,14 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   className="h-11 pl-10"
+                  suppressHydrationWarning
                 />
                 <KeyRound className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
               </div>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full h-11 font-semibold text-lg" disabled={loading}>
+            <Button type="submit" className="w-full h-11 font-semibold text-lg" disabled={loading} suppressHydrationWarning>
               {loading ? "Processing..." : isSignUp ? "Create Account" : "Sign In"}
             </Button>
             <div className="text-center">
@@ -121,6 +184,7 @@ export default function LoginPage() {
                 variant="link" 
                 className="text-sm"
                 onClick={() => setIsSignUp(!isSignUp)}
+                suppressHydrationWarning
               >
                 {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up"}
               </Button>

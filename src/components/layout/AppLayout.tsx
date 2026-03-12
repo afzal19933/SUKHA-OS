@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -12,7 +13,7 @@ import {
   Bell, 
   LogOut,
   Menu,
-  X,
+  Users,
   User as UserIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { name: "Housekeeping", href: "/housekeeping", icon: BedDouble },
   { name: "Maintenance", href: "/maintenance", icon: Wrench },
   { name: "Invoices", href: "/invoices", icon: FileText },
+  { name: "Team", href: "/team", icon: Users },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -99,6 +101,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             variant="ghost" 
             className={cn("w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10", !sidebarOpen && "px-2")}
             onClick={handleLogout}
+            suppressHydrationWarning
           >
             <LogOut className="w-5 h-5 shrink-0" />
             {sidebarOpen && <span className="ml-3">Logout</span>}
@@ -110,12 +113,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
         <header className="h-16 bg-white border-b flex items-center justify-between px-6 shrink-0">
-          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)}>
+          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} suppressHydrationWarning>
             <Menu className="w-5 h-5" />
           </Button>
 
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="relative">
+            <Button variant="ghost" size="icon" className="relative" suppressHydrationWarning>
               <Bell className="w-5 h-5 text-muted-foreground" />
               <span className="absolute top-2 right-2.5 w-2 h-2 bg-accent rounded-full border-2 border-white"></span>
             </Button>
