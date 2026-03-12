@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -35,6 +34,13 @@ import {
   DialogTrigger,
   DialogDescription
 } from "@/components/ui/dialog";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
 import { collection, query, orderBy, doc } from "firebase/firestore";
