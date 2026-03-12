@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -15,7 +14,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
 import { collection, doc, query, orderBy } from "firebase/firestore";
@@ -208,7 +207,7 @@ export default function MaintenancePage() {
                       <span className="text-xs font-medium capitalize">{task.status.replace("_", " ")}</span>
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      {new Date(task.createdAt).toLocaleDateString()}
+                      {formatAppDate(task.createdAt)}
                     </span>
                   </div>
                 </CardContent>

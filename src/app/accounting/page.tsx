@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -44,7 +43,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { cn, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
 import { collection, query, orderBy, doc } from "firebase/firestore";
@@ -207,7 +206,7 @@ export default function AccountingPage() {
                     invoices.map((inv) => (
                       <TableRow key={inv.id}>
                         <TableCell className="font-mono text-[10px] font-semibold">{inv.invoiceNumber}</TableCell>
-                        <TableCell className="text-xs">{inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : 'N/A'}</TableCell>
+                        <TableCell className="text-xs">{formatAppDate(inv.createdAt)}</TableCell>
                         <TableCell className="font-bold text-xs">₹{inv.totalAmount?.toLocaleString()}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className={cn(
@@ -320,7 +319,7 @@ export default function AccountingPage() {
                   ) : expenses?.length ? (
                     expenses.map((exp) => (
                       <TableRow key={exp.id}>
-                        <TableCell className="text-xs">{new Date(exp.date).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-xs">{formatAppDate(exp.date)}</TableCell>
                         <TableCell className="text-xs font-medium">{exp.description}</TableCell>
                         <TableCell>
                           <Badge variant="secondary" className="text-[9px] h-4 px-1.5 font-bold uppercase">

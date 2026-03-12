@@ -13,7 +13,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
@@ -103,7 +103,7 @@ export default function InvoicesPage() {
                 invoices.map((inv) => (
                   <TableRow key={inv.id}>
                     <TableCell className="font-mono text-[10px] font-semibold">{inv.invoiceNumber}</TableCell>
-                    <TableCell className="text-sm">{inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : 'N/A'}</TableCell>
+                    <TableCell className="text-sm">{formatAppDate(inv.createdAt)}</TableCell>
                     <TableCell className="font-bold text-sm">₹{inv.totalAmount?.toLocaleString()}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn(

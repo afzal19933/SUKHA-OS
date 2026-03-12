@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -27,7 +26,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
 import { collection, doc, updateDoc } from "firebase/firestore";
@@ -259,7 +258,7 @@ export default function ReservationsPage() {
                     <TableCell>
                       <div className="text-xs flex items-center gap-2">
                         <Calendar className="w-3 h-3 text-muted-foreground" />
-                        {res.checkInDate} — {res.checkOutDate}
+                        {formatAppDate(res.checkInDate)} — {formatAppDate(res.checkOutDate)}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -335,11 +334,11 @@ export default function ReservationsPage() {
                     <Calendar className="w-4 h-4 text-muted-foreground" />
                     <div className="flex-1">
                       <p className="text-xs font-semibold">Check-In</p>
-                      <p className="text-sm font-medium">{selectedRes.checkInDate}</p>
+                      <p className="text-sm font-medium">{formatAppDate(selectedRes.checkInDate)}</p>
                     </div>
                     <div className="text-right flex-1">
                       <p className="text-xs font-semibold">Check-Out</p>
-                      <p className="text-sm font-medium">{selectedRes.checkOutDate}</p>
+                      <p className="text-sm font-medium">{formatAppDate(selectedRes.checkOutDate)}</p>
                     </div>
                   </div>
                 </div>
