@@ -124,7 +124,7 @@ export default function TeamPage() {
     toast({ title: "Member deleted" });
   };
 
-  const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
+  const isAdmin = currentUserRole === "owner" || currentUserRole === "admin" || currentUserRole === "manager";
 
   const filteredMembers = teamMembers?.filter(m => 
     m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -189,7 +189,7 @@ export default function TeamPage() {
                         <SelectItem value="supervisor">Supervisor</SelectItem>
                         <SelectItem value="staff">Staff</SelectItem>
                         <SelectItem value="frontdesk">Front Desk</SelectItem>
-                        <SelectItem value="housekeeping">Housekeeping</SelectItem>
+                        <SelectItem value="housekeeping">Housekeeping Staff</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -253,7 +253,7 @@ export default function TeamPage() {
                           <Shield className="w-4 h-4 text-primary" />
                         ) : null}
                         <Badge variant="secondary" className="capitalize font-medium">
-                          {member.role}
+                          {member.role.replace('_', ' ')}
                         </Badge>
                       </div>
                     </TableCell>
@@ -342,7 +342,7 @@ export default function TeamPage() {
                       <SelectItem value="supervisor">Supervisor</SelectItem>
                       <SelectItem value="staff">Staff</SelectItem>
                       <SelectItem value="frontdesk">Front Desk</SelectItem>
-                      <SelectItem value="housekeeping">Housekeeping</SelectItem>
+                      <SelectItem value="housekeeping">Housekeeping Staff</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
