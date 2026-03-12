@@ -198,9 +198,11 @@ export default function ReservationsPage() {
     
     updateDocumentNonBlocking(resRef, updateData);
     
-    if (currentRes && rooms) {
+    // Sync with Housekeeping
+    if (currentRes && currentRes.roomNumber && rooms) {
+      const roomNumStr = currentRes.roomNumber.toString().trim();
       const room = rooms.find(r => 
-        r.roomNumber.toString().trim() === currentRes.roomNumber.toString().trim()
+        r.roomNumber?.toString().trim() === roomNumStr
       );
       
       if (room) {
@@ -392,7 +394,7 @@ export default function ReservationsPage() {
                       {formatAppDate(res.checkInDate)}
                     </TableCell>
                     <TableCell className="text-center whitespace-nowrap text-xs font-medium">
-                      {res.checkOutDate ? formatAppDate(res.checkOutDate) : "N/A"}
+                      {res.checkOutDate ? formatAppDate(res.checkOutDate) : "TBD"}
                     </TableCell>
                     <TableCell className="text-center whitespace-nowrap">
                       <Badge className={cn(
@@ -443,7 +445,7 @@ export default function ReservationsPage() {
                     selectedRes.status === "checked_in" && "bg-blue-50 text-blue-700 border-blue-200",
                     selectedRes.status === "checked_out" && "bg-gray-100 text-gray-700 border-gray-200"
                   )}>
-                    {selectedRes.status.replace('_', ' ')}
+                    {(selectedRes.status || "confirmed").replace('_', ' ')}
                   </Badge>
                 </div>
 
