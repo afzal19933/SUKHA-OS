@@ -67,11 +67,11 @@ export default function HousekeepingPage() {
 
   const teamQuery = useMemoFirebase(() => {
     if (!entityId) return null;
-    // Exclude supervisors, admins, and owners from being assigned cleaning tasks
+    // CRITICAL: Supervisors and Admins/Managers/Owners are excluded from being assigned cleaning tasks
     return query(
       collection(db, "user_profiles"), 
       where("entityId", "==", entityId),
-      where("role", "in", ["staff", "housekeeping", "frontdesk", "manager"])
+      where("role", "in", ["staff", "housekeeping", "frontdesk"]) // Exclude supervisor, manager, admin, owner
     );
   }, [db, entityId]);
 
@@ -167,6 +167,7 @@ export default function HousekeepingPage() {
     toast({ title: "Status updated" });
   };
 
+  // Supervisors and higher can manage rooms and assign tasks
   const isSupervisorOrAdmin = ["owner", "admin", "manager", "supervisor"].includes(currentUserRole || "");
 
   return (

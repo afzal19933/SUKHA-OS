@@ -12,6 +12,8 @@ interface AuthState {
   permissions: string[] | null;
   _hasHydrated: boolean;
   setUser: (user: User | null, claims?: Record<string, any>) => void;
+  setRole: (role: string | null) => void;
+  setEntityId: (entityId: string | null) => void;
   setPermissions: (permissions: string[] | null) => void;
   setHasHydrated: (state: boolean) => void;
 }
@@ -29,6 +31,8 @@ export const useAuthStore = create<AuthState>()(
         role: claims?.role || null, 
         entityId: claims?.entityId || null 
       }),
+      setRole: (role) => set({ role }),
+      setEntityId: (entityId) => set({ entityId }),
       setPermissions: (permissions) => set({ permissions }),
       setHasHydrated: (state) => set({ _hasHydrated: state }),
     }),

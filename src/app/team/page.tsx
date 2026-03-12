@@ -9,7 +9,6 @@ import {
   UserPlus, 
   Shield, 
   MoreVertical,
-  User,
   CheckCircle2,
   XCircle,
   Edit2,
