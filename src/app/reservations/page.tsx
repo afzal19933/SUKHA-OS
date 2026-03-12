@@ -4,7 +4,19 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Plus, Search, Filter, Loader2, Calendar } from "lucide-react";
+import { 
+  Plus, 
+  Search, 
+  Filter, 
+  Loader2, 
+  Calendar, 
+  User, 
+  Info,
+  CheckCircle2,
+  LogOut,
+  MapPin,
+  Clock
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
   Table, 
@@ -18,7 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
-import { collection, doc, setDoc } from "firebase/firestore";
+import { collection, doc, updateDoc } from "firebase/firestore";
 import { 
   Dialog, 
   DialogContent, 
@@ -30,7 +42,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { Separator } from "@/components/ui/separator";
 
 export default function ReservationsPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
@@ -40,7 +53,16 @@ export default function ReservationsPage() {
   const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
 
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [newRes, setNewRes] = useState({ guestName: "", roomNumber: "", checkIn: "", checkOut: "" });
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [selectedRes, setSelectedRes] = useState<any>(null);
+  const [newRes, setNewRes] = useState({ 
+    guestName: "", 
+    roomNumber: "", 
+    checkIn: "", 
+    checkOut: "",
+    guests: "1",
+    requests: ""
+  });
 
   const reservationsQuery = useMemoFirebase(() => {
     if (!entityId) return null;
@@ -61,7 +83,8 @@ export default function ReservationsPage() {
       checkInDate: newRes.checkIn,
       checkOutDate: newRes.checkOut,
       status: "confirmed",
-      numberOfGuests: 1,
+      numberOfGuests: parseInt(newRes.guests),
+      specialRequests: newRes.requests,
       bookingSourceId: "walk-in",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -75,7 +98,30 @@ export default function ReservationsPage() {
     });
 
     setIsAddOpen(false);
-    setNewRes({ guestName: "", roomNumber: "", checkIn: "", checkOut: "" });
+    setNewRes({ guestName: "", roomNumber: "", checkIn: "", checkOut: "", guests: "1", requests: "" });
+  };
+
+  const updateStatus = (resId: string, status: string) => {
+    if (!entityId) return;
+    const resRef = doc(db, "hotel_properties", entityId, "reservations", resId);
+    updateDocumentNonBlocking(resRef, { 
+      status, 
+      updatedAt: new Date().toISOString() 
+    });
+    
+    toast({ 
+      title: "Status Updated", 
+      description: `Reservation is now ${status.replace('_', ' ')}.` 
+    });
+    
+    if (selectedRes?.id === resId) {
+      setSelectedRes({ ...selectedRes, status });
+    }
+  };
+
+  const openDetails = (res: any) => {
+    setSelectedRes(res);
+    setIsDetailsOpen(true);
   };
 
   return (
@@ -111,15 +157,28 @@ export default function ReservationsPage() {
                       required 
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="roomNumber">Room #</Label>
-                    <Input 
-                      id="roomNumber" 
-                      placeholder="101" 
-                      value={newRes.roomNumber}
-                      onChange={(e) => setNewRes({...newRes, roomNumber: e.target.value})}
-                      required 
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="roomNumber">Room #</Label>
+                      <Input 
+                        id="roomNumber" 
+                        placeholder="101" 
+                        value={newRes.roomNumber}
+                        onChange={(e) => setNewRes({...newRes, roomNumber: e.target.value})}
+                        required 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="guests">Number of Guests</Label>
+                      <Input 
+                        id="guests" 
+                        type="number"
+                        min="1"
+                        value={newRes.guests}
+                        onChange={(e) => setNewRes({...newRes, guests: e.target.value})}
+                        required 
+                      />
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -140,6 +199,14 @@ export default function ReservationsPage() {
                         required 
                       />
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Special Requests</Label>
+                    <Input 
+                      placeholder="Late check-in, extra towels, etc." 
+                      value={newRes.requests}
+                      onChange={(e) => setNewRes({...newRes, requests: e.target.value})}
+                    />
                   </div>
                   <DialogFooter className="pt-4">
                     <Button type="submit" className="w-full">Confirm Booking</Button>
@@ -184,20 +251,20 @@ export default function ReservationsPage() {
                   <TableRow key={res.id}>
                     <TableCell>
                       <div className="font-medium">{res.guestName}</div>
-                      <div className="text-xs text-muted-foreground">ID: {res.id.slice(0,8)}</div>
+                      <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">ID: {res.id.slice(0,8)}</div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="bg-secondary/50">{res.roomNumber}</Badge>
+                      <Badge variant="outline" className="bg-secondary/50 font-bold px-2 py-0 h-5">Room {res.roomNumber}</Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm flex items-center gap-2">
+                      <div className="text-xs flex items-center gap-2">
                         <Calendar className="w-3 h-3 text-muted-foreground" />
                         {res.checkInDate} — {res.checkOutDate}
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge className={cn(
-                        "capitalize",
+                        "capitalize text-[10px] px-2 py-0 h-5",
                         res.status === "confirmed" && "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200",
                         res.status === "checked_in" && "bg-primary/10 text-primary hover:bg-primary/10 border-primary/20",
                         res.status === "pending" && "bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200",
@@ -207,13 +274,13 @@ export default function ReservationsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">Details</Button>
+                      <Button variant="ghost" size="sm" className="h-8 text-xs font-semibold" onClick={() => openDetails(res)}>Details</Button>
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center py-12 text-muted-foreground text-sm">
                     No reservations found. Create your first one above.
                   </TableCell>
                 </TableRow>
@@ -221,6 +288,102 @@ export default function ReservationsPage() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Details Dialog */}
+        <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+          <DialogContent className="sm:max-w-[450px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Info className="w-5 h-5 text-primary" />
+                Reservation Details
+              </DialogTitle>
+            </DialogHeader>
+            {selectedRes && (
+              <div className="space-y-6 pt-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-xl font-bold">{selectedRes.guestName}</h3>
+                    <p className="text-xs text-muted-foreground font-mono">RES-ID: {selectedRes.id.toUpperCase()}</p>
+                  </div>
+                  <Badge className={cn(
+                    "capitalize px-3 py-1",
+                    selectedRes.status === "confirmed" && "bg-emerald-100 text-emerald-700",
+                    selectedRes.status === "checked_in" && "bg-primary/10 text-primary",
+                    selectedRes.status === "checked_out" && "bg-gray-100 text-gray-700"
+                  )}>
+                    {selectedRes.status.replace('_', ' ')}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6 bg-secondary/30 p-4 rounded-xl border">
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1.5">
+                      <MapPin className="w-3 h-3" /> Room Information
+                    </p>
+                    <p className="font-bold text-lg">Room {selectedRes.roomNumber}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1.5">
+                      <User className="w-3 h-3" /> Occupancy
+                    </p>
+                    <p className="font-bold text-lg">{selectedRes.numberOfGuests} {selectedRes.numberOfGuests === 1 ? 'Guest' : 'Guests'}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                    <div className="flex-1">
+                      <p className="text-xs font-semibold">Check-In</p>
+                      <p className="text-sm font-medium">{selectedRes.checkInDate}</p>
+                    </div>
+                    <div className="text-right flex-1">
+                      <p className="text-xs font-semibold">Check-Out</p>
+                      <p className="text-sm font-medium">{selectedRes.checkOutDate}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Booking Source</p>
+                  <p className="text-sm font-medium capitalize flex items-center gap-2">
+                    <Clock className="w-3.5 h-3.5" /> {selectedRes.bookingSourceId || 'Walk-in'}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Special Requests</p>
+                  <p className="text-sm bg-secondary/50 p-3 rounded-lg border italic min-h-[60px]">
+                    {selectedRes.specialRequests || 'No special requests recorded for this booking.'}
+                  </p>
+                </div>
+
+                <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
+                  {selectedRes.status === 'confirmed' && (
+                    <Button 
+                      className="w-full sm:flex-1" 
+                      onClick={() => updateStatus(selectedRes.id, 'checked_in')}
+                    >
+                      <CheckCircle2 className="w-4 h-4 mr-2" /> Check-In Guest
+                    </Button>
+                  )}
+                  {selectedRes.status === 'checked_in' && (
+                    <Button 
+                      variant="destructive"
+                      className="w-full sm:flex-1" 
+                      onClick={() => updateStatus(selectedRes.id, 'checked_out')}
+                    >
+                      <LogOut className="w-4 h-4 mr-2" /> Check-Out Guest
+                    </Button>
+                  )}
+                  <Button variant="outline" className="w-full sm:w-auto" onClick={() => setIsDetailsOpen(false)}>Close</Button>
+                </DialogFooter>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
