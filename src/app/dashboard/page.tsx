@@ -10,7 +10,10 @@ import {
   CalendarCheck2,
   ArrowUpRight,
   ArrowDownRight,
-  Loader2
+  Loader2,
+  ShieldCheck,
+  AlertTriangle,
+  Brush
 } from "lucide-react";
 import { 
   LineChart, 
@@ -33,14 +36,12 @@ export default function DashboardPage() {
   const { entityId } = useAuthStore();
   const db = useFirestore();
 
-  // Fetch Rooms for Occupancy
   const roomsQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return collection(db, "hotel_properties", entityId, "rooms");
   }, [db, entityId]);
   const { data: rooms, isLoading: roomsLoading } = useCollection(roomsQuery);
 
-  // Fetch Today's Reservations
   const todayResQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return query(
@@ -51,27 +52,38 @@ export default function DashboardPage() {
   }, [db, entityId]);
   const { data: todayReservations } = useCollection(todayResQuery);
 
-  // Fetch Invoices for Revenue
   const invoiceQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return collection(db, "hotel_properties", entityId, "invoices");
   }, [db, entityId]);
   const { data: invoices } = useCollection(invoiceQuery);
 
-  const totalRooms = rooms?.length || 0;
-  const occupiedRooms = rooms?.filter(r => r.status === 'occupied').length || 0;
-  const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
+  const stats = {
+    total: rooms?.length || 0,
+    vacantReady: rooms?.filter(r => r.status === 'available').length || 0,
+    vacantDirty: rooms?.filter(r => r.status === 'dirty').length || 0,
+    occupied: rooms?.filter(r => r.status.includes('occupied')).length || 0,
+    cleaning: rooms?.filter(r => r.status.includes('cleaning')).length || 0,
+  };
+  
+  const occupancyRate = stats.total > 0 ? Math.round((stats.occupied / stats.total) * 100) : 0;
   
   const todayRevenue = invoices?.reduce((acc, inv) => {
     const isToday = inv.createdAt?.startsWith(new Date().toISOString().split('T')[0]);
     return isToday ? acc + (inv.totalAmount || 0) : acc;
   }, 0) || 0;
 
-  const STATS = [
+  const PRIMARY_STATS = [
     { label: "Total Occupancy", value: `${occupancyRate}%`, icon: Users, change: "Live", trend: "neutral" },
-    { label: "Available Rooms", value: (totalRooms - occupiedRooms).toString(), icon: Bed, change: "Rooms", trend: "neutral" },
+    { label: "Vacant Ready", value: stats.vacantReady.toString(), icon: ShieldCheck, change: "Rooms", trend: "up" },
     { label: "Today's Revenue", value: `$${todayRevenue.toLocaleString()}`, icon: TrendingUp, change: "+0%", trend: "up" },
-    { label: "Expected Check-ins", value: (todayReservations?.length || 0).toString(), icon: CalendarCheck2, change: "Today", trend: "neutral" },
+    { label: "Today's Arrival", value: (todayReservations?.length || 0).toString(), icon: CalendarCheck2, change: "Confirmed", trend: "neutral" },
+  ];
+
+  const SECONDARY_STATS = [
+    { label: "Vacant Dirty", value: stats.vacantDirty.toString(), icon: AlertTriangle, color: "text-orange-500" },
+    { label: "Cleaning Process", value: stats.cleaning.toString(), icon: Brush, color: "text-primary" },
+    { label: "Total Occupied", value: stats.occupied.toString(), icon: Bed, color: "text-blue-500" },
   ];
 
   const chartData = [
@@ -94,44 +106,59 @@ export default function DashboardPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-5xl mx-auto">
+      <div className="space-y-6 max-w-4xl mx-auto">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Real-time performance for your property.</p>
+          <h1 className="text-xl font-bold tracking-tight">Executive Dashboard</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">Summary of property performance and room operations.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {STATS.map((stat) => (
-            <Card key={stat.label} className="border-none shadow-sm hover:shadow-md transition-shadow">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {PRIMARY_STATS.map((stat) => (
+            <Card key={stat.label} className="border-none shadow-sm overflow-hidden bg-white">
               <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-2">
                   <div className="p-1.5 bg-secondary rounded-lg">
-                    <stat.icon className="w-5 h-5 text-primary" />
+                    <stat.icon className="w-4 h-4 text-primary" />
                   </div>
                   <div className={cn(
-                    "flex items-center text-xs font-medium",
+                    "flex items-center text-[10px] font-medium",
                     stat.trend === "up" ? "text-emerald-500" : stat.trend === "down" ? "text-rose-500" : "text-muted-foreground"
                   )}>
                     {stat.change}
-                    {stat.trend === "up" && <ArrowUpRight className="w-3.5 h-3.5 ml-0.5" />}
-                    {stat.trend === "down" && <ArrowDownRight className="w-3.5 h-3.5 ml-0.5" />}
+                    {stat.trend === "up" && <ArrowUpRight className="w-3 h-3 ml-0.5" />}
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{stat.label}</p>
-                  <h3 className="text-2xl font-bold mt-0.5">{stat.value}</h3>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{stat.label}</p>
+                  <h3 className="text-xl font-bold mt-0.5">{stat.value}</h3>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="border-none shadow-sm">
-            <CardHeader className="py-4">
-              <CardTitle className="text-base">Growth Trends</CardTitle>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {SECONDARY_STATS.map((stat) => (
+            <Card key={stat.label} className="border-none shadow-sm bg-white">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className={cn("p-2 rounded-xl bg-secondary", stat.color)}>
+                  <stat.icon className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase">{stat.label}</p>
+                  <h4 className="text-lg font-bold">{stat.value}</h4>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card className="border-none shadow-sm bg-white">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Revenue Trends</CardTitle>
             </CardHeader>
-            <CardContent className="h-[240px] p-4 pt-0">
+            <CardContent className="h-[200px] p-4 pt-0">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
                   <defs>
@@ -141,31 +168,31 @@ export default function DashboardPage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 11}} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 11}} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 10}} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 10}} />
                   <Tooltip 
-                    contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '11px'}}
+                    contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '10px'}}
                   />
-                  <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2.5} fillOpacity={1} fill="url(#colorRevenue)" />
+                  <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
                 </AreaChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-sm">
-            <CardHeader className="py-4">
-              <CardTitle className="text-base">Occupancy Level (%)</CardTitle>
+          <Card className="border-none shadow-sm bg-white">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Occupancy Level (%)</CardTitle>
             </CardHeader>
-            <CardContent className="h-[240px] p-4 pt-0">
+            <CardContent className="h-[200px] p-4 pt-0">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 11}} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 11}} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 10}} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 10}} />
                   <Tooltip 
-                    contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '11px'}}
+                    contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '10px'}}
                   />
-                  <Line type="monotone" dataKey="occupancy" stroke="hsl(var(--accent))" strokeWidth={2.5} dot={{r: 3, strokeWidth: 1.5}} activeDot={{r: 5}} />
+                  <Line type="monotone" dataKey="occupancy" stroke="hsl(var(--accent))" strokeWidth={2} dot={{r: 2}} activeDot={{r: 4}} />
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>

@@ -17,7 +17,8 @@ import {
   UserCheck,
   AlertTriangle,
   DoorOpen,
-  History
+  History,
+  FilterX
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,10 +47,12 @@ import { useToast } from "@/hooks/use-toast";
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 const STATUS_CONFIG: any = {
-  available: { icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-50", label: "Clean & Ready" },
-  cleaning: { icon: Brush, color: "text-primary", bg: "bg-primary/5", label: "Cleaning" },
-  occupied: { icon: Clock, color: "text-blue-500", bg: "bg-blue-50", label: "Occupied" },
-  dirty: { icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-50", label: "Needs Cleaning" },
+  available: { icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-50", label: "Vacant Ready" },
+  cleaning: { icon: Brush, color: "text-primary", bg: "bg-primary/5", label: "Cleaning (Vac)" },
+  occupied: { icon: CheckCircle2, color: "text-blue-500", bg: "bg-blue-50", label: "Occupied (Ready)" },
+  dirty: { icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-50", label: "Vacant Dirty" },
+  occupied_dirty: { icon: AlertCircle, color: "text-amber-500", bg: "bg-amber-50", label: "Occupied (Dirty)" },
+  occupied_cleaning: { icon: Brush, color: "text-indigo-500", bg: "bg-indigo-50", label: "Cleaning (Occ)" },
   maintenance: { icon: AlertCircle, color: "text-rose-500", bg: "bg-rose-50", label: "Maintenance" },
 };
 
@@ -63,6 +66,7 @@ export default function HousekeepingPage() {
   const [selectedRoom, setSelectedRoom] = useState<any>(null);
   const [assignment, setAssignment] = useState({ staffId: "", priority: "medium" });
   const [newRoom, setNewRoom] = useState({ roomNumber: "", floor: "1", type: "Standard" });
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
   const roomsQuery = useMemoFirebase(() => {
     if (!entityId) return null;
@@ -91,13 +95,19 @@ export default function HousekeepingPage() {
   const { data: activeTasks } = useCollection(tasksQuery);
 
   const stats = useMemo(() => {
-    if (!rooms) return { total: 0, available: 0, cleaning: 0, occupied: 0, dirty: 0, maintenance: 0 };
+    if (!rooms) return { total: 0, available: 0, cleaning: 0, occupied: 0, dirty: 0, maintenance: 0, occupied_dirty: 0, occupied_cleaning: 0 };
     return rooms.reduce((acc: any, room: any) => {
       acc.total++;
       acc[room.status] = (acc[room.status] || 0) + 1;
       return acc;
-    }, { total: 0, available: 0, cleaning: 0, occupied: 0, dirty: 0, maintenance: 0 });
+    }, { total: 0, available: 0, cleaning: 0, occupied: 0, dirty: 0, maintenance: 0, occupied_dirty: 0, occupied_cleaning: 0 });
   }, [rooms]);
+
+  const filteredRooms = useMemo(() => {
+    if (!rooms) return [];
+    if (!activeFilter) return [...rooms].sort((a,b) => a.roomNumber.localeCompare(b.roomNumber));
+    return rooms.filter(r => r.status === activeFilter).sort((a,b) => a.roomNumber.localeCompare(b.roomNumber));
+  }, [rooms, activeFilter]);
 
   const handleAddRoom = (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,13 +135,14 @@ export default function HousekeepingPage() {
     if (!entityId || !selectedRoom) return;
 
     const staff = staffMembers?.find(s => s.id === assignment.staffId);
+    const newStatus = selectedRoom.status === 'occupied_dirty' ? 'occupied_cleaning' : 'cleaning';
     
     const tasksRef = collection(db, "hotel_properties", entityId, "housekeeping_tasks");
     addDocumentNonBlocking(tasksRef, {
       entityId,
       roomId: selectedRoom.id,
       roomNumber: selectedRoom.roomNumber,
-      taskType: "routine_cleaning",
+      taskType: selectedRoom.status.includes('occupied') ? "stayover_cleaning" : "routine_cleaning",
       assignedStaffId: assignment.staffId,
       assignedStaffName: staff?.name || "Unknown",
       status: "in_progress",
@@ -143,7 +154,7 @@ export default function HousekeepingPage() {
 
     const roomRef = doc(db, "hotel_properties", entityId, "rooms", selectedRoom.id);
     updateDocumentNonBlocking(roomRef, { 
-      status: "cleaning", 
+      status: newStatus, 
       updatedAt: new Date().toISOString() 
     });
 
@@ -156,7 +167,7 @@ export default function HousekeepingPage() {
   const updateStatus = (room: any, status: string) => {
     if (!entityId) return;
     
-    if (status === "cleaning") {
+    if (status === "cleaning" || status === "occupied_cleaning") {
       setSelectedRoom(room);
       setIsAssignOpen(true);
       return;
@@ -165,8 +176,8 @@ export default function HousekeepingPage() {
     const roomRef = doc(db, "hotel_properties", entityId, "rooms", room.id);
     updateDocumentNonBlocking(roomRef, { status, updatedAt: new Date().toISOString() });
     
-    if (status === "available") {
-      const task = activeTasks?.find(t => t.roomId === room.id && t.taskType === "routine_cleaning");
+    if (status === "available" || status === "occupied") {
+      const task = activeTasks?.find(t => t.roomId === room.id);
       if (task) {
         const taskRef = doc(db, "hotel_properties", entityId, "housekeeping_tasks", task.id);
         updateDocumentNonBlocking(taskRef, { status: "completed", updatedAt: new Date().toISOString() });
@@ -178,22 +189,42 @@ export default function HousekeepingPage() {
 
   const isSupervisorOrAdmin = ["owner", "admin", "manager", "supervisor"].includes(currentUserRole || "");
 
+  const StatCard = ({ id, label, value, icon: Icon, colorClass, active }: any) => (
+    <Card 
+      className={cn(
+        "border-none shadow-sm cursor-pointer transition-all hover:scale-[1.02]",
+        active ? "ring-2 ring-primary bg-primary/5 shadow-md" : "bg-white"
+      )}
+      onClick={() => setActiveFilter(active ? null : id)}
+    >
+      <CardContent className="p-3 flex flex-col items-center justify-center text-center">
+        <Icon className={cn("w-4 h-4 mb-1.5", colorClass)} />
+        <span className={cn("text-xl font-bold", colorClass)}>{value}</span>
+        <span className="text-[8px] uppercase font-bold text-muted-foreground">{label}</span>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <AppLayout>
       <div className="space-y-6 max-w-5xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Housekeeping</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Real-time room status and cleaning operations</p>
+            <h1 className="text-xl font-bold tracking-tight">Housekeeping Operations</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">Manage room cleanliness and stay-over service</p>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {activeFilter && (
+              <Button variant="ghost" size="sm" onClick={() => setActiveFilter(null)} className="h-8 text-[10px] text-rose-500">
+                <FilterX className="w-3.5 h-3.5 mr-1" /> Clear Filter
+              </Button>
+            )}
             {isSupervisorOrAdmin && (
               <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" className="h-9 text-xs">
-                    <Plus className="w-4 h-4 mr-2" />
-                    New Physical Room
+                  <Button variant="outline" className="h-8 text-[10px]">
+                    <Plus className="w-3.5 h-3.5 mr-1.5" /> New Physical Room
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
@@ -203,21 +234,11 @@ export default function HousekeepingPage() {
                   <form onSubmit={handleAddRoom} className="space-y-4 pt-4">
                     <div className="space-y-2">
                       <Label>Room Number</Label>
-                      <Input 
-                        placeholder="101" 
-                        value={newRoom.roomNumber}
-                        onChange={(e) => setNewRoom({...newRoom, roomNumber: e.target.value})}
-                        required 
-                      />
+                      <Input placeholder="101" value={newRoom.roomNumber} onChange={(e) => setNewRoom({...newRoom, roomNumber: e.target.value})} required />
                     </div>
                     <div className="space-y-2">
                       <Label>Floor</Label>
-                      <Input 
-                        type="number"
-                        value={newRoom.floor}
-                        onChange={(e) => setNewRoom({...newRoom, floor: e.target.value})}
-                        required 
-                      />
+                      <Input type="number" value={newRoom.floor} onChange={(e) => setNewRoom({...newRoom, floor: e.target.value})} required />
                     </div>
                     <div className="space-y-2">
                       <Label>Type</Label>
@@ -238,58 +259,36 @@ export default function HousekeepingPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <Card className="border-none shadow-sm bg-white">
+        <div className="grid grid-cols-4 md:grid-cols-4 lg:grid-cols-8 gap-2">
+          <Card 
+            className={cn(
+              "border-none shadow-sm cursor-pointer",
+              !activeFilter ? "ring-2 ring-primary/20 bg-secondary/50" : "bg-white"
+            )}
+            onClick={() => setActiveFilter(null)}
+          >
             <CardContent className="p-3 flex flex-col items-center justify-center text-center">
               <DoorOpen className="w-4 h-4 text-muted-foreground mb-1.5" />
               <span className="text-xl font-bold">{stats.total}</span>
-              <span className="text-[9px] uppercase font-bold text-muted-foreground">Total</span>
+              <span className="text-[8px] uppercase font-bold text-muted-foreground">Total Rooms</span>
             </CardContent>
           </Card>
-          <Card className="border-none shadow-sm bg-white">
-            <CardContent className="p-3 flex flex-col items-center justify-center text-center">
-              <ShieldCheck className="w-4 h-4 text-emerald-500 mb-1.5" />
-              <span className="text-xl font-bold text-emerald-600">{stats.available}</span>
-              <span className="text-[9px] uppercase font-bold text-emerald-500">Clean</span>
-            </CardContent>
-          </Card>
-          <Card className="border-none shadow-sm bg-white">
-            <CardContent className="p-3 flex flex-col items-center justify-center text-center">
-              <AlertTriangle className="w-4 h-4 text-orange-500 mb-1.5" />
-              <span className="text-xl font-bold text-orange-600">{stats.dirty}</span>
-              <span className="text-[9px] uppercase font-bold text-orange-500">Dirty</span>
-            </CardContent>
-          </Card>
-          <Card className="border-none shadow-sm bg-white">
-            <CardContent className="p-3 flex flex-col items-center justify-center text-center">
-              <Brush className="w-4 h-4 text-primary mb-1.5" />
-              <span className="text-xl font-bold text-primary">{stats.cleaning}</span>
-              <span className="text-[9px] uppercase font-bold text-primary">Cleaning</span>
-            </CardContent>
-          </Card>
-          <Card className="border-none shadow-sm bg-white">
-            <CardContent className="p-3 flex flex-col items-center justify-center text-center">
-              <Clock className="w-4 h-4 text-blue-500 mb-1.5" />
-              <span className="text-xl font-bold text-blue-600">{stats.occupied}</span>
-              <span className="text-[9px] uppercase font-bold text-blue-500">Occupied</span>
-            </CardContent>
-          </Card>
-          <Card className="border-none shadow-sm bg-white">
-            <CardContent className="p-3 flex flex-col items-center justify-center text-center">
-              <AlertCircle className="w-4 h-4 text-rose-500 mb-1.5" />
-              <span className="text-xl font-bold text-rose-600">{stats.maintenance}</span>
-              <span className="text-[9px] uppercase font-bold text-rose-500">Repair</span>
-            </CardContent>
-          </Card>
+          <StatCard id="available" label="Vacant Ready" value={stats.available} icon={ShieldCheck} colorClass="text-emerald-500" active={activeFilter === 'available'} />
+          <StatCard id="dirty" label="Vacant Dirty" value={stats.dirty} icon={AlertTriangle} colorClass="text-orange-500" active={activeFilter === 'dirty'} />
+          <StatCard id="cleaning" label="Cleaning (Vac)" value={stats.cleaning} icon={Brush} colorClass="text-primary" active={activeFilter === 'cleaning'} />
+          <StatCard id="occupied" label="Occupied (Ready)" value={stats.occupied} icon={CheckCircle2} colorClass="text-blue-500" active={activeFilter === 'occupied'} />
+          <StatCard id="occupied_dirty" label="Occupied (Dirty)" value={stats.occupied_dirty} icon={AlertCircle} colorClass="text-amber-500" active={activeFilter === 'occupied_dirty'} />
+          <StatCard id="occupied_cleaning" label="Cleaning (Occ)" value={stats.occupied_cleaning} icon={Brush} colorClass="text-indigo-500" active={activeFilter === 'occupied_cleaning'} />
+          <StatCard id="maintenance" label="Maint/Rep" value={stats.maintenance} icon={AlertCircle} colorClass="text-rose-500" active={activeFilter === 'maintenance'} />
         </div>
 
         {isLoading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
           </div>
-        ) : rooms && rooms.length > 0 ? (
+        ) : filteredRooms.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {rooms.sort((a,b) => a.roomNumber.localeCompare(b.roomNumber)).map((room) => {
+            {filteredRooms.map((room) => {
               const config = STATUS_CONFIG[room.status] || STATUS_CONFIG.available;
               const activeTask = activeTasks?.find(t => t.roomId === room.id);
               
@@ -298,44 +297,46 @@ export default function HousekeepingPage() {
                   <div className={cn("h-1", config.bg.replace("bg-", "bg-opacity-100 bg-"))} />
                   <CardHeader className="p-3 pb-0 flex flex-row items-center justify-between space-y-0">
                     <div className="flex flex-col">
-                      <span className="text-lg font-bold tracking-tight">Room {room.roomNumber}</span>
-                      <span className="text-[9px] text-muted-foreground uppercase font-bold">Floor {room.floor}</span>
+                      <span className="text-base font-bold tracking-tight">Room {room.roomNumber}</span>
+                      <span className="text-[8px] text-muted-foreground uppercase font-bold">Floor {room.floor}</span>
                     </div>
                     {isSupervisorOrAdmin && (
                       <Select onValueChange={(val) => updateStatus(room, val)} value={room.status}>
-                        <SelectTrigger className="w-7 h-7 p-0 border-none shadow-none focus:ring-0">
-                          <MoreVertical className="w-3.5 h-3.5" />
+                        <SelectTrigger className="w-6 h-6 p-0 border-none shadow-none focus:ring-0">
+                          <MoreVertical className="w-3 h-3" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="available">Clean / Ready</SelectItem>
-                          <SelectItem value="dirty">Mark Dirty</SelectItem>
-                          <SelectItem value="cleaning">Start Cleaning</SelectItem>
-                          <SelectItem value="occupied">Set Occupied</SelectItem>
+                          <SelectItem value="available">Vacant Ready</SelectItem>
+                          <SelectItem value="dirty">Vacant Dirty</SelectItem>
+                          <SelectItem value="cleaning">Start Cleaning (Vac)</SelectItem>
+                          <SelectItem value="occupied">Occupied (Ready)</SelectItem>
+                          <SelectItem value="occupied_dirty">Occupied (Dirty)</SelectItem>
+                          <SelectItem value="occupied_cleaning">Start Cleaning (Occ)</SelectItem>
                           <SelectItem value="maintenance">Maintenance</SelectItem>
                         </SelectContent>
                       </Select>
                     )}
                   </CardHeader>
-                  <CardContent className="p-3 pt-3 space-y-3">
+                  <CardContent className="p-3 pt-3 space-y-2.5">
                     <div className={cn("flex items-center gap-1.5 p-1.5 rounded-lg", config.bg)}>
-                      <config.icon className={cn("w-3.5 h-3.5", config.color)} />
-                      <span className={cn("text-[10px] font-bold uppercase", config.color)}>{config.label}</span>
+                      <config.icon className={cn("w-3 h-3", config.color)} />
+                      <span className={cn("text-[9px] font-bold uppercase", config.color)}>{config.label}</span>
                     </div>
                     
-                    {activeTask && room.status === 'cleaning' ? (
-                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-secondary/30 p-1.5 rounded-md border border-secondary">
-                        <UserCheck className="w-3 h-3 text-primary" />
+                    {activeTask && (room.status === 'cleaning' || room.status === 'occupied_cleaning') ? (
+                      <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground bg-secondary/30 p-1.5 rounded-md border border-secondary">
+                        <UserCheck className="w-2.5 h-2.5 text-primary" />
                         <span className="truncate font-medium">{activeTask.assignedStaffName}</span>
                       </div>
                     ) : (
-                      <div className="h-[25px]" />
+                      <div className="h-[23px]" />
                     )}
 
                     <div className="flex items-center justify-between pt-1.5 border-t">
-                      <Badge variant="outline" className="text-[9px] uppercase px-1.5 py-0 bg-secondary/20">
+                      <Badge variant="outline" className="text-[8px] uppercase px-1.5 py-0 bg-secondary/20">
                         {room.roomTypeId}
                       </Badge>
-                      <span className="text-[9px] text-muted-foreground flex items-center gap-1">
+                      <span className="text-[8px] text-muted-foreground flex items-center gap-1">
                         <History className="w-2.5 h-2.5" />
                         {room.updatedAt ? new Date(room.updatedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'N/A'}
                       </span>
@@ -347,9 +348,10 @@ export default function HousekeepingPage() {
           </div>
         ) : (
           <div className="text-center py-16 bg-white rounded-2xl border border-dashed flex flex-col items-center">
-            <DoorOpen className="w-10 h-10 text-muted-foreground/20 mb-3" />
-            <h3 className="text-base font-semibold">No rooms configured</h3>
-            <p className="text-sm text-muted-foreground">Add physical rooms to start tracking housekeeping.</p>
+            <FilterX className="w-8 h-8 text-muted-foreground/20 mb-2" />
+            <h3 className="text-sm font-semibold">No rooms match filter</h3>
+            <p className="text-xs text-muted-foreground">Select another status or clear filter to see all rooms.</p>
+            <Button variant="link" onClick={() => setActiveFilter(null)} className="text-xs text-primary mt-2">Clear all filters</Button>
           </div>
         )}
 
@@ -358,38 +360,24 @@ export default function HousekeepingPage() {
             <DialogHeader>
               <DialogTitle>Assign Cleaning Task</DialogTitle>
               <DialogDescription>
-                Assign Room {selectedRoom?.roomNumber} to a staff member for cleaning.
+                Assign Room {selectedRoom?.roomNumber} to a staff member.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAssignTask} className="space-y-4 pt-4">
               <div className="space-y-2">
                 <Label>Select Staff Member</Label>
-                <Select 
-                  value={assignment.staffId} 
-                  onValueChange={(val) => setAssignment({...assignment, staffId: val})}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose staff..." />
-                  </SelectTrigger>
+                <Select value={assignment.staffId} onValueChange={(val) => setAssignment({...assignment, staffId: val})} required>
+                  <SelectTrigger><SelectValue placeholder="Choose staff..." /></SelectTrigger>
                   <SelectContent>
                     {staffMembers?.map(member => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.name} ({member.role})
-                      </SelectItem>
+                      <SelectItem key={member.id} value={member.id}>{member.name} ({member.role})</SelectItem>
                     ))}
-                    {(!staffMembers || staffMembers.length === 0) && (
-                      <SelectItem value="none" disabled>No staff available</SelectItem>
-                    )}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label>Priority</Label>
-                <Select 
-                  value={assignment.priority} 
-                  onValueChange={(val) => setAssignment({...assignment, priority: val})}
-                >
+                <Select value={assignment.priority} onValueChange={(val) => setAssignment({...assignment, priority: val})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="high">High (Urgent)</SelectItem>
