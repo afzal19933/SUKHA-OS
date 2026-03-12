@@ -1,10 +1,11 @@
+
 {
   "entities": {
     "HotelProperty": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "HotelProperty",
       "type": "object",
-      "description": "Represents a single hotel property managed by SUKHA OS, serving as the top-level entity for multi-tenancy.",
+      "description": "Represents a single hotel hotel managed by SUKHA OS, serving as the top-level entity for multi-tenancy.",
       "properties": {
         "id": {
           "type": "string",
@@ -16,7 +17,7 @@
         },
         "name": {
           "type": "string",
-          "description": "The official name of the hotel property."
+          "description": "The official name of the hotel hotel."
         },
         "address": {
           "type": "string",
@@ -46,16 +47,16 @@
         },
         "isActive": {
           "type": "boolean",
-          "description": "Indicates if the hotel property is currently active in the system."
+          "description": "Indicates if the hotel hotel is currently active in the system."
         },
         "createdAt": {
           "type": "string",
-          "description": "Timestamp when the hotel property record was created.",
+          "description": "Timestamp when the hotel hotel record was created.",
           "format": "date-time"
         },
         "updatedAt": {
           "type": "string",
-          "description": "Timestamp when the hotel property record was last updated.",
+          "description": "Timestamp when the hotel hotel record was last updated.",
           "format": "date-time"
         }
       },
@@ -77,7 +78,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
-      "description": "Stores user-specific information, mirroring Firebase Authentication details, and defines roles for access control.",
+      "description": "Stores user-specific information, mirroring Firebase Authentication details, and defines roles and permissions for access control.",
       "properties": {
         "id": {
           "type": "string",
@@ -103,6 +104,13 @@
         "role": {
           "type": "string",
           "description": "The role assigned to the user, defining their access permissions (e.g., owner, admin, manager, staff, frontdesk, supervisor)."
+        },
+        "permissions": {
+          "type": "array",
+          "description": "A list of system modules the user is allowed to access.",
+          "items": {
+            "type": "string"
+          }
         },
         "createdAt": {
           "type": "string",
@@ -894,7 +902,7 @@
         },
         "vendorRate": {
           "type": "number",
-          "description": "The cost charged by the laundry vendor for processing this item."
+          "description": "The cost charged by the hotel laundry vendor for processing this item."
         },
         "hotelRate": {
           "type": "number",
