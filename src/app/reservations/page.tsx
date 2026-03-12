@@ -26,7 +26,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { cn, formatAppDate } from "@/lib/utils";
+import { cn, formatAppDate, formatAppTime } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
 import { collection, doc, updateDoc } from "firebase/firestore";
@@ -103,10 +103,18 @@ export default function ReservationsPage() {
   const updateStatus = (resId: string, status: string) => {
     if (!entityId) return;
     const resRef = doc(db, "hotel_properties", entityId, "reservations", resId);
-    updateDocumentNonBlocking(resRef, { 
+    
+    const updateData: any = { 
       status, 
       updatedAt: new Date().toISOString() 
-    });
+    };
+
+    // Save actual check-in time when status changes to checked_in
+    if (status === 'checked_in') {
+      updateData.actualCheckInTime = new Date().toISOString();
+    }
+    
+    updateDocumentNonBlocking(resRef, updateData);
     
     toast({ 
       title: "Status Updated", 
@@ -114,7 +122,7 @@ export default function ReservationsPage() {
     });
     
     if (selectedRes?.id === resId) {
-      setSelectedRes({ ...selectedRes, status });
+      setSelectedRes({ ...selectedRes, ...updateData });
     }
   };
 
@@ -333,11 +341,14 @@ export default function ReservationsPage() {
                   <div className="flex items-center gap-3">
                     <Calendar className="w-4 h-4 text-muted-foreground" />
                     <div className="flex-1">
-                      <p className="text-xs font-semibold">Check-In</p>
+                      <p className="text-xs font-semibold">Check-In Date</p>
                       <p className="text-sm font-medium">{formatAppDate(selectedRes.checkInDate)}</p>
+                      {selectedRes.actualCheckInTime && (
+                        <p className="text-[10px] text-primary font-bold">Time: {formatAppTime(selectedRes.actualCheckInTime)}</p>
+                      )}
                     </div>
                     <div className="text-right flex-1">
-                      <p className="text-xs font-semibold">Check-Out</p>
+                      <p className="text-xs font-semibold">Check-Out Date</p>
                       <p className="text-sm font-medium">{formatAppDate(selectedRes.checkOutDate)}</p>
                     </div>
                   </div>
