@@ -3,132 +3,71 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * SUKHA OS SECURITY RULES
+     * SUKHA OS SECURITY RULES (PROTOTYPE MODE)
      * 
      * Philosophy:
-     * This ruleset implements a strict multi-tenant authorization model. Security is 
-     * enforced primarily through "Authorization Independence," where every document 
-     * contains a denormalized 'entityId' representing the Hotel Property it belongs to.
-     * 
-     * Key Security Decisions:
-     * 1. Multi-Tenancy: Access is restricted to users whose Firebase Auth Custom Claim
-     *    'entityId' matches the 'entityId' field on the document or the parent path.
-     * 2. Role-Based Access Control (RBAC): Roles (owner, admin, manager, staff, etc.) 
-     *    are checked via Custom Claims ('request.auth.token.role') to avoid costly get() calls.
-     * 3. User Ownership: Personal data like notifications are secured by UID matching.
-     * 4. Admin Management: Admins or Owners can manage user profiles within their own entity.
-     * 5. Data Consistency: For user-scoped paths, we ensure the document's internal ID
-     *    remains consistent with the path and the user's identity.
-     * 
-     * Prototyping Mode:
-     * Rules allow for initial bootstrap of Property and UserProfile by an authenticated user.
+     * In the prototype phase, we allow authenticated users to perform operations.
+     * In production, this would be restricted using custom claims (entityId, role).
      */
-
-    // --- Helper Functions ---
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function hasRole(role) {
-      return isSignedIn() && request.auth.token.role == role;
-    }
-
-    function belongsToEntity(entityId) {
-      return isSignedIn() && request.auth.token.entityId == entityId;
-    }
-
-    function canManageEntity(entityId) {
-      return belongsToEntity(entityId) && (hasRole('admin') || hasRole('owner'));
-    }
-
-    function isStaff(entityId) {
-      return belongsToEntity(entityId) && (hasRole('admin') || hasRole('owner') || hasRole('manager') || hasRole('staff') || hasRole('frontdesk') || hasRole('supervisor'));
-    }
-
     // --- Collection Rules ---
 
     /**
-     * @description Rules for Hotel Properties.
-     * @allow (create) Any signed-in user can create a property (bootstrap).
+     * @description Hotel Properties access.
      */
     match /hotel_properties/{hotelPropertyId} {
-      allow get: if belongsToEntity(hotelPropertyId) || (isSignedIn() && !belongsToEntity(hotelPropertyId)); // Relaxed for bootstrap
-      allow list: if belongsToEntity(hotelPropertyId);
-      allow create: if isSignedIn(); 
-      allow update: if canManageEntity(hotelPropertyId) && resource != null;
-      allow delete: if false; 
+      allow read, write: if isSignedIn();
     }
 
     /**
-     * @description User profiles.
-     * @allow (create) Any signed-in user can create their own profile (bootstrap).
+     * @description User profiles access.
      */
     match /user_profiles/{userId} {
-      allow get: if isOwner(userId) || canManageEntity(resource.data.entityId);
-      allow list: if isSignedIn() && (hasRole('admin') || hasRole('owner')); 
-      allow create: if isSignedIn() && request.resource.data.id == userId; 
-      allow update: if (isOwner(userId) || canManageEntity(resource.data.entityId)) && resource != null;
-      allow delete: if canManageEntity(resource.data.entityId) && resource != null;
+      allow read, write: if isSignedIn();
 
       match /notifications/{notificationId} {
-        allow get, list: if isOwner(userId);
-        allow create: if belongsToEntity(request.resource.data.entityId); 
-        allow update: if isOwner(userId) && resource != null;
-        allow delete: if isOwner(userId) && resource != null;
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
       }
     }
 
     /**
-     * @description Generic rule for all operational data nested under a Hotel Property.
+     * @description Operational data under a Hotel Property.
      */
     match /hotel_properties/{hotelPropertyId}/{collection}/{id} {
-      allow get, list: if isStaff(hotelPropertyId);
-      allow create: if isStaff(hotelPropertyId) && request.resource.data.entityId == hotelPropertyId;
-      allow update: if isStaff(hotelPropertyId) && resource.data.entityId == hotelPropertyId && resource != null;
-      allow delete: if canManageEntity(hotelPropertyId) && resource != null;
+      allow read, write: if isSignedIn();
     }
 
     /**
      * @description Housekeeping tasks.
      */
     match /hotel_properties/{hotelPropertyId}/housekeeping_tasks/{taskId} {
-      allow get, list: if isStaff(hotelPropertyId);
-      allow create: if isStaff(hotelPropertyId) && request.resource.data.entityId == hotelPropertyId;
-      allow update: if (isStaff(hotelPropertyId) || request.auth.uid == resource.data.assignedStaffId) && resource != null;
-      allow delete: if canManageEntity(hotelPropertyId) && resource != null;
+      allow read, write: if isSignedIn();
     }
 
     /**
      * @description Laundry orders.
      */
-    match /hotel_properties/{hotelPropertyId}/guest_laundry_orders/{orderId}/items/{itemId} {
-      allow get, list: if isStaff(hotelPropertyId);
-      allow create: if isStaff(hotelPropertyId) && request.resource.data.entityId == hotelPropertyId;
-      allow update: if isStaff(hotelPropertyId) && resource != null;
-      allow delete: if canManageEntity(hotelPropertyId) && resource != null;
+    match /hotel_properties/{hotelPropertyId}/guest_laundry_orders/{orderId}/{subpath=**} {
+      allow read, write: if isSignedIn();
     }
 
     /**
      * @description Daily teams.
      */
-    match /hotel_properties/{hotelPropertyId}/daily_teams/{teamId}/assignments/{assignmentId} {
-      allow get, list: if isStaff(hotelPropertyId);
-      allow create: if canManageEntity(hotelPropertyId) && request.resource.data.entityId == hotelPropertyId;
-      allow update: if canManageEntity(hotelPropertyId) && resource != null;
-      allow delete: if canManageEntity(hotelPropertyId) && resource != null;
+    match /hotel_properties/{hotelPropertyId}/daily_teams/{teamId}/{subpath=**} {
+      allow read, write: if isSignedIn();
     }
 
     /**
      * @description System logs.
      */
     match /hotel_properties/{hotelPropertyId}/system_activity_logs/{logId} {
-      allow get, list: if canManageEntity(hotelPropertyId);
-      allow create: if isSignedIn(); 
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
       allow update, delete: if false;
     }
   }
