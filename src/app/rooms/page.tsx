@@ -245,25 +245,25 @@ export default function RoomsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {rooms?.map(room => (
                   <Card key={room.id} className="border-none shadow-sm group hover:shadow-md transition-shadow">
-                    <CardHeader className="p-4 pb-2 flex flex-row justify-between items-center">
+                    <CardHeader className="p-3.5 pb-1.5 flex flex-row justify-between items-center">
                       <div className="flex items-center gap-2">
-                        <DoorOpen className="w-4 h-4 text-primary" />
-                        <span className="font-bold text-lg">Room {room.roomNumber}</span>
+                        <DoorOpen className="w-3.5 h-3.5 text-primary" />
+                        <span className="font-bold text-base">Room {room.roomNumber}</span>
                       </div>
                       {isAdmin && (
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" onClick={() => openEditRoom(room)} className="text-primary h-8 w-8">
-                            <Edit3 className="w-4 h-4" />
+                          <Button variant="ghost" size="icon" onClick={() => openEditRoom(room)} className="text-primary h-7 w-7">
+                            <Edit3 className="w-3.5 h-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => deleteRoom(room.id)} className="text-destructive h-8 w-8">
-                            <Trash2 className="w-4 h-4" />
+                          <Button variant="ghost" size="icon" onClick={() => deleteRoom(room.id)} className="text-destructive h-7 w-7">
+                            <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </div>
                       )}
                     </CardHeader>
-                    <CardContent className="p-4 pt-0">
-                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Floor {room.floor}</p>
-                      <div className="mt-2 text-sm font-medium">
+                    <CardContent className="p-3.5 pt-0">
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Floor {room.floor}</p>
+                      <div className="mt-1 text-xs font-medium">
                         {roomTypes?.find(t => t.id === room.roomTypeId)?.name || "Uncategorized"}
                       </div>
                     </CardContent>
