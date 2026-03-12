@@ -14,7 +14,10 @@ import {
   CheckCircle2,
   LogOut,
   MapPin,
-  Clock
+  Clock,
+  Edit2,
+  Trash2,
+  ArrowRightLeft
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
@@ -29,7 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn, formatAppDate, formatAppTime } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
-import { collection, doc, updateDoc } from "firebase/firestore";
+import { collection, doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { 
   Dialog, 
   DialogContent, 
@@ -41,7 +44,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { Separator } from "@/components/ui/separator";
 
 export default function ReservationsPage() {
@@ -52,7 +55,9 @@ export default function ReservationsPage() {
   const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
 
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  
   const [selectedRes, setSelectedRes] = useState<any>(null);
   const [newRes, setNewRes] = useState({ 
     guestName: "", 
@@ -62,6 +67,7 @@ export default function ReservationsPage() {
     guests: "1",
     requests: ""
   });
+  const [editResForm, setEditResForm] = useState<any>(null);
 
   const reservationsQuery = useMemoFirebase(() => {
     if (!entityId) return null;
@@ -100,6 +106,34 @@ export default function ReservationsPage() {
     setNewRes({ guestName: "", roomNumber: "", checkIn: "", checkOut: "", guests: "1", requests: "" });
   };
 
+  const handleUpdateReservation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!entityId || !isAdmin || !editResForm) return;
+
+    const resRef = doc(db, "hotel_properties", entityId, "reservations", editResForm.id);
+    const updateData = {
+      guestName: editResForm.guestName,
+      roomNumber: editResForm.roomNumber,
+      checkInDate: editResForm.checkInDate,
+      checkOutDate: editResForm.checkOutDate,
+      numberOfGuests: parseInt(editResForm.numberOfGuests),
+      specialRequests: editResForm.specialRequests,
+      updatedAt: new Date().toISOString(),
+    };
+
+    updateDocumentNonBlocking(resRef, updateData);
+    toast({ title: "Reservation updated" });
+    setIsEditOpen(false);
+    setEditResForm(null);
+  };
+
+  const handleDeleteReservation = (id: string) => {
+    if (!entityId || !isAdmin) return;
+    const resRef = doc(db, "hotel_properties", entityId, "reservations", id);
+    deleteDocumentNonBlocking(resRef);
+    toast({ title: "Reservation deleted" });
+  };
+
   const updateStatus = (resId: string, status: string) => {
     if (!entityId) return;
     const resRef = doc(db, "hotel_properties", entityId, "reservations", resId);
@@ -109,7 +143,6 @@ export default function ReservationsPage() {
       updatedAt: new Date().toISOString() 
     };
 
-    // Save actual check-in time when status changes to checked_in
     if (status === 'checked_in') {
       updateData.actualCheckInTime = new Date().toISOString();
     }
@@ -129,6 +162,11 @@ export default function ReservationsPage() {
   const openDetails = (res: any) => {
     setSelectedRes(res);
     setIsDetailsOpen(true);
+  };
+
+  const openEdit = (res: any) => {
+    setEditResForm({ ...res });
+    setIsEditOpen(true);
   };
 
   return (
@@ -281,7 +319,19 @@ export default function ReservationsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" className="h-8 text-xs font-semibold" onClick={() => openDetails(res)}>Details</Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="sm" className="h-8 text-xs font-semibold" onClick={() => openDetails(res)}>Details</Button>
+                        {isAdmin && (
+                          <>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(res)}>
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleDeleteReservation(res.id)}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -391,6 +441,84 @@ export default function ReservationsPage() {
                   <Button variant="outline" className="w-full sm:w-auto" onClick={() => setIsDetailsOpen(false)}>Close</Button>
                 </DialogFooter>
               </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit/Shift Dialog */}
+        <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Edit2 className="w-5 h-5 text-primary" />
+                Modify Reservation
+              </DialogTitle>
+              <DialogDescription>Update details or shift guest to another room.</DialogDescription>
+            </DialogHeader>
+            {editResForm && (
+              <form onSubmit={handleUpdateReservation} className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label>Guest Name</Label>
+                  <Input 
+                    value={editResForm.guestName}
+                    onChange={(e) => setEditResForm({...editResForm, guestName: e.target.value})}
+                    required 
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5">
+                      <ArrowRightLeft className="w-3 h-3 text-primary" /> Shift to Room #
+                    </Label>
+                    <Input 
+                      value={editResForm.roomNumber}
+                      onChange={(e) => setEditResForm({...editResForm, roomNumber: e.target.value})}
+                      required 
+                      className="border-primary/50 bg-primary/5"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Guests</Label>
+                    <Input 
+                      type="number"
+                      min="1"
+                      value={editResForm.numberOfGuests}
+                      onChange={(e) => setEditResForm({...editResForm, numberOfGuests: e.target.value})}
+                      required 
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Check In</Label>
+                    <Input 
+                      type="date" 
+                      value={editResForm.checkInDate?.split('T')[0]}
+                      onChange={(e) => setEditResForm({...editResForm, checkInDate: e.target.value})}
+                      required 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Check Out</Label>
+                    <Input 
+                      type="date" 
+                      value={editResForm.checkOutDate?.split('T')[0]}
+                      onChange={(e) => setEditResForm({...editResForm, checkOutDate: e.target.value})}
+                      required 
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Special Requests</Label>
+                  <Input 
+                    value={editResForm.specialRequests}
+                    onChange={(e) => setEditResForm({...editResForm, specialRequests: e.target.value})}
+                  />
+                </div>
+                <DialogFooter className="pt-4">
+                  <Button type="submit" className="w-full">Save Changes</Button>
+                </DialogFooter>
+              </form>
             )}
           </DialogContent>
         </Dialog>
