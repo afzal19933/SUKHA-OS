@@ -20,17 +20,23 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       role: null,
       entityId: null,
       permissions: null,
       _hasHydrated: false,
-      setUser: (user, claims) => set({ 
-        user, 
-        role: claims?.role || null, 
-        entityId: claims?.entityId || null 
-      }),
+      setUser: (user, claims) => {
+        const currentEntityId = get().entityId;
+        const currentRole = get().role;
+        
+        set({ 
+          user, 
+          // Only overwrite role/entityId from claims if they are actually present
+          role: claims?.role || currentRole || null, 
+          entityId: claims?.entityId || currentEntityId || null 
+        });
+      },
       setRole: (role) => set({ role }),
       setEntityId: (entityId) => set({ entityId }),
       setPermissions: (permissions) => set({ permissions }),

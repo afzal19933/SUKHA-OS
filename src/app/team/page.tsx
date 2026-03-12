@@ -234,7 +234,7 @@ export default function TeamPage() {
                   {!entityId && (
                     <div className="bg-rose-50 text-rose-600 p-3 rounded-lg flex items-center gap-2 text-xs">
                       <AlertCircle className="w-4 h-4" />
-                      Warning: Property context is still loading. <button onClick={handleResync} className="underline font-bold">Try Resync</button>
+                      Warning: Property context is still loading. <button type="button" onClick={handleResync} className="underline font-bold">Try Resync</button>
                     </div>
                   )}
                   <form onSubmit={handleAddMember} className="space-y-4 pt-4">
