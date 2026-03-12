@@ -124,6 +124,7 @@ export default function TeamPage() {
     toast({ title: "Member deleted" });
   };
 
+  // Explicit check to ensure management buttons are visible for Owners/Admins
   const isAdmin = currentUserRole === "owner" || currentUserRole === "admin" || currentUserRole === "manager";
 
   const filteredMembers = teamMembers?.filter(m => 
