@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { auth } from "@/lib/firebase";
+import { useAuth, useUser } from "@/firebase";
 import { signOut } from "firebase/auth";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -33,18 +33,21 @@ const NAV_ITEMS = [
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user, _hasHydrated, role } = useAuthStore();
+  const { user: firebaseUser, isUserLoading } = useUser();
+  const { _hasHydrated, role } = useAuthStore();
+  const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
-    if (_hasHydrated && !user && pathname !== "/login") {
+    // Only redirect if hydration is complete, loading is finished, and no user is found
+    if (_hasHydrated && !isUserLoading && !firebaseUser && pathname !== "/login") {
       router.push("/login");
     }
-  }, [_hasHydrated, user, router, pathname]);
+  }, [_hasHydrated, firebaseUser, isUserLoading, router, pathname]);
 
-  if (!_hasHydrated) {
+  if (!_hasHydrated || isUserLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -52,7 +55,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && pathname !== "/login") return null;
+  // If we are at login, we don't render the layout structure
+  if (pathname === "/login") return <>{children}</>;
+
+  // If we shouldn't be here (no user), return null while the useEffect handles redirect
+  if (!firebaseUser) return null;
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -125,11 +132,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             
             <div className="flex items-center gap-3 pl-4 border-l">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-semibold leading-none">{user?.displayName || "Admin User"}</p>
+                <p className="text-sm font-semibold leading-none">{firebaseUser?.displayName || "Admin User"}</p>
                 <p className="text-xs text-muted-foreground capitalize">{role || "Staff"}</p>
               </div>
               <Avatar>
-                <AvatarImage src={`https://picsum.photos/seed/${user?.uid}/40/40`} />
+                <AvatarImage src={`https://picsum.photos/seed/${firebaseUser?.uid}/40/40`} />
                 <AvatarFallback className="bg-primary text-white">
                   <UserIcon className="w-5 h-5" />
                 </AvatarFallback>

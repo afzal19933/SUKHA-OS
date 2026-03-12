@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -13,6 +14,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const MOCK_RESERVATIONS = [
   { id: "RES-001", guest: "John Doe", room: "102", type: "Deluxe", checkIn: "2024-05-20", checkOut: "2024-05-23", status: "confirmed" },
@@ -95,8 +97,4 @@ export default function ReservationsPage() {
       </div>
     </AppLayout>
   );
-}
-
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(" ");
 }

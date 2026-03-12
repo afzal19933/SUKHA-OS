@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -13,6 +14,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const MOCK_INVOICES = [
   { id: "INV-2024-001", guest: "John Doe", date: "2024-05-18", amount: "$540.00", status: "paid" },
@@ -110,8 +112,4 @@ export default function InvoicesPage() {
       </div>
     </AppLayout>
   );
-}
-
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(" ");
 }

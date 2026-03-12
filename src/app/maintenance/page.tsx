@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const TASKS = [
   { id: "TK-01", room: "104", type: "Repair", issue: "A/C not cooling", priority: "high", status: "pending", date: "Today" },
@@ -86,8 +88,4 @@ export default function MaintenancePage() {
       </div>
     </AppLayout>
   );
-}
-
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(" ");
 }

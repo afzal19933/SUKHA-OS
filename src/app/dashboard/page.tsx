@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -21,6 +22,7 @@ import {
   AreaChart,
   Area
 } from "recharts";
+import { cn } from "@/lib/utils";
 
 const MOCK_DATA = [
   { name: "Mon", occupancy: 65, revenue: 4500 },
@@ -122,8 +124,4 @@ export default function DashboardPage() {
       </div>
     </AppLayout>
   );
-}
-
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(" ");
 }

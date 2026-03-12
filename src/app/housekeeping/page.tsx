@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -12,6 +13,7 @@ import {
   MoreVertical
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const ROOMS = [
   { id: "101", type: "Standard", status: "available", occupancy: "vacant" },
@@ -83,8 +85,4 @@ export default function HousekeepingPage() {
       </div>
     </AppLayout>
   );
-}
-
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(" ");
 }
