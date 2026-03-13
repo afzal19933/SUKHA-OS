@@ -78,6 +78,20 @@
         "vendorTotal": { "type": "number" },
         "createdAt": { "type": "string" }
       }
+    },
+    "MaintenanceSchedule": {
+      "title": "MaintenanceSchedule",
+      "type": "object",
+      "description": "Recurring maintenance tasks for property assets.",
+      "properties": {
+        "id": { "type": "string" },
+        "itemName": { "type": "string" },
+        "frequency": { "type": "string", "enum": ["daily", "weekly", "monthly", "quarterly", "yearly"] },
+        "nextDue": { "type": "string", "format": "date" },
+        "lastDone": { "type": "string", "format": "date" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "itemName", "frequency", "nextDue"]
     }
   },
   "auth": {
@@ -99,6 +113,10 @@
     "/hotel_properties/{hotelPropertyId}/linen_laundry_batches/{batchId}": {
       "schema": { "type": "object" },
       "description": "Batches of hotel linen sent for cleaning."
+    },
+    "/hotel_properties/{hotelPropertyId}/maintenance_schedules/{scheduleId}": {
+      "schema": { "$ref": "#/backend/entities/MaintenanceSchedule" },
+      "description": "Routine maintenance schedules for assets."
     }
   }
 }
