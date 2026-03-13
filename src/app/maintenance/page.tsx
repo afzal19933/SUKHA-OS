@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo } from "react";
@@ -92,15 +93,13 @@ export default function MaintenancePage() {
     priority: "medium" 
   });
 
-  // Queries
+  // Queries - Simplified to avoid indexing conflicts during rule/environment fixes
   const activeTasksQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return query(
       collection(db, "hotel_properties", entityId, "housekeeping_tasks"),
       where("taskType", "==", "repair"),
-      where("status", "!=", "completed"),
-      orderBy("status"),
-      orderBy("createdAt", "desc")
+      where("status", "!=", "completed")
     );
   }, [db, entityId]);
 
@@ -109,23 +108,36 @@ export default function MaintenancePage() {
     return query(
       collection(db, "hotel_properties", entityId, "housekeeping_tasks"),
       where("taskType", "==", "repair"),
-      where("status", "==", "completed"),
-      orderBy("updatedAt", "desc")
+      where("status", "==", "completed")
     );
   }, [db, entityId]);
 
   const { data: activeTasks, isLoading: activeLoading } = useCollection(activeTasksQuery);
   const { data: historyTasks, isLoading: historyLoading } = useCollection(historyTasksQuery);
 
-  const filteredHistory = useMemo(() => {
+  const sortedActiveTasks = useMemo(() => {
+    if (!activeTasks) return [];
+    return [...activeTasks].sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [activeTasks]);
+
+  const sortedHistoryTasks = useMemo(() => {
     if (!historyTasks) return [];
-    if (!historySearch) return historyTasks;
+    return [...historyTasks].sort((a, b) => 
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+  }, [historyTasks]);
+
+  const filteredHistory = useMemo(() => {
+    if (!sortedHistoryTasks) return [];
+    if (!historySearch) return sortedHistoryTasks;
     const search = historySearch.toLowerCase();
-    return historyTasks.filter(t => 
+    return sortedHistoryTasks.filter(t => 
       t.roomId?.toLowerCase().includes(search) || 
       t.notes?.toLowerCase().includes(search)
     );
-  }, [historyTasks, historySearch]);
+  }, [sortedHistoryTasks, historySearch]);
 
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
@@ -290,9 +302,9 @@ export default function MaintenancePage() {
               <div className="flex justify-center py-20">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
-            ) : activeTasks && activeTasks.length > 0 ? (
+            ) : sortedActiveTasks.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {activeTasks.map((task) => (
+                {sortedActiveTasks.map((task) => (
                   <Card key={task.id} className="border-none shadow-sm hover:shadow-md transition-all group relative overflow-hidden bg-white">
                     <div className={cn(
                       "absolute top-0 left-0 w-1 h-full",

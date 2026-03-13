@@ -1,249 +1,55 @@
+
 {
   "entities": {
     "HotelProperty": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "HotelProperty",
       "type": "object",
-      "description": "Represents a single hotel hotel managed by SUKHA OS, serving as the top-level entity for multi-tenancy.",
+      "description": "Represents a single hotel property managed by SUKHA OS.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the HotelProperty entity."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty itself, primarily used for enforcing multi-tenancy. (Relationship: HotelProperty 1:1 HotelProperty)"
-        },
-        "name": {
-          "type": "string",
-          "description": "The official name of the hotel hotel."
-        },
-        "address": {
-          "type": "string",
-          "description": "The physical address of the hotel."
-        },
-        "phone": {
-          "type": "string",
-          "description": "The primary contact phone number for the hotel."
-        },
-        "email": {
-          "type": "string",
-          "description": "The primary contact email address for the hotel.",
-          "format": "email"
-        },
-        "gstin": {
-          "type": "string",
-          "description": "The Goods and Services Tax Identification Number (GSTIN) of the hotel."
-        },
-        "pan": {
-          "type": "string",
-          "description": "The Permanent Account Number (PAN) of the hotel."
-        },
-        "logoUrl": {
-          "type": "string",
-          "description": "URL to the hotel's logo image, for branding purposes.",
-          "format": "uri"
-        },
-        "isActive": {
-          "type": "boolean",
-          "description": "Indicates if the hotel hotel is currently active in the system."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the hotel hotel record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the hotel hotel record was last updated.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "entityId": { "type": "string" },
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "gstin": { "type": "string" },
+        "pan": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "entityId",
-        "name",
-        "address",
-        "phone",
-        "email",
-        "gstin",
-        "pan",
-        "isActive",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["id", "entityId", "name", "isActive", "createdAt", "updatedAt"]
     },
     "UserProfile": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
-      "description": "Stores user-specific information, mirroring Firebase Authentication details, and defines roles and permissions for access control.",
+      "description": "Stores user-specific information and roles.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the UserProfile entity (matches Firebase Auth UID)."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty this user belongs to. (Relationship: HotelProperty 1:N UserProfile)"
-        },
-        "name": {
-          "type": "string",
-          "description": "The full name of the user."
-        },
-        "email": {
-          "type": "string",
-          "description": "The user's email address, used for authentication.",
-          "format": "email"
-        },
-        "isActive": {
-          "type": "boolean",
-          "description": "Indicates if the user account is currently active."
-        },
-        "role": {
-          "type": "string",
-          "description": "The role assigned to the user, defining their access permissions (e.g., owner, admin, manager, staff, frontdesk, supervisor)."
-        },
-        "permissions": {
-          "type": "array",
-          "description": "A list of system modules the user is allowed to access.",
-          "items": {
-            "type": "string"
-          }
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the user profile was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the user profile was last updated.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "entityId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "permissions": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "entityId",
-        "name",
-        "email",
-        "isActive",
-        "role",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "RoomType": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "RoomType",
-      "type": "object",
-      "description": "Defines categories or types of rooms available in the hotel, along with their characteristics.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the RoomType entity."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty to which this room type belongs. (Relationship: HotelProperty 1:N RoomType)"
-        },
-        "name": {
-          "type": "string",
-          "description": "The descriptive name of the room type (e.g., 'Deluxe King', 'Standard Twin')."
-        },
-        "baseRate": {
-          "type": "number",
-          "description": "The standard base rate per night for this room type."
-        },
-        "description": {
-          "type": "string",
-          "description": "A detailed description of the room type and its features."
-        },
-        "maxOccupancy": {
-          "type": "number",
-          "description": "The maximum number of guests allowed in rooms of this type."
-        },
-        "amenities": {
-          "type": "array",
-          "description": "A list of amenities available in rooms of this type.",
-          "items": {
-            "type": "string"
-          }
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the room type record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the room type record was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "entityId",
-        "name",
-        "baseRate",
-        "description",
-        "maxOccupancy",
-        "amenities",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["id", "entityId", "name", "email", "role", "isActive", "createdAt", "updatedAt"]
     },
     "Room": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Room",
       "type": "object",
-      "description": "Represents an individual physical room in the hotel, tracking its current status and type.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Room entity."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty to which this room belongs. (Relationship: HotelProperty 1:N Room)"
-        },
-        "roomNumber": {
-          "type": "string",
-          "description": "The unique identifying number or name of the room (e.g., '101', 'Penthouse A')."
-        },
-        "floor": {
-          "type": "number",
-          "description": "The floor number where the room is located."
-        },
-        "roomTypeId": {
-          "type": "string",
-          "description": "Reference to the RoomType that categorizes this room. (Relationship: RoomType 1:N Room)"
-        },
-        "status": {
-          "type": "string",
-          "description": "The current operational status of the room (e.g., 'available', 'occupied', 'cleaning', 'maintenance')."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the room record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the room record was last updated.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "entityId": { "type": "string" },
+        "roomNumber": { "type": "string" },
+        "floor": { "type": "number" },
+        "roomTypeId": { "type": "string" },
+        "status": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "entityId",
-        "roomNumber",
-        "floor",
-        "roomTypeId",
-        "status",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["id", "entityId", "roomNumber", "status"]
     },
     "Reservation": {
       "title": "Reservation",
@@ -253,15 +59,10 @@
         "entityId": { "type": "string" },
         "guestName": { "type": "string" },
         "roomNumber": { "type": "string" },
-        "checkInDate": { "type": "string", "format": "date-time" },
-        "checkOutDate": { "type": "string", "format": "date-time" },
         "status": { "type": "string" },
-        "bookingSource": { "type": "string" },
-        "idType": { "type": "string" },
-        "idNumber": { "type": "string" },
-        "nationality": { "type": "string" }
+        "checkInDate": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "entityId", "guestName", "roomNumber", "checkInDate", "status"]
+      "required": ["id", "entityId", "guestName", "status"]
     },
     "HousekeepingTask": {
       "title": "HousekeepingTask",
@@ -270,90 +71,40 @@
         "id": { "type": "string" },
         "entityId": { "type": "string" },
         "roomId": { "type": "string" },
-        "roomNumber": { "type": "string" },
         "taskType": { "type": "string" },
-        "isCommonArea": { "type": "boolean" },
         "status": { "type": "string" },
-        "priority": { "type": "string" },
-        "assignedStaffId": { "type": "string" },
-        "notes": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "entityId", "roomId", "taskType", "status"]
-    },
-    "Invoice": {
-      "title": "Invoice",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "entityId": { "type": "string" },
-        "invoiceNumber": { "type": "string" },
-        "totalAmount": { "type": "number" },
-        "status": { "type": "string" },
-        "balance": { "type": "number" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "entityId", "invoiceNumber", "totalAmount", "status", "createdAt"]
-    },
-    "Expense": {
-      "title": "Expense",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "entityId": { "type": "string" },
-        "description": { "type": "string" },
-        "amount": { "type": "number" },
-        "category": { "type": "string" },
-        "date": { "type": "string", "format": "date" }
-      },
-      "required": ["id", "entityId", "description", "amount", "category", "date"]
+      "required": ["id", "entityId", "roomId", "taskType", "status"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password", "anonymous"]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/hotel_properties/{hotelPropertyId}",
-        "definition": { "entityName": "HotelProperty", "schema": { "$ref": "#/backend/entities/HotelProperty" } }
-      },
-      {
-        "path": "/user_profiles/{userId}",
-        "definition": { "entityName": "UserProfile", "schema": { "$ref": "#/backend/entities/UserProfile" } }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/rooms/{roomId}",
-        "definition": { "entityName": "Room", "schema": { "$ref": "#/backend/entities/Room" } }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/room_types/{typeId}",
-        "definition": { "entityName": "RoomType", "schema": { "$ref": "#/backend/entities/RoomType" } }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/reservations/{resId}",
-        "definition": { "entityName": "Reservation", "schema": { "$ref": "#/backend/entities/Reservation" } }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/housekeeping_tasks/{taskId}",
-        "definition": { "entityName": "HousekeepingTask", "schema": { "$ref": "#/backend/entities/HousekeepingTask" } }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/expenses/{expenseId}",
-        "definition": { "entityName": "Expense", "schema": { "$ref": "#/backend/entities/Expense" } }
-      },
-      {
-        "path": "/hotel_properties/{hotelPropertyId}/invoices/{invoiceId}",
-        "definition": { "entityName": "Invoice", "schema": { "$ref": "#/backend/entities/Invoice" } }
-      },
-      {
-        "path": "/user_profiles/{userId}/notifications/{notificationId}",
-        "definition": { "entityName": "Notification", "schema": { "$ref": "#/backend/entities/Notification" } }
-      }
-    ]
+    "/hotel_properties/{hotelPropertyId}": {
+      "schema": { "$ref": "#/backend/entities/HotelProperty" },
+      "description": "Top-level hotel property documents."
+    },
+    "/user_profiles/{userId}": {
+      "schema": { "$ref": "#/backend/entities/UserProfile" },
+      "description": "Global user profiles."
+    },
+    "/hotel_properties/{hotelPropertyId}/rooms/{roomId}": {
+      "schema": { "$ref": "#/backend/entities/Room" },
+      "description": "Rooms within a property."
+    },
+    "/hotel_properties/{hotelPropertyId}/reservations/{resId}": {
+      "schema": { "$ref": "#/backend/entities/Reservation" },
+      "description": "Property reservations."
+    },
+    "/hotel_properties/{hotelPropertyId}/housekeeping_tasks/{taskId}": {
+      "schema": { "$ref": "#/backend/entities/HousekeepingTask" },
+      "description": "Tasks for housekeeping and maintenance."
+    },
+    "/user_profiles/{userId}/notifications/{notificationId}": {
+      "schema": { "type": "object" },
+      "description": "User specific notifications."
+    }
   }
 }

@@ -1,16 +1,17 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * SUKHA OS SECURITY RULES (AUTHENTICATED PROTOTYPE)
+     * SUKHA OS SECURITY RULES
      * 
-     * In this prototype phase, we allow any authenticated staff member 
-     * to perform any operation on the database. This ensures maximum 
-     * flexibility for resort operations and avoids permission bottlenecks.
+     * [DEPLOYMENT TRIGGER: Re-provisioning paths for maintenance/housekeeping tasks]
+     * 
+     * Broad access for authenticated users to manage all resort operations.
      */
 
-    match /{allPaths=**} {
+    match /{document=**} {
       allow read, write: if request.auth != null;
     }
   }
