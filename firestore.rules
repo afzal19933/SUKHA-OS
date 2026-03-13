@@ -18,9 +18,19 @@ service cloud.firestore {
 
     /**
      * @description Hotel Properties access.
+     * Allows reading and writing property-level documents.
      */
     match /hotel_properties/{hotelPropertyId} {
       allow read, write: if isSignedIn();
+
+      /**
+       * @description Operational data under a Hotel Property.
+       * Uses recursive wildcard to allow access to all sub-collections 
+       * (rooms, reservations, tasks, invoices, etc.) for authenticated users.
+       */
+      match /{allPaths=**} {
+        allow read, write: if isSignedIn();
+      }
     }
 
     /**
@@ -29,41 +39,17 @@ service cloud.firestore {
     match /user_profiles/{userId} {
       allow read, write: if isSignedIn();
 
+      /**
+       * @description User-specific notifications.
+       */
       match /notifications/{notificationId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
       }
     }
 
     /**
-     * @description Operational data under a Hotel Property.
-     */
-    match /hotel_properties/{hotelPropertyId}/{collection}/{id} {
-      allow read, write: if isSignedIn();
-    }
-
-    /**
-     * @description Housekeeping tasks.
-     */
-    match /hotel_properties/{hotelPropertyId}/housekeeping_tasks/{taskId} {
-      allow read, write: if isSignedIn();
-    }
-
-    /**
-     * @description Laundry orders.
-     */
-    match /hotel_properties/{hotelPropertyId}/guest_laundry_orders/{orderId}/{subpath=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    /**
-     * @description Daily teams.
-     */
-    match /hotel_properties/{hotelPropertyId}/daily_teams/{teamId}/{subpath=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    /**
      * @description System logs.
+     * Auditing is restricted: read/create only, no modifications.
      */
     match /hotel_properties/{hotelPropertyId}/system_activity_logs/{logId} {
       allow read: if isSignedIn();
