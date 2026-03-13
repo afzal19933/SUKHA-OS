@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { 
@@ -8,11 +8,8 @@ import {
   FileText, 
   Search, 
   Loader2, 
-  Plus, 
-  Receipt, 
   TrendingUp, 
   TrendingDown,
-  Trash2,
   Filter
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -24,29 +21,13 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Badge } from "@/components/badge";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogTrigger,
-  DialogDescription,
-  DialogFooter
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
+import { doc } from "firebase/firestore";
 import { cn, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
-import { collection, query, orderBy, doc } from "firebase/firestore";
+import { collection, query, orderBy } from "firebase/firestore";
 import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
 
@@ -117,72 +98,72 @@ export default function AccountingPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-5xl mx-auto">
+      <div className="space-y-5 max-w-4xl mx-auto">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Accounting</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Financial management and audit</p>
+            <h1 className="text-xl font-bold tracking-tight">Accounting</h1>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Financial management and audit</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="text-[10px] h-8">
-              <Download className="w-3.5 h-3.5 mr-1.5" /> Export
+            <Button variant="outline" size="sm" className="text-[9px] h-7">
+              <Download className="w-3 h-3 mr-1" /> Export
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div className="p-3 bg-white rounded-xl border shadow-sm flex items-center gap-2.5">
-            <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
-              <TrendingUp className="w-4 h-4" />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5">
+          <div className="p-2.5 bg-white rounded-xl border shadow-sm flex items-center gap-2">
+            <div className="p-1 bg-emerald-50 text-emerald-600 rounded-lg">
+              <TrendingUp className="w-3.5 h-3.5" />
             </div>
             <div>
-              <p className="text-[9px] font-bold text-muted-foreground uppercase">Revenue</p>
-              <h3 className="text-base font-bold">₹{totalRevenue.toLocaleString()}</h3>
+              <p className="text-[8px] font-bold text-muted-foreground uppercase">Revenue</p>
+              <h3 className="text-sm font-bold">₹{totalRevenue.toLocaleString()}</h3>
             </div>
           </div>
-          <div className="p-3 bg-white rounded-xl border shadow-sm flex items-center gap-2.5">
-            <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg">
-              <TrendingDown className="w-4 h-4" />
+          <div className="p-2.5 bg-white rounded-xl border shadow-sm flex items-center gap-2">
+            <div className="p-1 bg-rose-50 text-rose-600 rounded-lg">
+              <TrendingDown className="w-3.5 h-3.5" />
             </div>
             <div>
-              <p className="text-[9px] font-bold text-muted-foreground uppercase">Expenses</p>
-              <h3 className="text-base font-bold">₹{totalExpenses.toLocaleString()}</h3>
+              <p className="text-[8px] font-bold text-muted-foreground uppercase">Expenses</p>
+              <h3 className="text-sm font-bold">₹{totalExpenses.toLocaleString()}</h3>
             </div>
           </div>
-          <div className="p-3 bg-white rounded-xl border shadow-sm flex items-center gap-2.5">
-            <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
-              <FileText className="w-4 h-4" />
+          <div className="p-2.5 bg-white rounded-xl border shadow-sm flex items-center gap-2">
+            <div className="p-1 bg-amber-50 text-amber-600 rounded-lg">
+              <FileText className="w-3.5 h-3.5" />
             </div>
             <div>
-              <p className="text-[9px] font-bold text-muted-foreground uppercase">Due</p>
-              <h3 className="text-base font-bold">₹{outstanding.toLocaleString()}</h3>
+              <p className="text-[8px] font-bold text-muted-foreground uppercase">Due</p>
+              <h3 className="text-sm font-bold">₹{outstanding.toLocaleString()}</h3>
             </div>
           </div>
-          <div className="p-3 bg-white rounded-xl border shadow-sm flex items-center gap-2.5">
-            <div className={cn("p-1.5 rounded-lg", netProfit >= 0 ? "bg-primary/10 text-primary" : "bg-rose-50 text-rose-600")}>
-              <TrendingUp className="w-4 h-4" />
+          <div className="p-2.5 bg-white rounded-xl border shadow-sm flex items-center gap-2">
+            <div className={cn("p-1 rounded-lg", netProfit >= 0 ? "bg-primary/10 text-primary" : "bg-rose-50 text-rose-600")}>
+              <TrendingUp className="w-3.5 h-3.5" />
             </div>
             <div>
-              <p className="text-[9px] font-bold text-muted-foreground uppercase">Profit</p>
-              <h3 className="text-base font-bold">₹{netProfit.toLocaleString()}</h3>
+              <p className="text-[8px] font-bold text-muted-foreground uppercase">Profit</p>
+              <h3 className="text-sm font-bold">₹{netProfit.toLocaleString()}</h3>
             </div>
           </div>
         </div>
 
-        <Tabs defaultValue="invoices" className="space-y-4">
-          <TabsList className="bg-white border p-1 rounded-xl h-9">
-            <TabsTrigger value="invoices" className="rounded-lg text-xs">Invoices</TabsTrigger>
-            <TabsTrigger value="expenses" className="rounded-lg text-xs">Expenses</TabsTrigger>
+        <Tabs defaultValue="invoices" className="space-y-3">
+          <TabsList className="bg-white border p-1 rounded-xl h-8">
+            <TabsTrigger value="invoices" className="rounded-lg text-[10px] h-6 px-4">Invoices</TabsTrigger>
+            <TabsTrigger value="expenses" className="rounded-lg text-[10px] h-6 px-4">Expenses</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="invoices" className="space-y-4">
+          <TabsContent value="invoices" className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
-                <Input placeholder="Invoice number..." className="pl-9 h-9 text-xs" />
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-3 top-2 w-3 h-3 text-muted-foreground" />
+                <Input placeholder="Invoice number..." className="pl-8 h-8 text-[10px]" />
               </div>
-              <Button variant="ghost" size="sm" className="h-9 text-xs">
-                <Filter className="w-3.5 h-3.5 mr-1.5" /> Filter
+              <Button variant="ghost" size="sm" className="h-8 text-[10px]">
+                <Filter className="w-3 h-3 mr-1" /> Filter
               </Button>
             </div>
 
@@ -190,34 +171,34 @@ export default function AccountingPage() {
               <Table>
                 <TableHeader className="bg-secondary/50">
                   <TableRow>
-                    <TableHead className="text-[10px] h-10 font-bold uppercase pl-5">Invoice #</TableHead>
-                    <TableHead className="text-[10px] h-10 font-bold uppercase">Date</TableHead>
-                    <TableHead className="text-[10px] h-10 font-bold uppercase">Amount</TableHead>
-                    <TableHead className="text-[10px] h-10 font-bold uppercase">Status</TableHead>
-                    <TableHead className="text-right text-[10px] h-10 font-bold uppercase pr-5">Actions</TableHead>
+                    <TableHead className="text-[9px] h-8 font-bold uppercase pl-4">Invoice #</TableHead>
+                    <TableHead className="text-[9px] h-8 font-bold uppercase">Date</TableHead>
+                    <TableHead className="text-[9px] h-8 font-bold uppercase">Amount</TableHead>
+                    <TableHead className="text-[9px] h-8 font-bold uppercase">Status</TableHead>
+                    <TableHead className="text-right text-[9px] h-8 font-bold uppercase pr-4">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {invLoading ? (
-                    <TableRow><TableCell colSpan={5} className="text-center py-8"><Loader2 className="w-4 h-4 animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-6"><Loader2 className="w-3.5 h-3.5 animate-spin mx-auto text-primary" /></TableCell></TableRow>
                   ) : invoices?.length ? (
                     invoices.map((inv) => (
                       <TableRow key={inv.id}>
-                        <TableCell className="pl-5 font-mono text-[10px] font-semibold">{inv.invoiceNumber}</TableCell>
-                        <TableCell className="text-xs">{formatAppDate(inv.createdAt)}</TableCell>
-                        <TableCell className="font-bold text-xs">₹{inv.totalAmount?.toLocaleString()}</TableCell>
+                        <TableCell className="pl-4 font-mono text-[9px] font-semibold">{inv.invoiceNumber}</TableCell>
+                        <TableCell className="text-[10px]">{formatAppDate(inv.createdAt)}</TableCell>
+                        <TableCell className="font-bold text-[10px]">₹{inv.totalAmount?.toLocaleString()}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={cn("text-[8px] h-4 px-1.5", inv.status === "paid" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600")}>
+                          <Badge variant="outline" className={cn("text-[8px] h-3.5 px-1.5", inv.status === "paid" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600")}>
                             {inv.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right pr-5">
-                          <Button variant="ghost" size="icon" className="h-7 w-7"><Download className="w-3 h-3" /></Button>
+                        <TableCell className="text-right pr-4">
+                          <Button variant="ghost" size="icon" className="h-6 w-6"><Download className="w-2.5 h-2.5" /></Button>
                         </TableCell>
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={5} className="text-center py-10 text-xs text-muted-foreground">No records.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-[10px] text-muted-foreground uppercase font-bold">No records found</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

@@ -6,20 +6,8 @@ import { Button } from "@/components/ui/button";
 import { 
   Plus, 
   Search, 
-  Filter, 
   Loader2, 
-  Calendar, 
-  User, 
   Info,
-  CheckCircle2,
-  LogOut,
-  MapPin,
-  Clock,
-  Edit2,
-  Trash2,
-  ArrowRightLeft,
-  CreditCard,
-  Globe,
   Receipt
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -31,15 +19,14 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Badge } from "@/components/badge";
-import { cn, formatAppDate, formatAppTime } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { cn, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
-import { collection, doc, query, where, getDocs } from "firebase/firestore";
+import { collection, doc } from "firebase/firestore";
 import { 
   Dialog, 
   DialogContent, 
-  DialogDescription, 
   DialogFooter, 
   DialogHeader, 
   DialogTitle, 
@@ -48,7 +35,6 @@ import {
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { Separator } from "@/components/ui/separator";
 import { 
   Select, 
   SelectContent, 
@@ -85,7 +71,6 @@ export default function ReservationsPage() {
   const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
 
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
   
@@ -105,8 +90,6 @@ export default function ReservationsPage() {
     idType: "Aadhar",
     idNumber: ""
   });
-
-  const [editResForm, setEditResForm] = useState<any>(null);
 
   // Queries
   const reservationsQuery = useMemoFirebase(() => {
@@ -278,35 +261,6 @@ export default function ReservationsPage() {
     }
   };
 
-  const handleUpdateReservation = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!entityId || !isAdmin || !editResForm) return;
-
-    const resRef = doc(db, "hotel_properties", entityId, "reservations", editResForm.id);
-    const updateData = {
-      guestName: editResForm.guestName,
-      roomNumber: editResForm.roomNumber,
-      checkInDate: editResForm.checkInDate,
-      checkOutDate: editResForm.checkOutDate || null,
-      numberOfGuests: parseInt(editResForm.numberOfGuests),
-      specialRequests: editResForm.specialRequests,
-      bookingSource: editResForm.bookingSource,
-      updatedAt: new Date().toISOString(),
-    };
-
-    updateDocumentNonBlocking(resRef, updateData);
-    toast({ title: "Reservation updated" });
-    setIsEditOpen(false);
-    setEditResForm(null);
-  };
-
-  const handleDeleteReservation = (id: string) => {
-    if (!entityId || !isAdmin) return;
-    const resRef = doc(db, "hotel_properties", entityId, "reservations", id);
-    deleteDocumentNonBlocking(resRef);
-    toast({ title: "Reservation deleted" });
-  };
-
   const openDetails = (res: any) => {
     setSelectedRes(res);
     setCheckInForm({
@@ -317,63 +271,58 @@ export default function ReservationsPage() {
     setIsDetailsOpen(true);
   };
 
-  const openEdit = (res: any) => {
-    setEditResForm({ ...res });
-    setIsEditOpen(true);
-  };
-
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-4xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="space-y-5 max-w-3xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold tracking-tight">Reservations</h1>
-            <p className="text-muted-foreground text-[10px] mt-0.5">Manage guest stays and bookings</p>
+            <h1 className="text-lg font-bold tracking-tight">Reservations</h1>
+            <p className="text-muted-foreground text-[9px] mt-0.5 uppercase font-bold">Manage guest stays and bookings</p>
           </div>
 
           {isAdmin && (
             <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
               <DialogTrigger asChild>
-                <Button className="h-9 px-4 font-semibold shadow-md text-xs">
-                  <Plus className="w-3.5 h-3.5 mr-2" />
+                <Button className="h-8 px-3 font-semibold shadow-md text-[10px]">
+                  <Plus className="w-3 h-3 mr-1.5" />
                   New Reservation
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[380px]">
+              <DialogContent className="sm:max-w-[340px]">
                 <DialogHeader>
                   <DialogTitle className="text-sm">Add Reservation</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleAddReservation} className="space-y-3 pt-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Guest Name</Label>
-                    <Input placeholder="John Doe" value={newRes.guestName} onChange={(e) => setNewRes({...newRes, guestName: e.target.value})} required className="h-8 text-xs" />
+                <form onSubmit={handleAddReservation} className="space-y-2.5 pt-1">
+                  <div className="space-y-1">
+                    <Label className="text-[9px] uppercase font-bold text-muted-foreground">Guest Name</Label>
+                    <Input placeholder="John Doe" value={newRes.guestName} onChange={(e) => setNewRes({...newRes, guestName: e.target.value})} required className="h-7 text-xs" />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Room #</Label>
-                      <Input placeholder="101" value={newRes.roomNumber} onChange={(e) => setNewRes({...newRes, roomNumber: e.target.value})} required className="h-8 text-xs" />
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase font-bold text-muted-foreground">Room #</Label>
+                      <Input placeholder="101" value={newRes.roomNumber} onChange={(e) => setNewRes({...newRes, roomNumber: e.target.value})} required className="h-7 text-xs" />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Source</Label>
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase font-bold text-muted-foreground">Source</Label>
                       <Select value={newRes.bookingSource} onValueChange={(val) => setNewRes({...newRes, bookingSource: val})}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {BOOKING_SOURCES.map(source => <SelectItem key={source} value={source} className="text-xs">{source}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Check In</Label>
-                      <Input type="date" value={newRes.checkIn} onChange={(e) => setNewRes({...newRes, checkIn: e.target.value})} required className="h-8 text-xs" />
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase font-bold text-muted-foreground">Check In</Label>
+                      <Input type="date" value={newRes.checkIn} onChange={(e) => setNewRes({...newRes, checkIn: e.target.value})} required className="h-7 text-xs" />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Guests</Label>
-                      <Input type="number" min="1" value={newRes.guests} onChange={(e) => setNewRes({...newRes, guests: e.target.value})} required className="h-8 text-xs" />
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase font-bold text-muted-foreground">Guests</Label>
+                      <Input type="number" min="1" value={newRes.guests} onChange={(e) => setNewRes({...newRes, guests: e.target.value})} required className="h-7 text-xs" />
                     </div>
                   </div>
-                  <Button type="submit" className="w-full h-9 text-xs font-bold mt-2">Confirm Booking</Button>
+                  <Button type="submit" className="w-full h-8 text-[10px] font-bold mt-2">Confirm Booking</Button>
                 </form>
               </DialogContent>
             </Dialog>
@@ -382,8 +331,8 @@ export default function ReservationsPage() {
 
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
-            <Input placeholder="Search guest..." className="pl-9 h-9 text-xs" />
+            <Search className="absolute left-3 top-2 w-3 h-3 text-muted-foreground" />
+            <Input placeholder="Search guest..." className="pl-8 h-8 text-[10px]" />
           </div>
         </div>
 
@@ -391,29 +340,29 @@ export default function ReservationsPage() {
           <Table>
             <TableHeader className="bg-secondary/50">
               <TableRow>
-                <TableHead className="px-5 h-9 text-[10px] uppercase font-bold">Guest</TableHead>
-                <TableHead className="text-center h-9 text-[10px] uppercase font-bold">Room</TableHead>
-                <TableHead className="text-center h-9 text-[10px] uppercase font-bold">Stay</TableHead>
-                <TableHead className="text-center h-9 text-[10px] uppercase font-bold">Status</TableHead>
-                <TableHead className="text-right px-5 h-9 text-[10px] uppercase font-bold">Actions</TableHead>
+                <TableHead className="px-4 h-8 text-[9px] uppercase font-bold">Guest</TableHead>
+                <TableHead className="text-center h-8 text-[9px] uppercase font-bold">Room</TableHead>
+                <TableHead className="text-center h-8 text-[9px] uppercase font-bold">Stay</TableHead>
+                <TableHead className="text-center h-8 text-[9px] uppercase font-bold">Status</TableHead>
+                <TableHead className="text-right px-4 h-8 text-[9px] uppercase font-bold">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-8"><Loader2 className="w-4 h-4 animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-6"><Loader2 className="w-3.5 h-3.5 animate-spin mx-auto text-primary" /></TableCell></TableRow>
               ) : reservations?.length ? (
                 reservations.map((res) => (
                   <TableRow key={res.id}>
-                    <TableCell className="px-5 font-bold text-xs">{res.guestName}</TableCell>
+                    <TableCell className="px-4 font-bold text-[10px]">{res.guestName}</TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="outline" className="bg-secondary/50 text-[9px] font-bold">ROOM {res.roomNumber}</Badge>
+                      <Badge variant="outline" className="bg-secondary/50 text-[8px] font-bold">ROOM {res.roomNumber}</Badge>
                     </TableCell>
-                    <TableCell className="text-center text-[10px]">
+                    <TableCell className="text-center text-[9px]">
                       {formatAppDate(res.checkInDate)} - {res.checkOutDate ? formatAppDate(res.checkOutDate) : "..."}
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge className={cn(
-                        "text-[8px] uppercase font-bold",
+                        "text-[7px] uppercase font-bold",
                         res.status === "confirmed" && "bg-emerald-50 text-emerald-600",
                         res.status === "checked_in" && "bg-blue-50 text-blue-600",
                         res.status === "checked_out" && "bg-gray-100 text-gray-600"
@@ -421,65 +370,65 @@ export default function ReservationsPage() {
                         {res.status.replace("_", " ")}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right px-5">
-                      <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold" onClick={() => openDetails(res)}>View</Button>
+                    <TableCell className="text-right px-4">
+                      <Button variant="ghost" size="sm" className="h-6 text-[9px] font-bold" onClick={() => openDetails(res)}>View</Button>
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
-                <TableRow><TableCell colSpan={5} className="text-center py-10 text-[10px] text-muted-foreground uppercase font-bold">No active stays</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-8 text-[9px] text-muted-foreground uppercase font-bold">No active stays</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
         </div>
 
         <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-          <DialogContent className="sm:max-w-[400px]">
+          <DialogContent className="sm:max-w-[340px]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-sm">
-                <Info className="w-4 h-4 text-primary" /> Stay Management
+                <Info className="w-3.5 h-3.5 text-primary" /> Stay Management
               </DialogTitle>
             </DialogHeader>
             {selectedRes && (
-              <div className="space-y-4 pt-2">
-                <div className="flex justify-between items-center bg-secondary/30 p-3 rounded-xl border">
+              <div className="space-y-3 pt-1">
+                <div className="flex justify-between items-center bg-secondary/30 p-2.5 rounded-xl border">
                   <div>
-                    <h3 className="text-sm font-bold">{selectedRes.guestName}</h3>
-                    <p className="text-[9px] text-muted-foreground font-mono uppercase">Room {selectedRes.roomNumber} • {selectedRes.bookingSource}</p>
+                    <h3 className="text-xs font-bold">{selectedRes.guestName}</h3>
+                    <p className="text-[8px] text-muted-foreground font-mono uppercase">Room {selectedRes.roomNumber} • {selectedRes.bookingSource}</p>
                   </div>
-                  <Badge className="text-[9px] uppercase font-bold bg-primary/10 text-primary">{selectedRes.status}</Badge>
+                  <Badge className="text-[8px] uppercase font-bold bg-primary/10 text-primary">{selectedRes.status}</Badge>
                 </div>
 
                 {selectedRes.status === 'confirmed' && (
-                  <div className="space-y-2.5 p-3 border rounded-xl bg-primary/5">
-                    <p className="text-[9px] font-bold uppercase text-primary">Identity Verification (KYC)</p>
+                  <div className="space-y-2 p-2.5 border rounded-xl bg-primary/5">
+                    <p className="text-[8px] font-bold uppercase text-primary">Identity Verification (KYC)</p>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
-                        <Label className="text-[9px] uppercase text-muted-foreground">ID Type</Label>
+                        <Label className="text-[8px] uppercase text-muted-foreground">ID Type</Label>
                         <Select value={checkInForm.idType} onValueChange={(v) => setCheckInForm({...checkInForm, idType: v})}>
-                          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {ID_TYPES.map(t => <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>)}
+                            {ID_TYPES.map(t => <SelectItem key={t} value={t} className="text-[10px]">{t}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[9px] uppercase text-muted-foreground">ID Number</Label>
-                        <Input placeholder="Enter #" className="h-7 text-xs" value={checkInForm.idNumber} onChange={(e) => setCheckInForm({...checkInForm, idNumber: e.target.value})} />
+                        <Label className="text-[8px] uppercase text-muted-foreground">ID Number</Label>
+                        <Input placeholder="Enter #" className="h-6 text-[10px]" value={checkInForm.idNumber} onChange={(e) => setCheckInForm({...checkInForm, idNumber: e.target.value})} />
                       </div>
                     </div>
                   </div>
                 )}
 
-                <DialogFooter className="flex-col gap-2 sm:flex-col">
+                <DialogFooter className="flex-col gap-1.5 sm:flex-col">
                   {selectedRes.status === 'confirmed' && (
-                    <Button className="w-full h-9 text-xs font-bold" onClick={() => updateStatus(selectedRes.id, 'checked_in')} disabled={!checkInForm.idNumber}>
+                    <Button className="w-full h-8 text-[10px] font-bold" onClick={() => updateStatus(selectedRes.id, 'checked_in')} disabled={!checkInForm.idNumber}>
                       Confirm Arrival & Check-In
                     </Button>
                   )}
                   {selectedRes.status === 'checked_in' && (
-                    <Button variant="destructive" className="w-full h-9 text-xs font-bold" onClick={() => updateStatus(selectedRes.id, 'checked_out')} disabled={isProcessingCheckout}>
-                      {isProcessingCheckout ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <Receipt className="w-3.5 h-3.5 mr-2" />}
+                    <Button variant="destructive" className="w-full h-8 text-[10px] font-bold" onClick={() => updateStatus(selectedRes.id, 'checked_out')} disabled={isProcessingCheckout}>
+                      {isProcessingCheckout ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : <Receipt className="w-3 h-3 mr-1.5" />}
                       Generate Invoice & Check-Out
                     </Button>
                   )}

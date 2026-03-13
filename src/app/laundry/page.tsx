@@ -2,26 +2,18 @@
 
 import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/badge";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { 
   Plus, 
   WashingMachine, 
   Search, 
-  Clock, 
-  CheckCircle, 
   Loader2,
-  Package,
-  ArrowRight,
-  Trash2,
-  ShoppingCart,
-  UserCheck,
-  Building2,
-  Receipt
+  Trash2
 } from "lucide-react";
 import { 
   Table, 
@@ -36,9 +28,7 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
-  DialogTrigger,
-  DialogDescription,
-  DialogFooter
+  DialogTrigger
 } from "@/components/ui/dialog";
 import { 
   Select, 
@@ -53,7 +43,6 @@ import { collection, query, orderBy, doc, where } from "firebase/firestore";
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { sendNotification } from "@/firebase/notifications";
 import { cn } from "@/lib/utils";
 
 export default function LaundryPage() {
@@ -203,52 +192,52 @@ export default function LaundryPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-primary/10 rounded-xl">
-              <WashingMachine className="w-6 h-6 text-primary" />
+      <div className="max-w-4xl mx-auto space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-primary/10 rounded-xl">
+              <WashingMachine className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Laundry</h1>
-              <p className="text-muted-foreground text-sm mt-0.5">Guest & hotel linen management</p>
+              <h1 className="text-xl font-bold tracking-tight">Laundry</h1>
+              <p className="text-muted-foreground text-[10px] mt-0.5">Guest & hotel linen management</p>
             </div>
           </div>
           {isAdmin && (
              <Dialog open={isItemOpen} onOpenChange={setIsItemOpen}>
              <DialogTrigger asChild>
-               <Button variant="outline" className="h-9 font-bold text-xs border-primary text-primary">
-                 <Plus className="w-3.5 h-3.5 mr-1.5" /> Define Item
+               <Button variant="outline" className="h-8 font-bold text-[10px] border-primary text-primary px-4">
+                 <Plus className="w-3 h-3 mr-1.5" /> Define Item
                </Button>
              </DialogTrigger>
-             <DialogContent className="sm:max-w-[400px]">
-               <DialogHeader><DialogTitle className="text-base">Add Service Item</DialogTitle></DialogHeader>
-               <form onSubmit={handleAddServiceItem} className="space-y-3 pt-2">
-                 <div className="space-y-1.5">
-                   <Label className="text-xs">Name</Label>
-                   <Input value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required className="h-9" />
+             <DialogContent className="sm:max-w-[340px]">
+               <DialogHeader><DialogTitle className="text-sm">Add Service Item</DialogTitle></DialogHeader>
+               <form onSubmit={handleAddServiceItem} className="space-y-2.5 pt-1">
+                 <div className="space-y-1">
+                   <Label className="text-[10px] uppercase font-bold text-muted-foreground">Name</Label>
+                   <Input value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required className="h-8 text-xs" />
                  </div>
-                 <div className="space-y-1.5">
-                   <Label className="text-xs">Type</Label>
+                 <div className="space-y-1">
+                   <Label className="text-[10px] uppercase font-bold text-muted-foreground">Type</Label>
                    <Select value={newItem.type} onValueChange={v => setNewItem({...newItem, type: v})}>
-                     <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                     <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                      <SelectContent>
                        <SelectItem value="guest" className="text-xs">Guest Laundry</SelectItem>
                        <SelectItem value="linen" className="text-xs">Hotel Linen</SelectItem>
                      </SelectContent>
                    </Select>
                  </div>
-                 <div className="grid grid-cols-2 gap-3">
-                   <div className="space-y-1.5">
-                     <Label className="text-xs">Hotel Rate</Label>
-                     <Input type="number" value={newItem.hotelRate} onChange={e => setNewItem({...newItem, hotelRate: e.target.value})} required className="h-9" />
+                 <div className="grid grid-cols-2 gap-2.5">
+                   <div className="space-y-1">
+                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Hotel Rate</Label>
+                     <Input type="number" value={newItem.hotelRate} onChange={e => setNewItem({...newItem, hotelRate: e.target.value})} required className="h-8 text-xs" />
                    </div>
-                   <div className="space-y-1.5">
-                     <Label className="text-xs">Vendor Rate</Label>
-                     <Input type="number" value={newItem.vendorRate} onChange={e => setNewItem({...newItem, vendorRate: e.target.value})} required className="h-9" />
+                   <div className="space-y-1">
+                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Vendor Rate</Label>
+                     <Input type="number" value={newItem.vendorRate} onChange={e => setNewItem({...newItem, vendorRate: e.target.value})} required className="h-8 text-xs" />
                    </div>
                  </div>
-                 <Button type="submit" className="w-full h-9 font-bold mt-2">Save Item</Button>
+                 <Button type="submit" className="w-full h-8 text-[10px] font-bold mt-2">Save Item</Button>
                </form>
              </DialogContent>
            </Dialog>
@@ -256,27 +245,27 @@ export default function LaundryPage() {
         </div>
 
         <Tabs defaultValue="guest-orders" className="space-y-4">
-          <TabsList className="bg-white border p-1 rounded-xl h-10">
-            <TabsTrigger value="guest-orders" className="rounded-lg h-full text-[11px] px-5 gap-2">Orders</TabsTrigger>
-            <TabsTrigger value="guest-items" className="rounded-lg h-full text-[11px] px-5 gap-2">Guest Rates</TabsTrigger>
-            <TabsTrigger value="hotel-laundry" className="rounded-lg h-full text-[11px] px-5 gap-2">Linen</TabsTrigger>
+          <TabsList className="bg-white border p-1 rounded-xl h-8">
+            <TabsTrigger value="guest-orders" className="rounded-lg h-full text-[10px] px-4">Orders</TabsTrigger>
+            <TabsTrigger value="guest-items" className="rounded-lg h-full text-[10px] px-4">Guest Rates</TabsTrigger>
+            <TabsTrigger value="hotel-laundry" className="rounded-lg h-full text-[10px] px-4">Linen</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="guest-orders" className="space-y-4">
+          <TabsContent value="guest-orders" className="space-y-3">
             <div className="flex justify-between items-center gap-3">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
-                <Input placeholder="Search room..." className="pl-9 h-9 text-xs" />
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-3 top-2 w-3 h-3 text-muted-foreground" />
+                <Input placeholder="Search room..." className="pl-8 h-8 text-[10px]" />
               </div>
               {canManageOrders && (
                 <Dialog open={isOrderOpen} onOpenChange={setIsOrderOpen}>
                   <DialogTrigger asChild>
-                    <Button className="h-9 px-5 font-bold text-xs"><Plus className="w-3.5 h-3.5 mr-1.5" /> New Order</Button>
+                    <Button className="h-8 px-4 font-bold text-[10px]"><Plus className="w-3 h-3 mr-1.5" /> New Order</Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-[380px]">
-                    <DialogHeader><DialogTitle className="text-base">New Guest Order</DialogTitle></DialogHeader>
+                  <DialogContent className="sm:max-w-[340px]">
+                    <DialogHeader><DialogTitle className="text-sm">New Guest Order</DialogTitle></DialogHeader>
                     <form onSubmit={handleAddOrder} className="space-y-3 pt-1">
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-2.5">
                         <div className="space-y-1">
                           <Label className="text-[9px] uppercase font-bold text-muted-foreground">Room</Label>
                           <Select 
@@ -291,7 +280,7 @@ export default function LaundryPage() {
                               });
                             }}
                           >
-                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Room" /></SelectTrigger>
+                            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Room" /></SelectTrigger>
                             <SelectContent>
                               {occupiedRooms?.map(room => <SelectItem key={room.id} value={room.id} className="text-xs">Room {room.roomNumber}</SelectItem>)}
                             </SelectContent>
@@ -299,31 +288,31 @@ export default function LaundryPage() {
                         </div>
                         <div className="space-y-1">
                           <Label className="text-[9px] uppercase font-bold text-muted-foreground">Guest</Label>
-                          <div className="h-8 px-2 bg-secondary/50 rounded flex items-center text-xs font-bold truncate">{newOrder.guestName || "..."}</div>
+                          <div className="h-7 px-2 bg-secondary/50 rounded flex items-center text-[10px] font-bold truncate">{newOrder.guestName || "..."}</div>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-2.5">
                         <div className="space-y-1">
-                          <Label className="text-[9px] uppercase font-bold text-primary">Service List</Label>
-                          <ScrollArea className="h-[160px] border rounded-lg p-1.5 bg-secondary/10">
+                          <Label className="text-[9px] uppercase font-bold text-primary">Rates</Label>
+                          <ScrollArea className="h-[120px] border rounded-lg p-1.5 bg-secondary/10">
                             {guestItems.map(item => (
-                              <div key={item.id} className="flex items-center justify-between p-1.5 mb-1 bg-white border rounded shadow-sm">
-                                <span className="text-[10px] font-bold truncate flex-1">{item.itemName}</span>
-                                <Button type="button" variant="secondary" size="icon" className="h-5 w-5 ml-1" onClick={() => addItemToOrder(item.id)}><Plus className="w-2.5 h-2.5" /></Button>
+                              <div key={item.id} className="flex items-center justify-between p-1 mb-1 bg-white border rounded shadow-sm">
+                                <span className="text-[8px] font-bold truncate flex-1">{item.itemName}</span>
+                                <Button type="button" variant="secondary" size="icon" className="h-4 w-4 ml-1" onClick={() => addItemToOrder(item.id)}><Plus className="w-2 h-2" /></Button>
                               </div>
                             ))}
                           </ScrollArea>
                         </div>
                         <div className="space-y-1">
                           <Label className="text-[9px] uppercase font-bold text-primary">Basket</Label>
-                          <ScrollArea className="h-[160px] border rounded-lg p-1.5 bg-primary/5">
+                          <ScrollArea className="h-[120px] border rounded-lg p-1.5 bg-primary/5">
                             {newOrder.items.map(i => (
-                              <div key={i.itemId} className="flex items-center justify-between p-1.5 mb-1 bg-white rounded border shadow-sm">
-                                <span className="text-[10px] font-bold truncate flex-1">{i.name}</span>
+                              <div key={i.itemId} className="flex items-center justify-between p-1 mb-1 bg-white rounded border shadow-sm">
+                                <span className="text-[8px] font-bold truncate flex-1">{i.name}</span>
                                 <div className="flex items-center gap-1">
-                                  <Input type="number" className="w-7 h-5 text-[9px] p-0 text-center" value={i.quantity} onChange={(e) => updateItemQuantity(i.itemId, parseInt(e.target.value))} />
-                                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-rose-500" onClick={() => removeItemFromOrder(i.itemId)}><Trash2 className="w-2.5 h-2.5" /></Button>
+                                  <Input type="number" className="w-6 h-4 text-[8px] p-0 text-center" value={i.quantity} onChange={(e) => updateItemQuantity(i.itemId, parseInt(e.target.value))} />
+                                  <Button type="button" variant="ghost" size="icon" className="h-4 w-4 text-rose-500" onClick={() => removeItemFromOrder(i.itemId)}><Trash2 className="w-2 h-2" /></Button>
                                 </div>
                               </div>
                             ))}
@@ -331,9 +320,9 @@ export default function LaundryPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between p-3 bg-primary/10 rounded-xl border border-primary/20">
-                        <div className="text-xl font-extrabold text-primary">₹{newOrder.items.reduce((acc, i) => acc + (i.rate * i.quantity), 0).toLocaleString()}</div>
-                        <Button type="submit" className="h-9 px-6 font-bold text-xs">Confirm Order</Button>
+                      <div className="flex items-center justify-between p-2.5 bg-primary/10 rounded-xl border border-primary/20">
+                        <div className="text-lg font-extrabold text-primary">₹{newOrder.items.reduce((acc, i) => acc + (i.rate * i.quantity), 0).toLocaleString()}</div>
+                        <Button type="submit" className="h-7 px-4 font-bold text-[10px]">Confirm</Button>
                       </div>
                     </form>
                   </DialogContent>
@@ -345,37 +334,37 @@ export default function LaundryPage() {
               <Table>
                 <TableHeader className="bg-secondary/50">
                   <TableRow>
-                    <TableHead className="text-[10px] h-10 font-bold uppercase pl-5">Guest & Room</TableHead>
-                    <TableHead className="text-[10px] h-10 font-bold uppercase">Items</TableHead>
-                    <TableHead className="text-[10px] h-10 font-bold uppercase">Total</TableHead>
-                    <TableHead className="text-center text-[10px] h-10 font-bold uppercase">Status</TableHead>
-                    <TableHead className="text-right text-[10px] h-10 font-bold uppercase pr-5">Actions</TableHead>
+                    <TableHead className="text-[9px] h-8 font-bold uppercase pl-4">Guest & Room</TableHead>
+                    <TableHead className="text-[9px] h-8 font-bold uppercase">Items</TableHead>
+                    <TableHead className="text-[9px] h-8 font-bold uppercase">Total</TableHead>
+                    <TableHead className="text-center text-[9px] h-8 font-bold uppercase">Status</TableHead>
+                    <TableHead className="text-right text-[9px] h-8 font-bold uppercase pr-4">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {ordersLoading ? (
-                    <TableRow><TableCell colSpan={5} className="text-center py-10"><Loader2 className="animate-spin w-5 h-5 mx-auto text-primary" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-8"><Loader2 className="animate-spin w-4 h-4 mx-auto text-primary" /></TableCell></TableRow>
                   ) : orders?.length ? (
                     orders.map(order => (
                       <TableRow key={order.id} className="hover:bg-secondary/10">
-                        <TableCell className="pl-5">
-                          <div className="font-bold text-xs">Room {order.roomNumber}</div>
-                          <div className="text-[9px] text-muted-foreground uppercase">{order.guestName}</div>
+                        <TableCell className="pl-4">
+                          <div className="font-bold text-[10px]">Room {order.roomNumber}</div>
+                          <div className="text-[8px] text-muted-foreground uppercase">{order.guestName}</div>
                         </TableCell>
                         <TableCell>
-                          <div className="text-[10px] font-medium max-w-[200px] truncate bg-secondary/50 px-2 py-1 rounded">
+                          <div className="text-[9px] font-medium max-w-[160px] truncate bg-secondary/50 px-1.5 py-0.5 rounded">
                             {order.items?.map((i: any) => `${i.quantity}x ${i.name}`).join(", ")}
                           </div>
                         </TableCell>
-                        <TableCell className="font-bold text-xs text-primary">₹{order.hotelTotal?.toLocaleString()}</TableCell>
+                        <TableCell className="font-bold text-[10px] text-primary">₹{order.hotelTotal?.toLocaleString()}</TableCell>
                         <TableCell className="text-center">
-                          <Badge variant="outline" className={cn("text-[8px] h-4 px-1.5 uppercase", order.status === "sent" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600")}>
+                          <Badge variant="outline" className={cn("text-[7px] h-3.5 px-1 uppercase", order.status === "sent" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600")}>
                             {order.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right pr-5">
+                        <TableCell className="text-right pr-4">
                           {canManageOrders && order.status === "sent" && (
-                            <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold text-emerald-600" onClick={() => updateOrderStatus(order.id, "returned")}>
+                            <Button variant="ghost" size="sm" className="h-6 text-[9px] font-bold text-emerald-600" onClick={() => updateOrderStatus(order.id, "returned")}>
                               Return
                             </Button>
                           )}
@@ -383,29 +372,29 @@ export default function LaundryPage() {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={5} className="text-center py-12 text-xs text-muted-foreground">No orders found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-10 text-[10px] text-muted-foreground uppercase font-bold">No orders found</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
             </div>
           </TabsContent>
           
-          <TabsContent value="guest-items" className="space-y-4">
+          <TabsContent value="guest-items" className="space-y-3">
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                <Table>
                 <TableHeader className="bg-secondary/50">
                   <TableRow>
-                    <TableHead className="text-[10px] h-10 font-bold uppercase pl-5">Item Name</TableHead>
-                    <TableHead className="text-[10px] h-10 font-bold uppercase">Hotel Rate</TableHead>
-                    <TableHead className="text-[10px] h-10 font-bold uppercase">Vendor Rate</TableHead>
+                    <TableHead className="text-[9px] h-8 font-bold uppercase pl-4">Item Name</TableHead>
+                    <TableHead className="text-[9px] h-8 font-bold uppercase">Hotel Rate</TableHead>
+                    <TableHead className="text-[9px] h-8 font-bold uppercase">Vendor Rate</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {guestItems.map(item => (
                     <TableRow key={item.id}>
-                      <TableCell className="pl-5 text-xs font-bold">{item.itemName}</TableCell>
-                      <TableCell className="text-xs">₹{item.hotelRate}</TableCell>
-                      <TableCell className="text-xs">₹{item.vendorRate}</TableCell>
+                      <TableCell className="pl-4 text-[10px] font-bold">{item.itemName}</TableCell>
+                      <TableCell className="text-[10px]">₹{item.hotelRate}</TableCell>
+                      <TableCell className="text-[10px]">₹{item.vendorRate}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -413,20 +402,20 @@ export default function LaundryPage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="hotel-laundry" className="space-y-4">
+          <TabsContent value="hotel-laundry" className="space-y-3">
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                <Table>
                 <TableHeader className="bg-secondary/50">
                   <TableRow>
-                    <TableHead className="text-[10px] h-10 font-bold uppercase pl-5">Linen Name</TableHead>
-                    <TableHead className="text-[10px] h-10 font-bold uppercase">Cost per Piece</TableHead>
+                    <TableHead className="text-[9px] h-8 font-bold uppercase pl-4">Linen Name</TableHead>
+                    <TableHead className="text-[9px] h-8 font-bold uppercase">Cost per Piece</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {hotelLinenItems.map(item => (
                     <TableRow key={item.id}>
-                      <TableCell className="pl-5 text-xs font-bold">{item.itemName}</TableCell>
-                      <TableCell className="text-xs">₹{item.hotelRate}</TableCell>
+                      <TableCell className="pl-4 text-[10px] font-bold">{item.itemName}</TableCell>
+                      <TableCell className="text-[10px]">₹{item.hotelRate}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
