@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -10,7 +11,9 @@ import {
   Clock, 
   CheckCircle,
   MoreVertical,
-  Loader2
+  Loader2,
+  Building2,
+  MapPin
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +41,17 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+const COMMON_AREAS = [
+  "Front Area", "Cafeteria", "OP Area", "Reception", "Lobby", 
+  "Walkways - Floor 1", "Walkways - Floor 2", "Walkways - Floor 3", 
+  "Lift", "Stairs - Front", "Stairs - Rear", "Gym", "Prayer Room", 
+  "Swimming Pool", "Pool Area", "Guest Bathroom - Male", 
+  "Guest Bathroom - Female", "Guest Bathroom - Handicapped", 
+  "Staff Bathrooms", "Generator", "Treatment Area", "Kitchen", 
+  "Solar Panel", "Housekeeping Room"
+];
 
 export default function MaintenancePage() {
   const { entityId, role: currentUserRole } = useAuthStore();
@@ -48,7 +62,13 @@ export default function MaintenancePage() {
   const canUpdateStatus = ["owner", "admin", "manager", "supervisor", "staff"].includes(currentUserRole || "");
 
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [newTask, setNewTask] = useState({ roomNumber: "", issue: "", priority: "medium" });
+  const [newTask, setNewTask] = useState({ 
+    areaType: "room", 
+    roomNumber: "", 
+    commonArea: COMMON_AREAS[0],
+    issue: "", 
+    priority: "medium" 
+  });
 
   const taskQuery = useMemoFirebase(() => {
     if (!entityId) return null;
@@ -65,9 +85,12 @@ export default function MaintenancePage() {
     if (!entityId || !isAdmin) return;
 
     const taskRef = collection(db, "hotel_properties", entityId, "housekeeping_tasks");
+    const targetArea = newTask.areaType === "room" ? `Room ${newTask.roomNumber}` : newTask.commonArea;
+    
     const taskData = {
       entityId,
-      roomId: newTask.roomNumber,
+      roomId: newTask.areaType === "room" ? newTask.roomNumber : newTask.commonArea,
+      isCommonArea: newTask.areaType === "common_area",
       taskType: "repair",
       notes: newTask.issue,
       priority: newTask.priority,
@@ -78,9 +101,9 @@ export default function MaintenancePage() {
     };
 
     addDocumentNonBlocking(taskRef, taskData);
-    toast({ title: "Task created", description: `Work order for room ${newTask.roomNumber} has been logged.` });
+    toast({ title: "Task created", description: `Work order for ${targetArea} has been logged.` });
     setIsAddOpen(false);
-    setNewTask({ roomNumber: "", issue: "", priority: "medium" });
+    setNewTask({ areaType: "room", roomNumber: "", commonArea: COMMON_AREAS[0], issue: "", priority: "medium" });
   };
 
   const updateStatus = (taskId: string, status: string) => {
@@ -96,7 +119,7 @@ export default function MaintenancePage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Maintenance</h1>
-            <p className="text-muted-foreground mt-1">Track and manage property repairs</p>
+            <p className="text-muted-foreground mt-1">Track and manage property repairs across rooms and common areas</p>
           </div>
           
           {isAdmin && (
@@ -107,25 +130,52 @@ export default function MaintenancePage() {
                   New Work Order
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="sm:max-w-[450px]">
                 <DialogHeader>
                   <DialogTitle>New Work Order</DialogTitle>
-                  <DialogDescription>Log a new maintenance request.</DialogDescription>
+                  <DialogDescription>Log a new maintenance request for a room or facility.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleAddTask} className="space-y-4 pt-4">
                   <div className="space-y-2">
-                    <Label>Room Number</Label>
-                    <Input 
-                      placeholder="101" 
-                      value={newTask.roomNumber}
-                      onChange={(e) => setNewTask({...newTask, roomNumber: e.target.value})}
-                      required 
-                    />
+                    <Label>Select Area Type</Label>
+                    <Tabs value={newTask.areaType} onValueChange={(v) => setNewTask({...newTask, areaType: v})} className="w-full">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="room">Rooms</TabsTrigger>
+                        <TabsTrigger value="common_area">Common Area</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
                   </div>
+
+                  {newTask.areaType === "room" ? (
+                    <div className="space-y-2">
+                      <Label>Room Number</Label>
+                      <Input 
+                        placeholder="e.g. 101" 
+                        value={newTask.roomNumber}
+                        onChange={(e) => setNewTask({...newTask, roomNumber: e.target.value})}
+                        required 
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label>Select Common Area</Label>
+                      <Select value={newTask.commonArea} onValueChange={(v) => setNewTask({...newTask, commonArea: v})}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {COMMON_AREAS.map(area => (
+                            <SelectItem key={area} value={area}>{area}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <Label>Issue Description</Label>
                     <Input 
-                      placeholder="e.g. A/C not cooling" 
+                      placeholder="e.g. A/C not cooling, water leak" 
                       value={newTask.issue}
                       onChange={(e) => setNewTask({...newTask, issue: e.target.value})}
                       required 
@@ -157,7 +207,7 @@ export default function MaintenancePage() {
           </div>
         ) : tasks && tasks.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {tasks.map((task) => (
+            {tasks.filter(t => t.taskType === 'repair').map((task) => (
               <Card key={task.id} className="border-none shadow-sm hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-start justify-between p-6 pb-2">
                   <div className="space-y-1">
@@ -170,9 +220,14 @@ export default function MaintenancePage() {
                       )}>
                         {task.priority} Priority
                       </Badge>
-                      <span className="text-xs text-muted-foreground">{task.id.slice(0,5)}</span>
+                      {task.isCommonArea && (
+                        <Badge variant="outline" className="text-[10px] uppercase border-primary/20 bg-primary/5 text-primary">Common Area</Badge>
+                      )}
                     </div>
-                    <CardTitle className="text-xl">Room {task.roomId}</CardTitle>
+                    <CardTitle className="text-xl flex items-center gap-2">
+                      {task.isCommonArea ? <Building2 className="w-5 h-5 text-primary" /> : <MapPin className="w-4 h-4 text-primary" />}
+                      {task.isCommonArea ? task.roomId : `Room ${task.roomId}`}
+                    </CardTitle>
                   </div>
                   {canUpdateStatus && (
                     <Select onValueChange={(val) => updateStatus(task.id, val)} value={task.status}>
