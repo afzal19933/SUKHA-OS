@@ -117,14 +117,14 @@ export default function MaintenancePage() {
   const sortedActiveTasks = useMemo(() => {
     if (!activeTasks) return [];
     return [...activeTasks].sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
     );
   }, [activeTasks]);
 
   const sortedHistoryTasks = useMemo(() => {
     if (!historyTasks) return [];
     return [...historyTasks].sort((a, b) => 
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
     );
   }, [historyTasks]);
 
