@@ -3,38 +3,15 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * SUKHA OS SECURITY RULES (STRENGTHENED PROTOTYPE)
+     * SUKHA OS SECURITY RULES (AUTHENTICATED PROTOTYPE)
      * 
-     * We allow any authenticated user to access property and user data.
-     * Explicitly matching sub-collections ensures listing operations (like tasks)
-     * are correctly authorized by the Firestore engine.
+     * In this prototype phase, we allow any authenticated staff member 
+     * to perform any operation on the database. This ensures maximum 
+     * flexibility for resort operations and avoids permission bottlenecks.
      */
 
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // Match Hotel Properties and all nested sub-collections (rooms, tasks, invoices, etc.)
-    match /hotel_properties/{propertyId} {
-      allow read, write: if isSignedIn();
-      
-      match /{allSubPaths=**} {
-        allow read, write: if isSignedIn();
-      }
-    }
-
-    // Match User Profiles and all nested sub-collections (notifications, etc.)
-    match /user_profiles/{userId} {
-      allow read, write: if isSignedIn();
-      
-      match /{allSubPaths=**} {
-        allow read, write: if isSignedIn();
-      }
-    }
-
-    // Fallback for any other top-level collections
     match /{allPaths=**} {
-      allow read, write: if isSignedIn();
+      allow read, write: if request.auth != null;
     }
   }
 }

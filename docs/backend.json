@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "HotelProperty": {
@@ -246,1003 +245,69 @@
         "updatedAt"
       ]
     },
-    "Guest": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Guest",
-      "type": "object",
-      "description": "Stores profile information for guests who stay at the hotel.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Guest entity."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty this guest is associated with. (Relationship: HotelProperty 1:N Guest)"
-        },
-        "name": {
-          "type": "string",
-          "description": "The full name of the guest."
-        },
-        "phone": {
-          "type": "string",
-          "description": "The primary contact phone number of the guest."
-        },
-        "email": {
-          "type": "string",
-          "description": "The email address of the guest.",
-          "format": "email"
-        },
-        "address": {
-          "type": "string",
-          "description": "The mailing address of the guest."
-        },
-        "idProofType": {
-          "type": "string",
-          "description": "The type of identification document provided by the guest (e.g., 'Passport', 'Aadhar Card', 'Driving License')."
-        },
-        "idProofNumber": {
-          "type": "string",
-          "description": "The identification number from the provided document."
-        },
-        "guestType": {
-          "type": "string",
-          "description": "Categorization of the guest (e.g., 'indian', 'foreign')."
-        },
-        "smsOptIn": {
-          "type": "boolean",
-          "description": "Indicates if the guest has opted in for SMS communications."
-        },
-        "notes": {
-          "type": "string",
-          "description": "Any additional notes or special instructions regarding the guest."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the guest record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the guest record was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "entityId",
-        "name",
-        "phone",
-        "email",
-        "address",
-        "idProofType",
-        "idProofNumber",
-        "guestType",
-        "smsOptIn",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "BookingSource": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "BookingSource",
-      "type": "object",
-      "description": "Lists various channels or platforms through which reservations can be made.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the BookingSource entity."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty to which this booking source belongs. (Relationship: HotelProperty 1:N BookingSource)"
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the booking source (e.g., 'Walk-in', 'Booking.com', 'Corporate')."
-        },
-        "commissionPct": {
-          "type": "number",
-          "description": "The commission percentage associated with this booking source."
-        },
-        "isActive": {
-          "type": "boolean",
-          "description": "Indicates if the booking source is currently active and usable."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the booking source record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the booking source record was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "entityId",
-        "name",
-        "commissionPct",
-        "isActive",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
     "Reservation": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Reservation",
       "type": "object",
-      "description": "Represents a future or planned booking for a guest, potentially for a specific room or room type.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Reservation entity."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty that manages this reservation. (Relationship: HotelProperty 1:N Reservation)"
-        },
-        "guestId": {
-          "type": "string",
-          "description": "Reference to the Guest for whom the reservation is made. (Relationship: Guest 1:N Reservation)"
-        },
-        "roomId": {
-          "type": "string",
-          "description": "Reference to the specific Room reserved (if assigned). (Relationship: Room 1:N Reservation)"
-        },
-        "roomTypeId": {
-          "type": "string",
-          "description": "Reference to the RoomType booked. (Relationship: RoomType 1:N Reservation)"
-        },
-        "checkInDate": {
-          "type": "string",
-          "description": "The scheduled date and time for check-in.",
-          "format": "date-time"
-        },
-        "checkOutDate": {
-          "type": "string",
-          "description": "The scheduled date and time for check-out. Optional.",
-          "format": "date-time"
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the reservation (e.g., 'pending', 'confirmed', 'checked_in', 'checked_out', 'cancelled')."
-        },
-        "numberOfGuests": {
-          "type": "number",
-          "description": "The total number of guests included in the reservation."
-        },
-        "specialRequests": {
-          "type": "string",
-          "description": "Any special requests or notes from the guest regarding the reservation."
-        },
-        "bookingSourceId": {
-          "type": "string",
-          "description": "Reference to the BookingSource through which the reservation was made. (Relationship: BookingSource 1:N Reservation)"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the reservation record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the reservation record was last updated.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "entityId": { "type": "string" },
+        "guestName": { "type": "string" },
+        "roomNumber": { "type": "string" },
+        "checkInDate": { "type": "string", "format": "date-time" },
+        "checkOutDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string" },
+        "bookingSource": { "type": "string" },
+        "idType": { "type": "string" },
+        "idNumber": { "type": "string" },
+        "nationality": { "type": "string" }
       },
-      "required": [
-        "id",
-        "entityId",
-        "guestId",
-        "roomTypeId",
-        "checkInDate",
-        "status",
-        "numberOfGuests",
-        "bookingSourceId",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["id", "entityId", "guestName", "roomNumber", "checkInDate", "status"]
     },
-    "Stay": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Stay",
+    "HousekeepingTask": {
+      "title": "HousekeepingTask",
       "type": "object",
-      "description": "Records the details of an active or completed stay of a guest in a specific room.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Stay entity."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty managing this stay. (Relationship: HotelProperty 1:N Stay)"
-        },
-        "reservationId": {
-          "type": "string",
-          "description": "Reference to the Reservation this stay originated from, if any. (Relationship: Reservation 1:N Stay)"
-        },
-        "guestId": {
-          "type": "string",
-          "description": "Reference to the Guest associated with this stay. (Relationship: Guest 1:N Stay)"
-        },
-        "roomId": {
-          "type": "string",
-          "description": "Reference to the specific Room where the guest is staying. (Relationship: Room 1:N Stay)"
-        },
-        "checkInTime": {
-          "type": "string",
-          "description": "The actual date and time of check-in for the stay.",
-          "format": "date-time"
-        },
-        "checkOutTime": {
-          "type": "string",
-          "description": "The actual date and time of check-out for the stay. (Nullable if stay is active)",
-          "format": "date-time"
-        },
-        "rentPerNight": {
-          "type": "number",
-          "description": "The agreed-upon rent per night for this specific stay."
-        },
-        "bookingSourceId": {
-          "type": "string",
-          "description": "Reference to the BookingSource that generated this stay. (Relationship: BookingSource 1:N Stay)"
-        },
-        "gstRate": {
-          "type": "number",
-          "description": "The applicable GST rate for this stay (e.g., 12.0)."
-        },
-        "cgstAmount": {
-          "type": "number",
-          "description": "The Central GST amount calculated for the stay."
-        },
-        "sgstAmount": {
-          "type": "number",
-          "description": "The State GST amount calculated for the stay."
-        },
-        "totalAmount": {
-          "type": "number",
-          "description": "The total amount charged for the stay, including all taxes."
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the stay (e.g., 'active', 'checked_out')."
-        },
-        "specialRequests": {
-          "type": "string",
-          "description": "Any special requests noted during the stay."
-        },
-        "otaRef": {
-          "type": "string",
-          "description": "Reference number from an Online Travel Agency (OTA) if applicable."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the stay record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the stay record was last updated.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "entityId": { "type": "string" },
+        "roomId": { "type": "string" },
+        "roomNumber": { "type": "string" },
+        "taskType": { "type": "string" },
+        "isCommonArea": { "type": "boolean" },
+        "status": { "type": "string" },
+        "priority": { "type": "string" },
+        "assignedStaffId": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "entityId",
-        "guestId",
-        "roomId",
-        "checkInTime",
-        "rentPerNight",
-        "bookingSourceId",
-        "gstRate",
-        "cgstAmount",
-        "sgstAmount",
-        "totalAmount",
-        "status",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "GstSetting": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "GstSetting",
-      "type": "object",
-      "description": "Stores GST (Goods and Services Tax) configuration details for the hotel.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the GstSetting entity. Could be 'default' or match entityId for 1:1 mapping per hotel."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty to which these GST settings apply. (Relationship: HotelProperty 1:1 GstSetting)"
-        },
-        "gstin": {
-          "type": "string",
-          "description": "The Goods and Services Tax Identification Number (GSTIN) used for these settings."
-        },
-        "sacCode": {
-          "type": "string",
-          "description": "The Service Accounting Code (SAC) relevant to hotel services."
-        },
-        "roomGstRate": {
-          "type": "number",
-          "description": "The GST rate for Room Rents (e.g., 5.0)."
-        },
-        "roomCgstRate": {
-          "type": "number",
-          "description": "The CGST rate for Room Rents (e.g., 2.5)."
-        },
-        "roomSgstRate": {
-          "type": "number",
-          "description": "The SGST rate for Room Rents (e.g., 2.5)."
-        },
-        "serviceGstRate": {
-          "type": "number",
-          "description": "The GST rate for Services/Monthly Rent (e.g., 18.0)."
-        },
-        "serviceCgstRate": {
-          "type": "number",
-          "description": "The CGST rate for Services/Monthly Rent (e.g., 9.0)."
-        },
-        "serviceSgstRate": {
-          "type": "number",
-          "description": "The SGST rate for Services/Monthly Rent (e.g., 9.0)."
-        },
-        "isComposite": {
-          "type": "boolean",
-          "description": "Indicates if the hotel operates under a composite GST scheme."
-        },
-        "compositeRate": {
-          "type": "number",
-          "description": "The composite GST rate, if applicable."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the GST settings record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the GST settings record was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "entityId",
-        "gstin",
-        "sacCode",
-        "roomGstRate",
-        "roomCgstRate",
-        "roomSgstRate",
-        "serviceGstRate",
-        "serviceCgstRate",
-        "serviceSgstRate",
-        "isComposite",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["id", "entityId", "roomId", "taskType", "status"]
     },
     "Invoice": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Invoice",
       "type": "object",
-      "description": "Represents a financial invoice generated for a guest's stay or other services.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Invoice entity."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty that issued this invoice. (Relationship: HotelProperty 1:N Invoice)"
-        },
-        "stayId": {
-          "type": "string",
-          "description": "Reference to the Stay for which this invoice was generated. (Relationship: Stay 1:N Invoice)"
-        },
-        "guestId": {
-          "type": "string",
-          "description": "Reference to the Guest to whom this invoice is issued. (Relationship: Guest 1:N Invoice)"
-        },
-        "invoiceNumber": {
-          "type": "string",
-          "description": "A unique, auto-generated sequence number for the invoice."
-        },
-        "subtotal": {
-          "type": "number",
-          "description": "The subtotal amount before taxes."
-        },
-        "gstAmount": {
-          "type": "number",
-          "description": "The total GST amount applied to the invoice."
-        },
-        "totalAmount": {
-          "type": "number",
-          "description": "The grand total amount of the invoice, including taxes."
-        },
-        "paidAmount": {
-          "type": "number",
-          "description": "The amount that has been paid towards this invoice."
-        },
-        "balance": {
-          "type": "number",
-          "description": "The outstanding balance remaining on the invoice."
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the invoice (e.g., 'draft', 'issued', 'paid', 'cancelled')."
-        },
-        "paymentMethod": {
-          "type": "string",
-          "description": "The method of payment used for the invoice (e.g., 'Cash', 'Card', 'UPI')."
-        },
-        "notes": {
-          "type": "string",
-          "description": "Any additional notes or remarks on the invoice."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the invoice record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the invoice record was last updated.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "entityId": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string" },
+        "balance": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "entityId",
-        "stayId",
-        "guestId",
-        "invoiceNumber",
-        "subtotal",
-        "gstAmount",
-        "totalAmount",
-        "paidAmount",
-        "balance",
-        "status",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["id", "entityId", "invoiceNumber", "totalAmount", "status", "createdAt"]
     },
     "Expense": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Expense",
       "type": "object",
-      "description": "Represents a business expense for the hotel property.",
       "properties": {
         "id": { "type": "string" },
         "entityId": { "type": "string" },
         "description": { "type": "string" },
         "amount": { "type": "number" },
-        "category": { "type": "string", "enum": ["Utilities", "Maintenance", "Staffing", "Laundry", "Supplies", "Marketing", "Other"] },
-        "date": { "type": "string", "format": "date" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "category": { "type": "string" },
+        "date": { "type": "string", "format": "date" }
       },
-      "required": ["id", "entityId", "description", "amount", "category", "date", "createdAt", "updatedAt"]
-    },
-    "HousekeepingTask": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "HousekeepingTask",
-      "type": "object",
-      "description": "Manages tasks related to room cleaning, maintenance, and inspection.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the HousekeepingTask entity."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty managing this task. (Relationship: HotelProperty 1:N HousekeepingTask)"
-        },
-        "roomId": {
-          "type": "string",
-          "description": "Reference to the Room for which the task is assigned. (Relationship: Room 1:N HousekeepingTask)"
-        },
-        "taskType": {
-          "type": "string",
-          "description": "The category or type of the task (e.g., 'cleaning', 'deep_cleaning', 'maintenance', 'repair', 'inspection', 'preventive_maintenance', 'routine_cleaning')."
-        },
-        "assignedStaffId": {
-          "type": "string",
-          "description": "Reference to the UserProfile of the staff member assigned to this task. (Relationship: UserProfile 1:N HousekeepingTask)"
-        },
-        "status": {
-          "type": "string",
-          "description": "The current state of the task (e.g., 'pending', 'in_progress', 'completed', 'cancelled')."
-        },
-        "priority": {
-          "type": "string",
-          "description": "The urgency level of the task (e.g., 'low', 'medium', 'high', 'urgent')."
-        },
-        "dueTime": {
-          "type": "string",
-          "description": "The timestamp by which the task is expected to be completed.",
-          "format": "date-time"
-        },
-        "notes": {
-          "type": "string",
-          "description": "Additional notes or instructions for the task."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the housekeeping task record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the housekeeping task record was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "entityId",
-        "roomId",
-        "taskType",
-        "status",
-        "priority",
-        "dueTime",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "Notification": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Notification",
-      "type": "object",
-      "description": "Stores notifications generated by the system for specific users.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Notification entity."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty that generated this notification. (Relationship: HotelProperty 1:N Notification)"
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to the UserProfile who is the recipient of this notification. (Relationship: UserProfile 1:N Notification)"
-        },
-        "title": {
-          "type": "string",
-          "description": "The title or subject of the notification."
-        },
-        "message": {
-          "type": "string",
-          "description": "The main content or body of the notification."
-        },
-        "type": {
-          "type": "string",
-          "description": "The category or type of notification (e.g., 'alert', 'info', 'task_assigned', 'approval_request')."
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the notification (e.g., 'sent', 'read', 'approved')."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the notification record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the notification record was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "entityId",
-        "userId",
-        "title",
-        "message",
-        "type",
-        "status",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "SystemActivityLog": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "SystemActivityLog",
-      "type": "object",
-      "description": "Records significant actions and state changes within the system for auditing purposes.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the SystemActivityLog entity."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty where the activity occurred. (Relationship: HotelProperty 1:N SystemActivityLog)"
-        },
-        "action": {
-          "type": "string",
-          "description": "A brief description of the action performed (e.g., 'User Login', 'Room Status Update', 'Invoice Issued')."
-        },
-        "description": {
-          "type": "string",
-          "description": "A more detailed description of the activity."
-        },
-        "module": {
-          "type": "string",
-          "description": "The application module where the activity took place (e.g., 'Auth', 'Reservations', 'Housekeeping')."
-        },
-        "performedBy": {
-          "type": "string",
-          "description": "Reference to the UserProfile who performed the action. (Relationship: UserProfile 1:N SystemActivityLog)"
-        },
-        "metadata": {
-          "type": "string",
-          "description": "A flexible map for storing additional contextual data related to the activity."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the system activity was logged.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the system activity log was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "entityId",
-        "action",
-        "description",
-        "module",
-        "performedBy",
-        "metadata",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "LaundryItem": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "LaundryItem",
-      "type": "object",
-      "description": "Defines different types of laundry items offered as a service, with associated rates.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the LaundryItem entity."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty that offers this laundry item. (Relationship: HotelProperty 1:N LaundryItem)"
-        },
-        "itemName": {
-          "type": "string",
-          "description": "The name of the laundry item (e.g., 'Shirt', 'Towel', 'Bed Sheet')."
-        },
-        "itemType": {
-          "type": "string",
-          "description": "The category of the laundry item (e.g., 'linen', 'guest')."
-        },
-        "vendorRate": {
-          "type": "number",
-          "description": "The cost charged by the hotel laundry vendor for processing this item."
-        },
-        "hotelRate": {
-          "type": "number",
-          "description": "The rate charged by the hotel to the guest for this item. (Nullable if only vendor rate applies or guest rate is calculated dynamically)"
-        },
-        "unit": {
-          "type": "string",
-          "description": "The unit of measure for the item (e.g., 'piece', 'kg')."
-        },
-        "description": {
-          "type": "string",
-          "description": "A description or specifications of the laundry item."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the laundry item record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the laundry item record was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "entityId",
-        "itemName",
-        "itemType",
-        "vendorRate",
-        "unit",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "GuestLaundryOrder": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "GuestLaundryOrder",
-      "type": "object",
-      "description": "Records a guest's specific laundry order, including items, quantities, and billing status.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the GuestLaundryOrder entity."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty that received this laundry order. (Relationship: HotelProperty 1:N GuestLaundryOrder)"
-        },
-        "guestId": {
-          "type": "string",
-          "description": "Reference to the Guest who placed the laundry order. (Relationship: Guest 1:N GuestLaundryOrder)"
-        },
-        "roomId": {
-          "type": "string",
-          "description": "Reference to the Room from which the laundry order was placed. (Relationship: Room 1:N GuestLaundryOrder)"
-        },
-        "guestName": {
-          "type": "string",
-          "description": "The name of the guest who placed the order (denormalized for quick access)."
-        },
-        "roomNumber": {
-          "type": "string",
-          "description": "The room number from which the order was placed (denormalized for quick access)."
-        },
-        "orderDate": {
-          "type": "string",
-          "description": "The date and time when the laundry order was placed.",
-          "format": "date-time"
-        },
-        "status": {
-          "type": "string",
-          "description": "The current processing status of the laundry order (e.g., 'sent', 'returned', 'billed')."
-        },
-        "paymentStatus": {
-          "type": "string",
-          "description": "The payment status of the laundry order (e.g., 'pending', 'paid')."
-        },
-        "vendorTotal": {
-          "type": "number",
-          "description": "The total cost from the vendor for this order."
-        },
-        "hotelTotal": {
-          "type": "number",
-          "description": "The total amount charged by the hotel to the guest for this order."
-        },
-        "amountPaid": {
-          "type": "number",
-          "description": "The amount already paid by the guest for this order."
-        },
-        "balance": {
-          "type": "number",
-          "description": "The remaining balance due for this laundry order."
-        },
-        "itemIds": {
-          "type": "array",
-          "description": "References to individual GuestLaundryOrderItem records belonging to this order. (Relationship: GuestLaundryOrder 1:N GuestLaundryOrderItem)",
-          "items": {
-            "type": "string"
-          }
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the guest laundry order record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the guest laundry order record was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "entityId",
-        "guestId",
-        "roomId",
-        "guestName",
-        "roomNumber",
-        "orderDate",
-        "status",
-        "paymentStatus",
-        "vendorTotal",
-        "hotelTotal",
-        "amountPaid",
-        "balance",
-        "itemIds",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "GuestLaundryOrderItem": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "GuestLaundryOrderItem",
-      "type": "object",
-      "description": "Represents a single item within a guest's laundry order, detailing its quantity and specific rates.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the GuestLaundryOrderItem entity."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty this item belongs to. (Relationship: HotelProperty 1:N GuestLaundryOrderItem)"
-        },
-        "guestLaundryOrderId": {
-          "type": "string",
-          "description": "Reference to the GuestLaundryOrder this item is part of. (Relationship: GuestLaundryOrder 1:N GuestLaundryOrderItem)"
-        },
-        "itemId": {
-          "type": "string",
-          "description": "Reference to the LaundryItem that was ordered. (Relationship: LaundryItem 1:N GuestLaundryOrderItem)"
-        },
-        "quantity": {
-          "type": "number",
-          "description": "The quantity of this specific laundry item."
-        },
-        "vendorRate": {
-          "type": "number",
-          "description": "The vendor rate for this specific item at the time of order."
-        },
-        "hotelRate": {
-          "type": "number",
-          "description": "The hotel rate for this specific item at the time of order."
-        },
-        "vendorTotal": {
-          "type": "number",
-          "description": "The calculated total cost from the vendor for this item quantity."
-        },
-        "hotelTotal": {
-          "type": "number",
-          "description": "The calculated total amount charged by the hotel for this item quantity."
-        },
-        "returned": {
-          "type": "boolean",
-          "description": "Indicates if this specific item has been returned to the guest."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the guest laundry order item record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the guest laundry order item record was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "entityId",
-        "guestLaundryOrderId",
-        "itemId",
-        "quantity",
-        "vendorRate",
-        "hotelRate",
-        "vendorTotal",
-        "hotelTotal",
-        "returned",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "DailyTeam": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "DailyTeam",
-      "type": "object",
-      "description": "Stores the daily assignments of staff into teams for housekeeping or other operational tasks, with an automatic expiration.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the DailyTeam entity."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty for which these daily teams are assigned. (Relationship: HotelProperty 1:N DailyTeam)"
-        },
-        "date": {
-          "type": "string",
-          "description": "The specific date for which these teams are assigned (format YYYY-MM-DD).",
-          "format": "date"
-        },
-        "teamAssignmentIds": {
-          "type": "array",
-          "description": "References to the DailyTeamAssignment records for this specific day, each representing an assigned team. (Relationship: DailyTeam 1:N DailyTeamAssignment)",
-          "items": {
-            "type": "string"
-          }
-        },
-        "expireAt": {
-          "type": "string",
-          "description": "Timestamp when this daily team record is set to expire via Firestore TTL.",
-          "format": "date-time"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the daily team record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the daily team record was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "entityId",
-        "date",
-        "teamAssignmentIds",
-        "expireAt",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "DailyTeamAssignment": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "DailyTeamAssignment",
-      "type": "object",
-      "description": "Represents a single team assigned for a specific day, including its name, color, and members.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the DailyTeamAssignment entity."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "Reference to the HotelProperty to which this team assignment belongs. (Relationship: HotelProperty 1:N DailyTeamAssignment)"
-        },
-        "dailyTeamId": {
-          "type": "string",
-          "description": "Reference to the DailyTeam entity this assignment is part of. (Relationship: DailyTeam 1:N DailyTeamAssignment)"
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the team (e.g., 'Team Alpha')."
-        },
-        "color": {
-          "type": "string",
-          "description": "A color code associated with the team for visual identification (e.g., '#FF0000')."
-        },
-        "memberIds": {
-          "type": "array",
-          "description": "References to the UserProfile IDs of the staff members in this team. (Relationship: DailyTeamAssignment N:N UserProfile)",
-          "items": {
-            "type": "string"
-          }
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the daily team assignment record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the daily team assignment record was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "entityId",
-        "dailyTeamId",
-        "name",
-        "color",
-        "memberIds",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["id", "entityId", "description", "amount", "category", "date"]
     }
   },
   "auth": {
@@ -1255,49 +320,39 @@
     "structure": [
       {
         "path": "/hotel_properties/{hotelPropertyId}",
-        "definition": {
-          "entityName": "HotelProperty",
-          "schema": {
-            "$ref": "#/backend/entities/HotelProperty"
-          }
-        }
+        "definition": { "entityName": "HotelProperty", "schema": { "$ref": "#/backend/entities/HotelProperty" } }
       },
       {
         "path": "/user_profiles/{userId}",
-        "definition": {
-          "entityName": "UserProfile",
-          "schema": {
-            "$ref": "#/backend/entities/UserProfile"
-          }
-        }
+        "definition": { "entityName": "UserProfile", "schema": { "$ref": "#/backend/entities/UserProfile" } }
       },
       {
-        "path": "/hotel_properties/{hotelPropertyId}/expenses/{expenseId}",
-        "definition": {
-          "entityName": "Expense",
-          "schema": { "$ref": "#/backend/entities/Expense" }
-        }
+        "path": "/hotel_properties/{hotelPropertyId}/rooms/{roomId}",
+        "definition": { "entityName": "Room", "schema": { "$ref": "#/backend/entities/Room" } }
       },
       {
-        "path": "/hotel_properties/{hotelPropertyId}/invoices/{invoiceId}",
-        "definition": {
-          "entityName": "Invoice",
-          "schema": { "$ref": "#/backend/entities/Invoice" }
-        }
+        "path": "/hotel_properties/{hotelPropertyId}/room_types/{typeId}",
+        "definition": { "entityName": "RoomType", "schema": { "$ref": "#/backend/entities/RoomType" } }
+      },
+      {
+        "path": "/hotel_properties/{hotelPropertyId}/reservations/{resId}",
+        "definition": { "entityName": "Reservation", "schema": { "$ref": "#/backend/entities/Reservation" } }
       },
       {
         "path": "/hotel_properties/{hotelPropertyId}/housekeeping_tasks/{taskId}",
-        "definition": {
-          "entityName": "HousekeepingTask",
-          "schema": { "$ref": "#/backend/entities/HousekeepingTask" }
-        }
+        "definition": { "entityName": "HousekeepingTask", "schema": { "$ref": "#/backend/entities/HousekeepingTask" } }
+      },
+      {
+        "path": "/hotel_properties/{hotelPropertyId}/expenses/{expenseId}",
+        "definition": { "entityName": "Expense", "schema": { "$ref": "#/backend/entities/Expense" } }
+      },
+      {
+        "path": "/hotel_properties/{hotelPropertyId}/invoices/{invoiceId}",
+        "definition": { "entityName": "Invoice", "schema": { "$ref": "#/backend/entities/Invoice" } }
       },
       {
         "path": "/user_profiles/{userId}/notifications/{notificationId}",
-        "definition": {
-          "entityName": "Notification",
-          "schema": { "$ref": "#/backend/entities/Notification" }
-        }
+        "definition": { "entityName": "Notification", "schema": { "$ref": "#/backend/entities/Notification" } }
       }
     ]
   }
