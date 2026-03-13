@@ -92,51 +92,35 @@ export default function MaintenancePage() {
     priority: "medium" 
   });
 
-  // Queries
-  const activeTasksQuery = useMemoFirebase(() => {
+  // Simplified query to avoid potential composite index issues during rule sync
+  const allTasksQuery = useMemoFirebase(() => {
     if (!entityId) return null;
-    return query(
-      collection(db, "hotel_properties", entityId, "housekeeping_tasks"),
-      where("taskType", "==", "repair"),
-      where("status", "!=", "completed")
-    );
+    return collection(db, "hotel_properties", entityId, "housekeeping_tasks");
   }, [db, entityId]);
 
-  const historyTasksQuery = useMemoFirebase(() => {
-    if (!entityId) return null;
-    return query(
-      collection(db, "hotel_properties", entityId, "housekeeping_tasks"),
-      where("taskType", "==", "repair"),
-      where("status", "==", "completed")
-    );
-  }, [db, entityId]);
+  const { data: allTasks, isLoading } = useCollection(allTasksQuery);
 
-  const { data: activeTasks, isLoading: activeLoading } = useCollection(activeTasksQuery);
-  const { data: historyTasks, isLoading: historyLoading } = useCollection(historyTasksQuery);
+  // Filter tasks in memory for reliability
+  const activeTasks = useMemo(() => {
+    if (!allTasks) return [];
+    return allTasks
+      .filter(t => t.taskType === "repair" && t.status !== "completed")
+      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  }, [allTasks]);
 
-  const sortedActiveTasks = useMemo(() => {
-    if (!activeTasks) return [];
-    return [...activeTasks].sort((a, b) => 
-      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-    );
-  }, [activeTasks]);
+  const historyTasks = useMemo(() => {
+    if (!allTasks) return [];
+    const filtered = allTasks
+      .filter(t => t.taskType === "repair" && t.status === "completed")
+      .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
 
-  const sortedHistoryTasks = useMemo(() => {
-    if (!historyTasks) return [];
-    return [...historyTasks].sort((a, b) => 
-      new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
-    );
-  }, [historyTasks]);
-
-  const filteredHistory = useMemo(() => {
-    if (!sortedHistoryTasks) return [];
-    if (!historySearch) return sortedHistoryTasks;
+    if (!historySearch) return filtered;
     const search = historySearch.toLowerCase();
-    return sortedHistoryTasks.filter(t => 
+    return filtered.filter(t => 
       (t.roomId || "").toLowerCase().includes(search) || 
       (t.notes || "").toLowerCase().includes(search)
     );
-  }, [sortedHistoryTasks, historySearch]);
+  }, [allTasks, historySearch]);
 
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
@@ -297,13 +281,13 @@ export default function MaintenancePage() {
           </TabsList>
 
           <TabsContent value="active" className="space-y-6">
-            {activeLoading ? (
+            {isLoading ? (
               <div className="flex justify-center py-20">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
-            ) : sortedActiveTasks.length > 0 ? (
+            ) : activeTasks.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {sortedActiveTasks.map((task) => (
+                {activeTasks.map((task) => (
                   <Card key={task.id} className="border-none shadow-sm hover:shadow-md transition-all group relative overflow-hidden bg-white">
                     <div className={cn(
                       "absolute top-0 left-0 w-1 h-full",
@@ -394,63 +378,61 @@ export default function MaintenancePage() {
 
             <Card className="border-none shadow-sm overflow-hidden bg-white">
               <ScrollArea className="h-[550px]">
-                <div className="p-0">
-                  <Table>
-                    <TableHeader className="bg-secondary/50 sticky top-0 z-10">
-                      <TableRow>
-                        <TableHead className="text-[10px] font-bold uppercase tracking-wider">Completion Date</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase tracking-wider">Area / Location</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase tracking-wider">Maintenance Details</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase tracking-wider">Staff / Tech</TableHead>
-                        <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider pr-8">Priority</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {historyLoading ? (
-                        <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
-                      ) : filteredHistory.length > 0 ? (
-                        filteredHistory.map((task) => (
-                          <TableRow key={task.id} className="hover:bg-secondary/20 group">
-                            <TableCell className="text-xs font-medium">
-                              <div>{formatAppDate(task.updatedAt)}</div>
-                              <div className="text-[10px] text-muted-foreground">{formatAppTime(task.updatedAt)}</div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2 font-bold text-sm">
-                                {task.isCommonArea ? <Building2 className="w-3.5 h-3.5 text-primary" /> : <MapPin className="w-3.5 h-3.5 text-primary" />}
-                                {task.isCommonArea ? task.roomId : `Room ${task.roomId}`}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <p className="text-xs text-muted-foreground max-w-xs truncate group-hover:whitespace-normal group-hover:max-w-md transition-all">
-                                {task.notes || "N/A"}
-                              </p>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="text-[9px] font-bold uppercase bg-secondary/30">
-                                {task.completedBy || 'N/A'}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right pr-8">
-                              <Badge className={cn(
-                                "text-[9px] uppercase font-bold border-none",
-                                task.priority === "high" ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
-                              )}>
-                                {task.priority || "Normal"}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-24 text-muted-foreground text-sm">
-                            No maintenance history found.
+                <Table>
+                  <TableHeader className="bg-secondary/50 sticky top-0 z-10">
+                    <TableRow>
+                      <TableHead className="text-[10px] font-bold uppercase tracking-wider">Completion Date</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase tracking-wider">Area / Location</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase tracking-wider">Maintenance Details</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase tracking-wider">Staff / Tech</TableHead>
+                      <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider pr-8">Priority</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                    ) : historyTasks.length > 0 ? (
+                      historyTasks.map((task) => (
+                        <TableRow key={task.id} className="hover:bg-secondary/20 group">
+                          <TableCell className="text-xs font-medium">
+                            <div>{formatAppDate(task.updatedAt)}</div>
+                            <div className="text-[10px] text-muted-foreground">{formatAppTime(task.updatedAt)}</div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2 font-bold text-sm">
+                              {task.isCommonArea ? <Building2 className="w-3.5 h-3.5 text-primary" /> : <MapPin className="w-3.5 h-3.5 text-primary" />}
+                              {task.isCommonArea ? task.roomId : `Room ${task.roomId}`}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <p className="text-xs text-muted-foreground max-w-xs truncate group-hover:whitespace-normal group-hover:max-w-md transition-all">
+                              {task.notes || "N/A"}
+                            </p>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-[9px] font-bold uppercase bg-secondary/30">
+                              {task.completedBy || 'N/A'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right pr-8">
+                            <Badge className={cn(
+                              "text-[9px] uppercase font-bold border-none",
+                              task.priority === "high" ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
+                            )}>
+                              {task.priority || "Normal"}
+                            </Badge>
                           </TableCell>
                         </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-24 text-muted-foreground text-sm">
+                          No maintenance history found.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
               </ScrollArea>
             </Card>
           </TabsContent>
