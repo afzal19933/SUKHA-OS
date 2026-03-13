@@ -38,6 +38,32 @@
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
+
+  /* Theme Overrides */
+  .theme-emerald {
+    --primary: 142 76% 36%;
+    --ring: 142 76% 36%;
+    --sidebar-primary: 142 76% 36%;
+  }
+
+  .theme-rose {
+    --primary: 346 84% 61%;
+    --ring: 346 84% 61%;
+    --sidebar-primary: 346 84% 61%;
+  }
+
+  .theme-amber {
+    --primary: 38 92% 50%;
+    --ring: 38 92% 50%;
+    --sidebar-primary: 38 92% 50%;
+  }
+
+  .theme-slate {
+    --primary: 215 25% 27%;
+    --ring: 215 25% 27%;
+    --sidebar-primary: 215 25% 27%;
+  }
+
   .dark {
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;

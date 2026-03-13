@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect } from "react";
@@ -8,12 +7,33 @@ import { FirebaseClientProvider, useFirestore } from "@/firebase";
 import { useAuthStore } from "@/store/authStore";
 import { Toaster } from "@/components/ui/toaster";
 import { useUser } from "@/firebase";
-import { doc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, onSnapshot, collection } from "firebase/firestore";
 
 function AuthSync() {
   const { user } = useUser();
   const db = useFirestore();
-  const { setUser, setPermissions, setRole, setEntityId, setAvailableProperties, entityId } = useAuthStore();
+  const { 
+    setUser, 
+    setPermissions, 
+    setRole, 
+    setEntityId, 
+    setAvailableProperties, 
+    entityId,
+    theme 
+  } = useAuthStore();
+
+  // Apply theme to document root
+  useEffect(() => {
+    const root = window.document.documentElement;
+    
+    // Remove all theme classes
+    root.classList.remove('theme-emerald', 'theme-rose', 'theme-amber', 'theme-slate');
+    
+    // Add active theme class
+    if (theme && theme !== 'default') {
+      root.classList.add(`theme-${theme}`);
+    }
+  }, [theme]);
 
   useEffect(() => {
     if (user) {
@@ -36,9 +56,6 @@ function AuthSync() {
       });
 
       // Fetch all available properties for this user (multi-tenancy)
-      // For this prototype, if owner/admin, they can see multiple properties they are linked to.
-      // We'll query properties where the user is an owner or specifically added.
-      // Simplified: fetch all properties since it's a prototype mode
       const unsubscribeProperties = onSnapshot(collection(db, "hotel_properties"), (snapshot) => {
         const properties = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -58,7 +75,7 @@ function AuthSync() {
       setEntityId(null);
       setAvailableProperties([]);
     }
-  }, [user, setUser, setPermissions, setRole, setEntityId, setAvailableProperties, db]);
+  }, [user, setUser, setPermissions, setRole, setEntityId, setAvailableProperties, db, entityId]);
 
   return null;
 }

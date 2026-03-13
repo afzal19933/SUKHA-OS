@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -9,10 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/authStore";
-import { useFirestore, useDoc, useMemoFirebase, useCollection } from "@/firebase";
+import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { doc, updateDoc, collection, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Building, Percent, Plus, ShieldCheck } from "lucide-react";
+import { Loader2, Save, Building, Percent, Plus, Palette, Check } from "lucide-react";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { 
   Dialog, 
@@ -23,9 +22,18 @@ import {
   DialogTrigger 
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
+
+const THEMES = [
+  { id: 'default', name: 'Sukha Indigo', color: 'bg-[#5F5FA7]' },
+  { id: 'emerald', name: 'Forest Emerald', color: 'bg-[#10b981]' },
+  { id: 'rose', name: 'Royal Rose', color: 'bg-[#e11d48]' },
+  { id: 'amber', name: 'Golden Amber', color: 'bg-[#f59e0b]' },
+  { id: 'slate', name: 'Slate Professional', color: 'bg-[#334155]' },
+];
 
 export default function SettingsPage() {
-  const { entityId, role: currentUserRole, setEntityId } = useAuthStore();
+  const { entityId, role: currentUserRole, setEntityId, theme, setTheme } = useAuthStore();
   const db = useFirestore();
   const { toast } = useToast();
 
@@ -161,6 +169,14 @@ export default function SettingsPage() {
     setNewEntity({ name: "", address: "", phone: "" });
   };
 
+  const handleThemeChange = (id: string) => {
+    setTheme(id);
+    toast({
+      title: "Theme Updated",
+      description: `Switched to ${THEMES.find(t => t.id === id)?.name}.`,
+    });
+  };
+
   if (propLoading || gstLoading) {
     return <AppLayout><div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div></AppLayout>;
   }
@@ -224,6 +240,7 @@ export default function SettingsPage() {
           <TabsList className="bg-white border p-1 rounded-xl">
             <TabsTrigger value="profile">Property Profile</TabsTrigger>
             <TabsTrigger value="tax">Tax & Billing</TabsTrigger>
+            <TabsTrigger value="appearance">Appearance</TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile">
@@ -373,6 +390,39 @@ export default function SettingsPage() {
                     </Button>
                   )}
                 </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="appearance">
+            <Card className="border-none shadow-sm">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Palette className="w-5 h-5 text-primary" />
+                  <CardTitle>Appearance & Theme</CardTitle>
+                </div>
+                <CardDescription>Choose a color scheme that matches your property branding.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                  {THEMES.map((t) => (
+                    <div 
+                      key={t.id}
+                      onClick={() => handleThemeChange(t.id)}
+                      className={cn(
+                        "group relative cursor-pointer rounded-2xl border-2 p-4 transition-all hover:border-primary",
+                        (theme || 'default') === t.id ? "border-primary bg-primary/5" : "border-transparent bg-white shadow-sm"
+                      )}
+                    >
+                      <div className="flex flex-col items-center gap-3">
+                        <div className={cn("h-12 w-12 rounded-full shadow-inner flex items-center justify-center", t.color)}>
+                          {(theme || 'default') === t.id && <Check className="w-6 h-6 text-white" />}
+                        </div>
+                        <span className="text-sm font-bold">{t.name}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
