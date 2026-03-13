@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "HotelProperty": {
@@ -59,9 +60,26 @@
         "guestName": { "type": "string" },
         "roomNumber": { "type": "string" },
         "status": { "type": "string" },
-        "checkInDate": { "type": "string", "format": "date-time" }
+        "checkInDate": { "type": "string", "format": "date-time" },
+        "checkOutDate": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "entityId", "guestName", "status"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "entityId": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "reservationId": { "type": "string" },
+        "guestName": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string" },
+        "items": { "type": "array", "items": { "type": "object" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "entityId", "invoiceNumber", "totalAmount", "status", "createdAt"]
     },
     "HousekeepingTask": {
       "title": "HousekeepingTask",
@@ -96,6 +114,10 @@
     "/hotel_properties/{hotelPropertyId}/reservations/{resId}": {
       "schema": { "$ref": "#/backend/entities/Reservation" },
       "description": "Property reservations."
+    },
+    "/hotel_properties/{hotelPropertyId}/invoices/{invoiceId}": {
+      "schema": { "$ref": "#/backend/entities/Invoice" },
+      "description": "Property invoices."
     },
     "/hotel_properties/{hotelPropertyId}/housekeeping_tasks/{taskId}": {
       "schema": { "$ref": "#/backend/entities/HousekeepingTask" },
