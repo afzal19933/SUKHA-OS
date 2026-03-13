@@ -51,48 +51,33 @@
       },
       "required": ["id", "entityId", "roomNumber", "status"]
     },
-    "Reservation": {
-      "title": "Reservation",
+    "LaundryItem": {
+      "title": "LaundryItem",
       "type": "object",
+      "description": "Master list of laundry services and items.",
       "properties": {
-        "id": { "type": "string" },
-        "entityId": { "type": "string" },
-        "guestName": { "type": "string" },
-        "roomNumber": { "type": "string" },
-        "status": { "type": "string" },
-        "checkInDate": { "type": "string", "format": "date-time" },
-        "checkOutDate": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "entityId", "guestName", "status"]
+        "itemName": { "type": "string" },
+        "itemType": { "type": "string", "enum": ["guest", "linen"] },
+        "hotelRate": { "type": "number", "description": "Rate charged to guests" },
+        "vendorRate": { "type": "number", "description": "Rate charged by Signature Laundry" },
+        "unit": { "type": "string" }
+      }
     },
-    "Invoice": {
-      "title": "Invoice",
+    "LaundryOrder": {
+      "title": "LaundryOrder",
       "type": "object",
+      "description": "Individual laundry orders for guests or linen batches.",
       "properties": {
-        "id": { "type": "string" },
-        "entityId": { "type": "string" },
-        "invoiceNumber": { "type": "string" },
-        "reservationId": { "type": "string" },
-        "guestName": { "type": "string" },
-        "totalAmount": { "type": "number" },
-        "status": { "type": "string" },
-        "items": { "type": "array", "items": { "type": "object" } },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "entityId", "invoiceNumber", "totalAmount", "status", "createdAt"]
-    },
-    "HousekeepingTask": {
-      "title": "HousekeepingTask",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "entityId": { "type": "string" },
         "roomId": { "type": "string" },
-        "taskType": { "type": "string" },
-        "status": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "entityId", "roomId", "taskType", "status"]
+        "roomNumber": { "type": "string" },
+        "guestName": { "type": "string" },
+        "reservationId": { "type": "string" },
+        "items": { "type": "array", "items": { "type": "object" } },
+        "status": { "type": "string", "enum": ["sent", "returned", "paid"] },
+        "hotelTotal": { "type": "number" },
+        "vendorTotal": { "type": "number" },
+        "createdAt": { "type": "string" }
+      }
     }
   },
   "auth": {
@@ -103,29 +88,17 @@
       "schema": { "$ref": "#/backend/entities/HotelProperty" },
       "description": "Top-level hotel property documents."
     },
-    "/user_profiles/{userId}": {
-      "schema": { "$ref": "#/backend/entities/UserProfile" },
-      "description": "Global user profiles."
+    "/hotel_properties/{hotelPropertyId}/laundry_items/{itemId}": {
+      "schema": { "$ref": "#/backend/entities/LaundryItem" },
+      "description": "Master laundry items and rates."
     },
-    "/hotel_properties/{hotelPropertyId}/rooms/{roomId}": {
-      "schema": { "$ref": "#/backend/entities/Room" },
-      "description": "Rooms within a property."
+    "/hotel_properties/{hotelPropertyId}/guest_laundry_orders/{orderId}": {
+      "schema": { "$ref": "#/backend/entities/LaundryOrder" },
+      "description": "Guest specific laundry orders."
     },
-    "/hotel_properties/{hotelPropertyId}/reservations/{resId}": {
-      "schema": { "$ref": "#/backend/entities/Reservation" },
-      "description": "Property reservations."
-    },
-    "/hotel_properties/{hotelPropertyId}/invoices/{invoiceId}": {
-      "schema": { "$ref": "#/backend/entities/Invoice" },
-      "description": "Property invoices."
-    },
-    "/hotel_properties/{hotelPropertyId}/housekeeping_tasks/{taskId}": {
-      "schema": { "$ref": "#/backend/entities/HousekeepingTask" },
-      "description": "Tasks for housekeeping and maintenance."
-    },
-    "/user_profiles/{userId}/notifications/{notificationId}": {
+    "/hotel_properties/{hotelPropertyId}/linen_laundry_batches/{batchId}": {
       "schema": { "type": "object" },
-      "description": "User specific notifications."
+      "description": "Batches of hotel linen sent for cleaning."
     }
   }
 }
