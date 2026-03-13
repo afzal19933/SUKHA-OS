@@ -76,7 +76,7 @@ export default function DashboardPage() {
   }, 0) || 0;
 
   const PRIMARY_STATS = [
-    { label: "Total Occupancy", value: `${occupancyRate}%`, icon: Users, change: "Live", trend: "neutral" },
+    { label: "Rooms Occupied", value: stats.occupied.toString(), icon: Users, change: "Live", trend: "neutral" },
     { label: "Vacant Ready", value: stats.vacantReady.toString(), icon: ShieldCheck, change: "Rooms", trend: "up" },
     { label: "Today's Revenue", value: `₹${todayRevenue.toLocaleString()}`, icon: TrendingUp, change: "+12%", trend: "up" },
     { label: "Today's Arrival", value: (todayReservations?.length || 0).toString(), icon: CalendarCheck2, change: "Confirmed", trend: "neutral" },
@@ -123,7 +123,7 @@ export default function DashboardPage() {
         <section className="space-y-3">
           <div className="flex items-center gap-2">
             <BarChart3 className="w-3.5 h-3.5 text-muted-foreground" />
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Key Performance Indicators</h2>
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Property Performance KPIs</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             {PRIMARY_STATS.map((stat) => (
