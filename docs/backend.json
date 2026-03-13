@@ -1284,6 +1284,20 @@
           "entityName": "Invoice",
           "schema": { "$ref": "#/backend/entities/Invoice" }
         }
+      },
+      {
+        "path": "/hotel_properties/{hotelPropertyId}/housekeeping_tasks/{taskId}",
+        "definition": {
+          "entityName": "HousekeepingTask",
+          "schema": { "$ref": "#/backend/entities/HousekeepingTask" }
+        }
+      },
+      {
+        "path": "/user_profiles/{userId}/notifications/{notificationId}",
+        "definition": {
+          "entityName": "Notification",
+          "schema": { "$ref": "#/backend/entities/Notification" }
+        }
       }
     ]
   }
