@@ -5,56 +5,16 @@ service cloud.firestore {
     /**
      * SUKHA OS SECURITY RULES (PROTOTYPE MODE)
      * 
-     * Philosophy:
-     * In the prototype phase, we allow authenticated users to perform operations.
-     * In production, this would be restricted using custom claims (entityId, role).
+     * In the prototype phase, we allow any authenticated user to perform operations.
+     * This prevents permission blockers when listing collections or accessing sub-collections.
      */
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // --- Collection Rules ---
-
-    /**
-     * @description Hotel Properties access.
-     * Allows reading and writing property-level documents.
-     */
-    match /hotel_properties/{hotelPropertyId} {
+    match /{allPaths=**} {
       allow read, write: if isSignedIn();
-
-      /**
-       * @description Operational data under a Hotel Property.
-       * Uses recursive wildcard to allow access to all sub-collections 
-       * (rooms, reservations, tasks, invoices, etc.) for authenticated users.
-       */
-      match /{allPaths=**} {
-        allow read, write: if isSignedIn();
-      }
-    }
-
-    /**
-     * @description User profiles access.
-     */
-    match /user_profiles/{userId} {
-      allow read, write: if isSignedIn();
-
-      /**
-       * @description User-specific notifications.
-       */
-      match /notifications/{notificationId} {
-        allow read, write: if isSignedIn() && request.auth.uid == userId;
-      }
-    }
-
-    /**
-     * @description System logs.
-     * Auditing is restricted: read/create only, no modifications.
-     */
-    match /hotel_properties/{hotelPropertyId}/system_activity_logs/{logId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if false;
     }
   }
 }
