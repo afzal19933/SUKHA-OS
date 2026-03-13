@@ -20,7 +20,9 @@ import {
   ArrowRight,
   Trash2,
   ShoppingCart,
-  UserCheck
+  UserCheck,
+  Building2,
+  Receipt
 } from "lucide-react";
 import { 
   Table, 
@@ -53,6 +55,7 @@ import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/no
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { sendNotification } from "@/firebase/notifications";
+import { cn } from "@/lib/utils";
 
 export default function LaundryPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
@@ -88,7 +91,7 @@ export default function LaundryPage() {
 
   const roomsQuery = useMemoFirebase(() => {
     if (!entityId) return null;
-    return query(collection(db, "hotel_properties", entityId, "rooms"), orderBy("roomNumber"));
+    return query(collection(db, "hotel_properties", entityId, "rooms"), where("status", "==", "occupied"), orderBy("roomNumber"));
   }, [db, entityId]);
 
   const activeResQuery = useMemoFirebase(() => {
@@ -101,12 +104,8 @@ export default function LaundryPage() {
 
   const { data: items, isLoading: itemsLoading } = useCollection(itemsQuery);
   const { data: orders, isLoading: ordersLoading } = useCollection(ordersQuery);
-  const { data: rooms } = useCollection(roomsQuery);
+  const { data: occupiedRooms } = useCollection(roomsQuery);
   const { data: activeReservations } = useCollection(activeResQuery);
-
-  const occupiedRooms = useMemo(() => {
-    return rooms?.filter(r => r.status === 'occupied') || [];
-  }, [rooms]);
 
   const handleAddServiceItem = (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,7 +163,7 @@ export default function LaundryPage() {
   const handleAddOrder = (e: React.FormEvent) => {
     e.preventDefault();
     if (!entityId || !canManageOrders || !newOrder.roomId || newOrder.items.length === 0 || !user) {
-      toast({ variant: "destructive", title: "Error", description: "Please fill all details and add items." });
+      toast({ variant: "destructive", title: "Error", description: "Please select an occupied room and add items." });
       return;
     }
 
@@ -175,7 +174,7 @@ export default function LaundryPage() {
       roomId: newOrder.roomId,
       roomNumber: newOrder.roomNumber,
       guestName: newOrder.guestName,
-      reservationId: newOrder.reservationId,
+      reservationId: newOrder.reservationId, // Stay Isolation: Linked to current check-in
       items: newOrder.items,
       itemIds: newOrder.items.map(i => i.itemId),
       hotelTotal,
@@ -204,53 +203,113 @@ export default function LaundryPage() {
     toast({ title: "Order status updated" });
   };
 
+  const guestItems = useMemo(() => items?.filter(i => i.itemType === 'guest') || [], [items]);
+  const hotelLinenItems = useMemo(() => items?.filter(i => i.itemType === 'linen') || [], [items]);
+
   return (
     <AppLayout>
       <div className="max-w-7xl mx-auto space-y-8">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-primary/10 rounded-2xl">
-            <WashingMachine className="w-8 h-8 text-primary" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-primary/10 rounded-2xl">
+              <WashingMachine className="w-8 h-8 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Laundry Management</h1>
+              <p className="text-muted-foreground mt-1">Guest orders, apartment linen & service audits</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Laundry Services</h1>
-            <p className="text-muted-foreground mt-1">Manage guest orders and linen inventory</p>
-          </div>
+          {isAdmin && (
+             <Dialog open={isItemOpen} onOpenChange={setIsItemOpen}>
+             <DialogTrigger asChild>
+               <Button variant="outline" className="h-10 font-bold border-primary text-primary hover:bg-primary/5">
+                 <Plus className="w-4 h-4 mr-2" /> Define Service Item
+               </Button>
+             </DialogTrigger>
+             <DialogContent>
+               <DialogHeader>
+                 <DialogTitle>Add Laundry Service Item</DialogTitle>
+                 <DialogDescription>Define a new item for guest or hotel linen services.</DialogDescription>
+               </DialogHeader>
+               <form onSubmit={handleAddServiceItem} className="space-y-4 pt-4">
+                 <div className="space-y-2">
+                   <Label>Item Name</Label>
+                   <Input 
+                     placeholder="e.g. Cotton Shirt, Bed Sheet (King)" 
+                     value={newItem.name} 
+                     onChange={e => setNewItem({...newItem, name: e.target.value})}
+                     required 
+                   />
+                 </div>
+                 <div className="space-y-2">
+                   <Label>Item Type</Label>
+                   <Select value={newItem.type} onValueChange={v => setNewItem({...newItem, type: v})}>
+                     <SelectTrigger><SelectValue /></SelectTrigger>
+                     <SelectContent>
+                       <SelectItem value="guest">Guest Laundry</SelectItem>
+                       <SelectItem value="linen">Hotel / Apartment Linen</SelectItem>
+                     </SelectContent>
+                   </Select>
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                   <div className="space-y-2">
+                     <Label>{newItem.type === 'guest' ? 'Guest Rate (₹)' : 'Service Cost (₹)'}</Label>
+                     <Input type="number" placeholder="5.00" value={newItem.hotelRate} onChange={e => setNewItem({...newItem, hotelRate: e.target.value})} required />
+                   </div>
+                   <div className="space-y-2">
+                     <Label>Vendor Rate (₹)</Label>
+                     <Input type="number" placeholder="2.00" value={newItem.vendorRate} onChange={e => setNewItem({...newItem, vendorRate: e.target.value})} required />
+                   </div>
+                 </div>
+                 <Button type="submit" className="w-full h-11 font-bold">Save Item Definition</Button>
+               </form>
+             </DialogContent>
+           </Dialog>
+          )}
         </div>
 
-        <Tabs defaultValue="orders" className="space-y-6">
-          <TabsList className="bg-white border p-1 rounded-xl shadow-sm">
-            <TabsTrigger value="orders" className="rounded-lg h-8 text-xs px-6">Guest Orders</TabsTrigger>
-            <TabsTrigger value="price-list" className="rounded-lg h-8 text-xs px-6">Service Rates</TabsTrigger>
+        <Tabs defaultValue="guest-orders" className="space-y-6">
+          <TabsList className="bg-white border p-1 rounded-xl shadow-sm h-12">
+            <TabsTrigger value="guest-orders" className="rounded-lg h-full text-xs px-6 gap-2">
+              <ShoppingCart className="w-4 h-4" /> Guest Orders
+            </TabsTrigger>
+            <TabsTrigger value="guest-items" className="rounded-lg h-full text-xs px-6 gap-2">
+              <Package className="w-4 h-4" /> Guest Items & Rates
+            </TabsTrigger>
+            <TabsTrigger value="hotel-laundry" className="rounded-lg h-full text-xs px-6 gap-2">
+              <Building2 className="w-4 h-4" /> Hotel / Apartment Laundry
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="orders" className="space-y-6">
+          <TabsContent value="guest-orders" className="space-y-6">
             <div className="flex justify-between items-center gap-4">
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Search guest name or room..." className="pl-10 h-9 text-sm" />
+                <Input placeholder="Search active guest or room..." className="pl-10 h-10 text-sm" />
               </div>
               {canManageOrders && (
                 <Dialog open={isOrderOpen} onOpenChange={setIsOrderOpen}>
                   <DialogTrigger asChild>
-                    <Button className="shadow-lg h-9 text-sm font-bold"><Plus className="w-4 h-4 mr-2" /> New Order</Button>
+                    <Button className="shadow-lg h-10 px-6 font-bold bg-primary hover:bg-primary/90">
+                      <Plus className="w-4 h-4 mr-2" /> New Guest Order
+                    </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-[650px]">
+                  <DialogContent className="sm:max-w-[700px]">
                     <DialogHeader>
                       <DialogTitle className="flex items-center gap-2">
                         <WashingMachine className="w-5 h-5 text-primary" />
-                        New Guest Laundry Order
+                        Log Guest Laundry Order
                       </DialogTitle>
-                      <DialogDescription>Create an order for an occupied guest stay.</DialogDescription>
+                      <DialogDescription>Select an occupied room to automatically retrieve guest details.</DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleAddOrder} className="space-y-6 pt-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Select Occupied Room</Label>
+                          <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Room (Occupied Only)</Label>
                           <Select 
                             value={newOrder.roomId} 
                             onValueChange={(val) => {
-                              const r = rooms?.find(room => room.id === val);
-                              // Find checked_in reservation for this room number
+                              const r = occupiedRooms?.find(room => room.id === val);
                               const activeRes = activeReservations?.find(res => 
                                 res.roomNumber?.toString() === r?.roomNumber?.toString()
                               );
@@ -264,11 +323,11 @@ export default function LaundryPage() {
                               });
                             }}
                           >
-                            <SelectTrigger className="h-10 text-sm font-semibold border-primary/20 bg-primary/5">
-                              <SelectValue placeholder="Choose a room" />
+                            <SelectTrigger className="h-11 text-sm font-semibold border-primary/20 bg-primary/5">
+                              <SelectValue placeholder="Choose Room..." />
                             </SelectTrigger>
                             <SelectContent>
-                              {occupiedRooms.length > 0 ? (
+                              {occupiedRooms && occupiedRooms.length > 0 ? (
                                 occupiedRooms.map(room => (
                                   <SelectItem key={room.id} value={room.id} className="font-medium">
                                     Room {room.roomNumber}
@@ -281,11 +340,11 @@ export default function LaundryPage() {
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Guest Identity</Label>
-                          <div className="h-10 px-3 bg-secondary/50 rounded-md border flex items-center gap-2">
+                          <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Guest Identity</Label>
+                          <div className="h-11 px-3 bg-secondary/50 rounded-lg border flex items-center gap-2">
                             <UserCheck className="w-4 h-4 text-primary" />
                             <span className="text-sm font-bold truncate">
-                              {newOrder.guestName || "Select room first..."}
+                              {newOrder.guestName || "Waiting for room selection..."}
                             </span>
                           </div>
                         </div>
@@ -293,14 +352,14 @@ export default function LaundryPage() {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-3">
-                          <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">Available Services</Label>
-                          <ScrollArea className="h-[280px] border rounded-xl p-3 bg-secondary/10">
+                          <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">Guest Rate Card</Label>
+                          <ScrollArea className="h-[300px] border rounded-2xl p-3 bg-secondary/10">
                             <div className="space-y-1.5">
-                              {items?.filter(i => i.itemType === 'guest').map(item => (
-                                <div key={item.id} className="flex items-center justify-between p-2.5 bg-white border border-transparent hover:border-primary/20 rounded-xl transition-all shadow-sm group">
+                              {guestItems.map(item => (
+                                <div key={item.id} className="flex items-center justify-between p-3 bg-white border border-transparent hover:border-primary/20 rounded-xl transition-all shadow-sm group">
                                   <div>
                                     <p className="text-xs font-bold group-hover:text-primary transition-colors">{item.itemName}</p>
-                                    <p className="text-[10px] text-muted-foreground font-mono">₹{item.hotelRate}</p>
+                                    <p className="text-[10px] text-muted-foreground font-mono">Rate: ₹{item.hotelRate}</p>
                                   </div>
                                   <Button 
                                     type="button" 
@@ -313,10 +372,10 @@ export default function LaundryPage() {
                                   </Button>
                                 </div>
                               ))}
-                              {(!items || items.length === 0) && (
+                              {guestItems.length === 0 && (
                                 <div className="text-center py-10">
                                   <Package className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
-                                  <p className="text-[10px] text-muted-foreground">No services configured.</p>
+                                  <p className="text-[10px] text-muted-foreground">No guest items defined.</p>
                                 </div>
                               )}
                             </div>
@@ -325,18 +384,18 @@ export default function LaundryPage() {
 
                         <div className="space-y-3">
                           <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">Order Basket</Label>
-                          <ScrollArea className="h-[280px] border rounded-xl p-3 bg-primary/5">
+                          <ScrollArea className="h-[300px] border rounded-2xl p-3 bg-primary/5">
                             <div className="space-y-2">
                               {newOrder.items.map(i => (
-                                <div key={i.itemId} className="flex items-center justify-between p-2.5 bg-white rounded-xl shadow-sm border border-primary/10">
+                                <div key={i.itemId} className="flex items-center justify-between p-3 bg-white rounded-xl shadow-sm border border-primary/10">
                                   <div className="flex-1">
                                     <p className="text-xs font-bold truncate">{i.name}</p>
-                                    <p className="text-[10px] text-muted-foreground font-semibold">₹{i.rate * i.quantity}</p>
+                                    <p className="text-[10px] text-muted-foreground font-semibold">Total: ₹{i.rate * i.quantity}</p>
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <Input 
                                       type="number" 
-                                      className="w-12 h-8 text-[11px] p-1 text-center font-bold" 
+                                      className="w-14 h-8 text-[11px] p-1 text-center font-bold" 
                                       value={i.quantity} 
                                       onChange={(e) => updateItemQuantity(i.itemId, parseInt(e.target.value))}
                                     />
@@ -355,7 +414,7 @@ export default function LaundryPage() {
                               {newOrder.items.length === 0 && (
                                 <div className="flex flex-col items-center justify-center py-20 text-muted-foreground/30">
                                   <ShoppingCart className="w-10 h-10 mb-2" />
-                                  <p className="text-xs font-bold uppercase tracking-wider">Empty Basket</p>
+                                  <p className="text-[10px] font-bold uppercase tracking-wider">Add items to basket</p>
                                 </div>
                               )}
                             </div>
@@ -363,12 +422,12 @@ export default function LaundryPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between p-5 bg-primary/10 rounded-2xl border border-primary/20">
+                      <div className="flex items-center justify-between p-6 bg-primary/10 rounded-3xl border border-primary/20">
                         <div>
-                          <p className="text-[10px] uppercase font-bold text-primary tracking-widest">Total Amount</p>
-                          <p className="text-2xl font-extrabold text-primary">₹{newOrder.items.reduce((acc, i) => acc + (i.rate * i.quantity), 0).toLocaleString()}</p>
+                          <p className="text-[10px] uppercase font-bold text-primary tracking-widest">Estimated Amount</p>
+                          <p className="text-3xl font-extrabold text-primary">₹{newOrder.items.reduce((acc, i) => acc + (i.rate * i.quantity), 0).toLocaleString()}</p>
                         </div>
-                        <Button type="submit" className="h-12 px-10 font-bold shadow-xl rounded-xl">Generate Order</Button>
+                        <Button type="submit" className="h-14 px-12 font-bold shadow-xl rounded-2xl text-lg">Process Order</Button>
                       </div>
                     </form>
                   </DialogContent>
@@ -380,10 +439,10 @@ export default function LaundryPage() {
               <Table>
                 <TableHeader className="bg-secondary/50">
                   <TableRow>
-                    <TableHead className="text-[10px] font-bold uppercase tracking-wider">Order #</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-wider pl-6">Stay ID</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase tracking-wider">Guest & Room</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase tracking-wider">Details</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase tracking-wider">Amount</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-wider">Order Items</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-wider">Charges</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase tracking-wider text-center">Status</TableHead>
                     <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider pr-6">Actions</TableHead>
                   </TableRow>
@@ -394,20 +453,24 @@ export default function LaundryPage() {
                   ) : orders?.length ? (
                     orders.map(order => (
                       <TableRow key={order.id} className="hover:bg-secondary/20 transition-colors">
-                        <TableCell className="font-mono text-[10px] font-semibold text-muted-foreground">{order.id.slice(0, 8).toUpperCase()}</TableCell>
-                        <TableCell>
-                          <div className="font-bold text-sm">Room {order.roomNumber}</div>
-                          <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">{order.guestName || "Guest"}</div>
+                        <TableCell className="pl-6">
+                           <Badge variant="outline" className="text-[9px] font-mono border-muted text-muted-foreground uppercase">
+                             {(order.reservationId || order.id).slice(-6)}
+                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="text-[10px] font-medium max-w-[200px] truncate bg-secondary/30 px-2 py-1 rounded-md">
-                            {order.items?.map((i: any) => `${i.quantity}x ${i.name}`).join(", ") || "No items"}
+                          <div className="font-bold text-sm">Room {order.roomNumber}</div>
+                          <div className="text-[10px] text-muted-foreground font-bold tracking-tight">{order.guestName}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-[10px] font-medium max-w-[250px] truncate bg-secondary/40 px-2 py-1.5 rounded-lg border">
+                            {order.items?.map((i: any) => `${i.quantity}x ${i.name}`).join(", ") || "N/A"}
                           </div>
                         </TableCell>
                         <TableCell className="font-bold text-sm text-primary">₹{order.hotelTotal?.toLocaleString()}</TableCell>
                         <TableCell className="text-center">
                           <Badge variant="outline" className={cn(
-                            "capitalize text-[9px] px-2 py-0.5 font-extrabold tracking-tight",
+                            "capitalize text-[9px] px-2.5 py-0.5 font-extrabold tracking-tight",
                             order.status === "sent" && "bg-amber-50 text-amber-600 border-amber-200",
                             order.status === "returned" && "bg-emerald-50 text-emerald-600 border-emerald-200",
                             order.status === "billed" && "bg-primary/10 text-primary border-primary/20"
@@ -415,20 +478,20 @@ export default function LaundryPage() {
                             {order.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right pr-4">
+                        <TableCell className="text-right pr-6">
                           {canManageOrders && order.status === "sent" && (
                             <Button variant="ghost" size="sm" className="h-8 text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" onClick={() => updateOrderStatus(order.id, "returned")}>
-                              <CheckCircle className="w-3 h-3 mr-1.5" /> Mark Returned
+                              <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> Return Cleaned
                             </Button>
                           )}
-                          <Button variant="ghost" size="icon" className="h-8 w-8 ml-1"><ArrowRight className="w-3.5 h-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 ml-1"><ArrowRight className="w-4 h-4" /></Button>
                         </TableCell>
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={6} className="text-center py-24 flex flex-col items-center justify-center opacity-30">
-                      <Clock className="w-12 h-12 mb-2 text-muted-foreground" />
-                      <p className="text-sm font-bold uppercase tracking-widest">No laundry orders</p>
+                    <TableRow><TableCell colSpan={6} className="text-center py-32 opacity-30">
+                      <Clock className="w-12 h-12 mb-3 text-muted-foreground mx-auto" />
+                      <p className="text-sm font-bold uppercase tracking-widest">No active guest laundry records</p>
                     </TableCell></TableRow>
                   )}
                 </TableBody>
@@ -436,92 +499,101 @@ export default function LaundryPage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="price-list" className="space-y-6">
+          <TabsContent value="guest-items" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold tracking-tight">Service Rate Card</h2>
-              {isAdmin && (
-                <Dialog open={isItemOpen} onOpenChange={setIsItemOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="shadow-lg h-9 text-sm font-bold"><Plus className="w-4 h-4 mr-2" /> Add Service Item</Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Add Service Item</DialogTitle>
-                      <DialogDescription>Define a new item for laundry services.</DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleAddServiceItem} className="space-y-4 pt-4">
-                      <div className="space-y-2">
-                        <Label>Item Name</Label>
-                        <Input 
-                          placeholder="Shirt, Bed Sheet, etc." 
-                          value={newItem.name} 
-                          onChange={e => setNewItem({...newItem, name: e.target.value})}
-                          required 
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Type</Label>
-                        <Select value={newItem.type} onValueChange={v => setNewItem({...newItem, type: v})}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="guest">Guest Service</SelectItem>
-                            <SelectItem value="linen">Hotel Linen</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Guest Rate (₹)</Label>
-                          <Input type="number" placeholder="5.00" value={newItem.hotelRate} onChange={e => setNewItem({...newItem, hotelRate: e.target.value})} required />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Vendor Cost (₹)</Label>
-                          <Input type="number" placeholder="2.00" value={newItem.vendorRate} onChange={e => setNewItem({...newItem, vendorRate: e.target.value})} required />
-                        </div>
-                      </div>
-                      <Button type="submit" className="w-full h-10 font-bold">Save Service Item</Button>
-                    </form>
-                  </DialogContent>
-                </Dialog>
-              )}
+              <div>
+                <h2 className="text-xl font-bold tracking-tight">Guest Price List</h2>
+                <p className="text-xs text-muted-foreground">Standard rates charged to guests for laundry services</p>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {itemsLoading ? (
-                <div className="col-span-full flex justify-center py-10"><Loader2 className="animate-spin text-primary" /></div>
-              ) : items?.map(item => (
-                <Card key={item.id} className="border-none shadow-sm hover:shadow-md transition-shadow group relative overflow-hidden bg-white">
-                  <div className="absolute top-0 left-0 w-1.5 h-full bg-primary/20 group-hover:bg-primary transition-colors" />
-                  <CardHeader className="p-4 flex flex-row items-center justify-between space-y-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {guestItems.map(item => (
+                <Card key={item.id} className="border-none shadow-sm hover:shadow-md transition-all group bg-white overflow-hidden">
+                  <div className="h-1 bg-primary/20 group-hover:bg-primary transition-all" />
+                  <CardHeader className="p-4 flex flex-row items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-secondary/50 rounded-xl">
+                      <div className="p-2 bg-secondary/50 rounded-lg">
                         <Package className="w-4 h-4 text-primary" />
                       </div>
-                      <CardTitle className="text-base font-bold">{item.itemName}</CardTitle>
+                      <CardTitle className="text-sm font-bold">{item.itemName}</CardTitle>
                     </div>
-                    <Badge variant="secondary" className="capitalize text-[9px] font-extrabold px-1.5 h-4">{item.itemType}</Badge>
                   </CardHeader>
-                  <CardContent className="p-4 pt-2">
-                    <div className="flex items-center justify-between bg-secondary/20 p-3 rounded-xl border">
+                  <CardContent className="p-4 pt-0">
+                    <div className="flex items-center justify-between p-3 bg-secondary/20 rounded-xl">
                       <div>
-                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Guest Price</p>
-                        <p className="text-xl font-extrabold text-primary">₹{item.hotelRate}</p>
+                        <p className="text-[9px] uppercase font-bold text-muted-foreground">Guest Price</p>
+                        <p className="text-lg font-bold text-primary">₹{item.hotelRate}</p>
                       </div>
-                      <ArrowRight className="w-4 h-4 text-muted-foreground opacity-30" />
                       <div className="text-right">
-                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Vendor Cost</p>
-                        <p className="text-lg font-bold text-muted-foreground">₹{item.vendorRate}</p>
+                        <p className="text-[9px] uppercase font-bold text-muted-foreground">Internal Cost</p>
+                        <p className="text-sm font-semibold">₹{item.vendorRate}</p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               ))}
-              {(!items || items.length === 0) && (
-                <div className="col-span-full text-center py-20 border border-dashed rounded-3xl bg-secondary/5">
-                   <p className="text-sm text-muted-foreground font-semibold">No service items configured. Click "Add Service Item" to begin.</p>
+              {guestItems.length === 0 && (
+                <div className="col-span-full py-20 border-2 border-dashed rounded-3xl text-center">
+                  <p className="text-muted-foreground text-sm">No guest service items configured.</p>
                 </div>
               )}
             </div>
+          </TabsContent>
+
+          <TabsContent value="hotel-laundry" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight">Linen & Apartment Supplies</h2>
+                <p className="text-xs text-muted-foreground">Manage internal inventory and vendor service costs for hotel property linen</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {hotelLinenItems.map(item => (
+                <Card key={item.id} className="border-none shadow-sm group bg-white overflow-hidden">
+                   <div className="h-1 bg-amber-400/20 group-hover:bg-amber-400 transition-all" />
+                  <CardHeader className="p-4 flex flex-row items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-amber-50 rounded-lg">
+                        <Building2 className="w-4 h-4 text-amber-600" />
+                      </div>
+                      <CardTitle className="text-sm font-bold">{item.itemName}</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0">
+                    <div className="flex items-center justify-between p-3 bg-amber-50/50 rounded-xl border border-amber-100">
+                      <div>
+                        <p className="text-[9px] uppercase font-bold text-amber-700/60">Vendor Rate</p>
+                        <p className="text-lg font-bold text-amber-700">₹{item.vendorRate}</p>
+                      </div>
+                      <div className="text-right">
+                         <Badge variant="outline" className="text-[9px] bg-white text-amber-600 border-amber-200">INTERNAL</Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {hotelLinenItems.length === 0 && (
+                <div className="col-span-full py-20 border-2 border-dashed rounded-3xl text-center bg-secondary/5">
+                  <p className="text-muted-foreground text-sm">No hotel linen items configured.</p>
+                </div>
+              )}
+            </div>
+
+            <Card className="border-none shadow-sm bg-white">
+              <CardHeader className="border-b">
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <Receipt className="w-4 h-4 text-primary" />
+                  Recent Linen Service Audits
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="p-12 text-center text-muted-foreground/40">
+                  <p className="text-sm font-medium">Linen inventory tracking and bulk vendor orders module coming soon.</p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
