@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -89,9 +88,10 @@ export default function LaundryPage() {
     return query(collection(db, "hotel_properties", entityId, "guest_laundry_orders"), orderBy("createdAt", "desc"));
   }, [db, entityId]);
 
+  // Simplified rooms query to avoid index issues while syncing
   const roomsQuery = useMemoFirebase(() => {
     if (!entityId) return null;
-    return query(collection(db, "hotel_properties", entityId, "rooms"), where("status", "==", "occupied"), orderBy("roomNumber"));
+    return collection(db, "hotel_properties", entityId, "rooms");
   }, [db, entityId]);
 
   const activeResQuery = useMemoFirebase(() => {
@@ -104,8 +104,16 @@ export default function LaundryPage() {
 
   const { data: items, isLoading: itemsLoading } = useCollection(itemsQuery);
   const { data: orders, isLoading: ordersLoading } = useCollection(ordersQuery);
-  const { data: occupiedRooms } = useCollection(roomsQuery);
+  const { data: allRooms } = useCollection(roomsQuery);
   const { data: activeReservations } = useCollection(activeResQuery);
+
+  // Filter for occupied rooms in memory
+  const occupiedRooms = useMemo(() => {
+    if (!allRooms) return [];
+    return allRooms
+      .filter(r => r.status === 'occupied' || r.status === 'occupied_dirty' || r.status === 'occupied_cleaning')
+      .sort((a, b) => a.roomNumber.localeCompare(b.roomNumber));
+  }, [allRooms]);
 
   const handleAddServiceItem = (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,7 +182,7 @@ export default function LaundryPage() {
       roomId: newOrder.roomId,
       roomNumber: newOrder.roomNumber,
       guestName: newOrder.guestName,
-      reservationId: newOrder.reservationId, // Stay Isolation: Linked to current check-in
+      reservationId: newOrder.reservationId, 
       items: newOrder.items,
       itemIds: newOrder.items.map(i => i.itemId),
       hotelTotal,

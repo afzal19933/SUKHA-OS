@@ -6,12 +6,12 @@ service cloud.firestore {
     /**
      * SUKHA OS - ULTIMATE AUTHENTICATED ACCESS
      * 
-     * [DEPLOYMENT TRIGGER: Force re-sync of security policy - v1.0.6]
+     * [DEPLOYMENT TRIGGER: Force re-sync of security policy - v1.0.9]
      * 
      * This rule provides the highest level of access for authenticated users.
      * It uses a recursive wildcard to match ALL documents at any depth.
      * This specifically grants 'list' and 'get' permissions across all
-     * property sub-collections including housekeeping_tasks, reservations, and invoices.
+     * property sub-collections including housekeeping_tasks, reservations, and rooms.
      */
 
     match /{document=**} {
