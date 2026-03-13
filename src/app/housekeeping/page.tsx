@@ -103,18 +103,19 @@ export default function HousekeepingPage() {
 
   const tasksQuery = useMemoFirebase(() => {
     if (!entityId) return null;
+  
     return query(
       collection(db, "hotel_properties", entityId, "housekeeping_tasks"),
-      where("status", "!=", "completed")
+      where("status", "in", ["pending", "in_progress"])
     );
   }, [db, entityId]);
-
+  
   const historyQuery = useMemoFirebase(() => {
     if (!entityId) return null;
+  
     return query(
       collection(db, "hotel_properties", entityId, "housekeeping_tasks"),
-      where("status", "==", "completed"),
-      orderBy("updatedAt", "desc")
+      where("status", "==", "completed")
     );
   }, [db, entityId]);
 
