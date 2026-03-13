@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -93,7 +92,7 @@ export default function MaintenancePage() {
     priority: "medium" 
   });
 
-  // Queries - Simplified to ensure reliability
+  // Queries
   const activeTasksQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return query(
