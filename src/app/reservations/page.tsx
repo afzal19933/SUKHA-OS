@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -34,7 +33,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn, formatAppDate, formatAppTime } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
-import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
+import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
 import { 
   Dialog, 
@@ -56,6 +55,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import { sendNotification } from "@/firebase/notifications";
 
 const BOOKING_SOURCES = [
   "Direct", 
@@ -77,6 +77,7 @@ const ID_TYPES = [
 
 export default function ReservationsPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
+  const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
 
@@ -121,7 +122,7 @@ export default function ReservationsPage() {
 
   const handleAddReservation = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId || !isAdmin) return;
+    if (!entityId || !isAdmin || !user) return;
 
     const resRef = collection(db, "hotel_properties", entityId, "reservations");
     const resData = {
@@ -140,6 +141,13 @@ export default function ReservationsPage() {
 
     addDocumentNonBlocking(resRef, resData);
 
+    // Trigger Notification
+    sendNotification(db, user.uid, entityId, {
+      title: "New Reservation Confirmed",
+      message: `${newRes.guestName} booked for Room ${newRes.roomNumber} starting ${formatAppDate(newRes.checkIn)}`,
+      type: "info"
+    });
+
     toast({
       title: "Reservation created",
       description: `Confirmed for ${newRes.guestName} via ${newRes.bookingSource}.`,
@@ -149,37 +157,8 @@ export default function ReservationsPage() {
     setNewRes({ guestName: "", roomNumber: "", checkIn: "", checkOut: "", guests: "1", requests: "", bookingSource: "Direct" });
   };
 
-  const handleUpdateReservation = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!entityId || !isAdmin || !editResForm) return;
-
-    const resRef = doc(db, "hotel_properties", entityId, "reservations", editResForm.id);
-    const updateData = {
-      guestName: editResForm.guestName,
-      roomNumber: editResForm.roomNumber,
-      checkInDate: editResForm.checkInDate,
-      checkOutDate: editResForm.checkOutDate || null,
-      numberOfGuests: parseInt(editResForm.numberOfGuests),
-      specialRequests: editResForm.specialRequests,
-      bookingSource: editResForm.bookingSource,
-      updatedAt: new Date().toISOString(),
-    };
-
-    updateDocumentNonBlocking(resRef, updateData);
-    toast({ title: "Reservation updated" });
-    setIsEditOpen(false);
-    setEditResForm(null);
-  };
-
-  const handleDeleteReservation = (id: string) => {
-    if (!entityId || !isAdmin) return;
-    const resRef = doc(db, "hotel_properties", entityId, "reservations", id);
-    deleteDocumentNonBlocking(resRef);
-    toast({ title: "Reservation deleted" });
-  };
-
   const updateStatus = (resId: string, status: string) => {
-    if (!entityId) return;
+    if (!entityId || !user) return;
     const resRef = doc(db, "hotel_properties", entityId, "reservations", resId);
     
     const currentRes = selectedRes?.id === resId ? selectedRes : reservations?.find(r => r.id === resId);
@@ -194,6 +173,20 @@ export default function ReservationsPage() {
       updateData.nationality = checkInForm.nationality;
       updateData.idType = checkInForm.idType;
       updateData.idNumber = checkInForm.idNumber;
+
+      sendNotification(db, user.uid, entityId, {
+        title: "Guest Checked In",
+        message: `${currentRes?.guestName} has arrived and is now in Room ${currentRes?.roomNumber}`,
+        type: "info"
+      });
+    }
+
+    if (status === 'checked_out') {
+      sendNotification(db, user.uid, entityId, {
+        title: "Guest Checked Out",
+        message: `${currentRes?.guestName} has vacated Room ${currentRes?.roomNumber}`,
+        type: "info"
+      });
     }
     
     updateDocumentNonBlocking(resRef, updateData);
@@ -227,6 +220,35 @@ export default function ReservationsPage() {
     if (selectedRes?.id === resId) {
       setSelectedRes({ ...selectedRes, ...updateData });
     }
+  };
+
+  const handleUpdateReservation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!entityId || !isAdmin || !editResForm) return;
+
+    const resRef = doc(db, "hotel_properties", entityId, "reservations", editResForm.id);
+    const updateData = {
+      guestName: editResForm.guestName,
+      roomNumber: editResForm.roomNumber,
+      checkInDate: editResForm.checkInDate,
+      checkOutDate: editResForm.checkOutDate || null,
+      numberOfGuests: parseInt(editResForm.numberOfGuests),
+      specialRequests: editResForm.specialRequests,
+      bookingSource: editResForm.bookingSource,
+      updatedAt: new Date().toISOString(),
+    };
+
+    updateDocumentNonBlocking(resRef, updateData);
+    toast({ title: "Reservation updated" });
+    setIsEditOpen(false);
+    setEditResForm(null);
+  };
+
+  const handleDeleteReservation = (id: string) => {
+    if (!entityId || !isAdmin) return;
+    const resRef = doc(db, "hotel_properties", entityId, "reservations", id);
+    deleteDocumentNonBlocking(resRef);
+    toast({ title: "Reservation deleted" });
   };
 
   const openDetails = (res: any) => {

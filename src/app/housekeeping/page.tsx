@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -24,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
-import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
+import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
 import { collection, doc, query, where } from "firebase/firestore";
 import { 
   Dialog, 
@@ -45,6 +44,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { sendNotification } from "@/firebase/notifications";
 
 const STATUS_CONFIG: any = {
   available: { icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-50", label: "Vacant Ready" },
@@ -58,6 +58,7 @@ const STATUS_CONFIG: any = {
 
 export default function HousekeepingPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
+  const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
   
@@ -112,30 +113,9 @@ export default function HousekeepingPage() {
     return rooms.filter(r => r.status === activeFilter).sort((a,b) => a.roomNumber.localeCompare(b.roomNumber));
   }, [rooms, activeFilter]);
 
-  const handleAddRoom = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!entityId || !isAdmin) return;
-
-    const roomsRef = collection(db, "hotel_properties", entityId, "rooms");
-    const roomData = {
-      entityId,
-      roomNumber: newRoom.roomNumber,
-      floor: parseInt(newRoom.floor),
-      roomTypeId: newRoom.type.toLowerCase(),
-      status: "available",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    addDocumentNonBlocking(roomsRef, roomData);
-    toast({ title: "Room added" });
-    setIsAddOpen(false);
-    setNewRoom({ roomNumber: "", floor: "1", type: "Standard" });
-  };
-
   const handleAssignTask = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId || !selectedRoom || !canAssignTasks) return;
+    if (!entityId || !selectedRoom || !canAssignTasks || !user) return;
 
     const staff = staffMembers?.find(s => s.id === assignment.staffId);
     const newStatus = selectedRoom.status === 'occupied_dirty' ? 'occupied_cleaning' : 'cleaning';
@@ -153,6 +133,20 @@ export default function HousekeepingPage() {
       dueTime: new Date(Date.now() + 3600000).toISOString(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+    });
+
+    // Notify Assigned Staff
+    sendNotification(db, assignment.staffId, entityId, {
+      title: "New Cleaning Task",
+      message: `You have been assigned to clean Room ${selectedRoom.roomNumber}. Priority: ${assignment.priority}`,
+      type: "task_assigned"
+    });
+
+    // Notify Requester (Current User for test)
+    sendNotification(db, user.uid, entityId, {
+      title: "Task Assigned",
+      message: `Room ${selectedRoom.roomNumber} assigned to ${staff?.name}`,
+      type: "info"
     });
 
     const roomRef = doc(db, "hotel_properties", entityId, "rooms", selectedRoom.id);
@@ -213,50 +207,6 @@ export default function HousekeepingPage() {
           <div>
             <h1 className="text-xl font-bold tracking-tight">Housekeeping Operations</h1>
             <p className="text-xs text-muted-foreground mt-0.5">Manage room cleanliness and stay-over service</p>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {activeFilter && (
-              <Button variant="ghost" size="sm" onClick={() => setActiveFilter(null)} className="h-8 text-[10px] text-rose-500">
-                <FilterX className="w-3.5 h-3.5 mr-1" /> Clear Filter
-              </Button>
-            )}
-            {isAdmin && (
-              <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" className="h-8 text-[10px]">
-                    <Plus className="w-3.5 h-3.5 mr-1.5" /> New Physical Room
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add New Room</DialogTitle>
-                  </DialogHeader>
-                  <form onSubmit={handleAddRoom} className="space-y-4 pt-4">
-                    <div className="space-y-2">
-                      <Label>Room Number</Label>
-                      <Input placeholder="101" value={newRoom.roomNumber} onChange={(e) => setNewRoom({...newRoom, roomNumber: e.target.value})} required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Floor</Label>
-                      <Input type="number" value={newRoom.floor} onChange={(e) => setNewRoom({...newRoom, floor: e.target.value})} required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Type</Label>
-                      <Select value={newRoom.type} onValueChange={(val) => setNewRoom({...newRoom, type: val})}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Standard">Standard</SelectItem>
-                          <SelectItem value="Deluxe">Deluxe</SelectItem>
-                          <SelectItem value="Suite">Suite</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button type="submit" className="w-full">Create Room</Button>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            )}
           </div>
         </div>
 

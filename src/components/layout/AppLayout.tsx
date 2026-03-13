@@ -18,7 +18,9 @@ import {
   WashingMachine,
   DoorOpen,
   Building2,
-  ChevronDown
+  ChevronDown,
+  Clock,
+  Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -37,10 +39,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAuth, useUser } from "@/firebase";
+import { 
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from "@/firebase";
 import { signOut } from "firebase/auth";
+import { collection, query, orderBy, limit, doc } from "firebase/firestore";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { cn, formatAppTime } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 
 const NAV_ITEMS = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -58,9 +68,31 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user: firebaseUser, isUserLoading } = useUser();
   const { _hasHydrated, role, permissions, entityId, setEntityId, availableProperties } = useAuthStore();
   const auth = useAuth();
+  const db = useFirestore();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Notifications logic
+  const notificationsQuery = useMemoFirebase(() => {
+    if (!firebaseUser) return null;
+    return query(
+      collection(db, "user_profiles", firebaseUser.uid, "notifications"),
+      orderBy("createdAt", "desc"),
+      limit(10)
+    );
+  }, [db, firebaseUser]);
+
+  const { data: notifications } = useCollection(notificationsQuery);
+  const unreadCount = notifications?.filter(n => n.status === 'unread').length || 0;
+
+  const markAsRead = (id: string) => {
+    if (!firebaseUser) return;
+    updateDocumentNonBlocking(
+      doc(db, "user_profiles", firebaseUser.uid, "notifications", id),
+      { status: 'read', updatedAt: new Date().toISOString() }
+    );
+  };
 
   const filteredNavItems = useMemo(() => {
     if (role === 'owner' || role === 'admin') return NAV_ITEMS;
@@ -159,10 +191,67 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="relative" suppressHydrationWarning>
-              <Bell className="w-5 h-5 text-muted-foreground" />
-              <span className="absolute top-2 right-2.5 w-2 h-2 bg-primary rounded-full border-2 border-background"></span>
-            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative" suppressHydrationWarning>
+                  <Bell className="w-5 h-5 text-muted-foreground" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-2 right-2.5 w-4 h-4 bg-primary text-[10px] text-white flex items-center justify-center rounded-full border-2 border-background animate-in zoom-in-50">
+                      {unreadCount}
+                    </span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0 overflow-hidden rounded-2xl border-none shadow-2xl" align="end">
+                <div className="p-4 bg-primary text-primary-foreground">
+                  <h4 className="text-sm font-bold flex items-center justify-between">
+                    Notifications
+                    {unreadCount > 0 && <Badge variant="secondary" className="bg-white/20 text-white border-none">{unreadCount} New</Badge>}
+                  </h4>
+                </div>
+                <ScrollArea className="h-[350px]">
+                  {notifications && notifications.length > 0 ? (
+                    <div className="divide-y">
+                      {notifications.map((n) => (
+                        <div key={n.id} className={cn(
+                          "p-4 transition-colors relative group",
+                          n.status === 'unread' ? "bg-primary/5" : "bg-white"
+                        )}>
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="space-y-1">
+                              <p className="text-xs font-bold leading-none">{n.title}</p>
+                              <p className="text-[11px] text-muted-foreground leading-snug">{n.message}</p>
+                              <div className="flex items-center gap-1.5 pt-1 text-[9px] text-muted-foreground">
+                                <Clock className="w-2.5 h-2.5" />
+                                {formatAppTime(n.createdAt)}
+                              </div>
+                            </div>
+                            {n.status === 'unread' && (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => markAsRead(n.id)}
+                              >
+                                <Check className="w-3 h-3 text-primary" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-12 text-center flex flex-col items-center justify-center">
+                      <Bell className="w-8 h-8 text-muted-foreground/20 mb-2" />
+                      <p className="text-xs text-muted-foreground font-medium">All caught up!</p>
+                    </div>
+                  )}
+                </ScrollArea>
+                <div className="p-2 border-t text-center bg-secondary/20">
+                  <Button variant="link" className="text-[10px] h-auto p-0 text-primary font-bold">See all updates</Button>
+                </div>
+              </PopoverContent>
+            </Popover>
             
             <div className="flex items-center gap-3 pl-4 border-l">
               <DropdownMenu>

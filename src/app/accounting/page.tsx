@@ -45,10 +45,11 @@ import {
 } from "@/components/ui/select";
 import { cn, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
-import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
+import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
 import { collection, query, orderBy, doc } from "firebase/firestore";
 import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
+import { sendNotification } from "@/firebase/notifications";
 
 const EXPENSE_CATEGORIES = [
   "Utilities",
@@ -62,6 +63,7 @@ const EXPENSE_CATEGORIES = [
 
 export default function AccountingPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
+  const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
 
@@ -91,7 +93,7 @@ export default function AccountingPage() {
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId || !isAdmin) return;
+    if (!entityId || !isAdmin || !user) return;
 
     addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "expenses"), {
       entityId,
@@ -101,6 +103,12 @@ export default function AccountingPage() {
       date: newExpense.date,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+    });
+
+    sendNotification(db, user.uid, entityId, {
+      title: "New Expense Logged",
+      message: `${newExpense.description} (₹${newExpense.amount}) added to ${newExpense.category}`,
+      type: "alert"
     });
 
     toast({ title: "Expense Logged" });
