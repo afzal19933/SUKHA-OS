@@ -173,66 +173,55 @@ export default function RoomsPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-7xl mx-auto space-y-8">
+      <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Inventory Management</h1>
-            <p className="text-muted-foreground mt-1">Configure your property's rooms and categories</p>
+            <h1 className="text-2xl font-bold tracking-tight">Inventory</h1>
+            <p className="text-muted-foreground text-sm mt-0.5">Configure rooms and categories</p>
           </div>
         </div>
 
-        <Tabs defaultValue="inventory" className="space-y-6">
-          <TabsList className="bg-white border p-1 rounded-xl">
-            <TabsTrigger value="inventory" className="rounded-lg">Physical Inventory</TabsTrigger>
-            <TabsTrigger value="categories" className="rounded-lg">Room Categories</TabsTrigger>
+        <Tabs defaultValue="inventory" className="space-y-4">
+          <TabsList className="bg-white border p-1 rounded-xl h-10">
+            <TabsTrigger value="inventory" className="rounded-lg text-xs">Physical Inventory</TabsTrigger>
+            <TabsTrigger value="categories" className="rounded-lg text-xs">Room Categories</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="inventory" className="space-y-6">
+          <TabsContent value="inventory" className="space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold">Rooms List</h2>
+              <h2 className="text-base font-semibold">Rooms List</h2>
               {isAdmin && (
                 <Dialog open={isRoomOpen} onOpenChange={setIsRoomOpen}>
                   <DialogTrigger asChild>
-                    <Button className="shadow-lg"><Plus className="w-4 h-4 mr-2" /> Add Room</Button>
+                    <Button className="shadow-md h-9 text-xs"><Plus className="w-3.5 h-3.5 mr-1.5" /> Add Room</Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="sm:max-w-[380px]">
                     <DialogHeader>
-                      <DialogTitle>Add Physical Room</DialogTitle>
-                      <DialogDescription>Assign a room number to a category.</DialogDescription>
+                      <DialogTitle className="text-base">Add Physical Room</DialogTitle>
                     </DialogHeader>
-                    <form onSubmit={handleAddRoom} className="space-y-4 pt-4">
-                      <div className="space-y-2">
-                        <Label>Room Number</Label>
-                        <Input 
-                          placeholder="101" 
-                          value={newRoom.roomNumber} 
-                          onChange={e => setNewRoom({...newRoom, roomNumber: e.target.value})}
-                          required 
-                        />
+                    <form onSubmit={handleAddRoom} className="space-y-3 pt-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Room Number</Label>
+                        <Input placeholder="101" value={newRoom.roomNumber} onChange={e => setNewRoom({...newRoom, roomNumber: e.target.value})} required className="h-9" />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Floor</Label>
-                        <Input 
-                          type="number" 
-                          value={newRoom.floor} 
-                          onChange={e => setNewRoom({...newRoom, floor: e.target.value})}
-                          required 
-                        />
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Floor</Label>
+                        <Input type="number" value={newRoom.floor} onChange={e => setNewRoom({...newRoom, floor: e.target.value})} required className="h-9" />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Category</Label>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Category</Label>
                         <Select value={newRoom.typeId} onValueChange={v => setNewRoom({...newRoom, typeId: v})} required>
-                          <SelectTrigger>
+                          <SelectTrigger className="h-9 text-xs">
                             <SelectValue placeholder="Select type" />
                           </SelectTrigger>
                           <SelectContent>
                             {roomTypes?.map(t => (
-                              <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                              <SelectItem key={t.id} value={t.id} className="text-xs">{t.name}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
-                      <Button type="submit" className="w-full">Create Room</Button>
+                      <Button type="submit" className="w-full h-9 mt-2">Create Room</Button>
                     </form>
                   </DialogContent>
                 </Dialog>
@@ -240,30 +229,30 @@ export default function RoomsPage() {
             </div>
 
             {roomsLoading ? (
-              <div className="flex justify-center py-10"><Loader2 className="animate-spin" /></div>
+              <div className="flex justify-center py-10"><Loader2 className="animate-spin w-5 h-5" /></div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {rooms?.map(room => (
                   <Card key={room.id} className="border-none shadow-sm group hover:shadow-md transition-shadow">
-                    <CardHeader className="p-3.5 pb-1.5 flex flex-row justify-between items-center">
+                    <CardHeader className="p-3.5 pb-1 flex flex-row justify-between items-center">
                       <div className="flex items-center gap-2">
                         <DoorOpen className="w-3.5 h-3.5 text-primary" />
-                        <span className="font-bold text-base">Room {room.roomNumber}</span>
+                        <span className="font-bold text-sm">Room {room.roomNumber}</span>
                       </div>
                       {isAdmin && (
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" onClick={() => openEditRoom(room)} className="text-primary h-7 w-7">
-                            <Edit3 className="w-3.5 h-3.5" />
+                          <Button variant="ghost" size="icon" onClick={() => openEditRoom(room)} className="h-6 w-6">
+                            <Edit3 className="w-3 h-3 text-primary" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => deleteRoom(room.id)} className="text-destructive h-7 w-7">
-                            <Trash2 className="w-3.5 h-3.5" />
+                          <Button variant="ghost" size="icon" onClick={() => deleteRoom(room.id)} className="h-6 w-6">
+                            <Trash2 className="w-3 h-3 text-destructive" />
                           </Button>
                         </div>
                       )}
                     </CardHeader>
-                    <CardContent className="p-3.5 pt-0">
-                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Floor {room.floor}</p>
-                      <div className="mt-1 text-xs font-medium">
+                    <CardContent className="p-3.5 pt-1">
+                      <p className="text-[9px] text-muted-foreground uppercase font-bold">Floor {room.floor}</p>
+                      <div className="mt-0.5 text-[11px] font-medium truncate">
                         {roomTypes?.find(t => t.id === room.roomTypeId)?.name || "Uncategorized"}
                       </div>
                     </CardContent>
@@ -273,178 +262,65 @@ export default function RoomsPage() {
             )}
           </TabsContent>
 
-          <TabsContent value="categories" className="space-y-6">
+          <TabsContent value="categories" className="space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold">Categories & Pricing</h2>
+              <h2 className="text-base font-semibold">Categories & Pricing</h2>
               {isAdmin && (
                 <Dialog open={isTypeOpen} onOpenChange={setIsTypeOpen}>
                   <DialogTrigger asChild>
-                    <Button className="shadow-lg"><Plus className="w-4 h-4 mr-2" /> New Category</Button>
+                    <Button className="shadow-md h-9 text-xs"><Plus className="w-3.5 h-3.5 mr-1.5" /> New Category</Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="sm:max-w-[380px]">
                     <DialogHeader>
-                      <DialogTitle>Create Room Type</DialogTitle>
-                      <DialogDescription>Define a new category and its base rate.</DialogDescription>
+                      <DialogTitle className="text-base">Create Room Type</DialogTitle>
                     </DialogHeader>
-                    <form onSubmit={handleAddType} className="space-y-4 pt-4">
-                      <div className="space-y-2">
-                        <Label>Category Name</Label>
-                        <Input 
-                          placeholder="Deluxe King" 
-                          value={newType.name} 
-                          onChange={e => setNewType({...newType, name: e.target.value})}
-                          required 
-                        />
+                    <form onSubmit={handleAddType} className="space-y-3 pt-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Category Name</Label>
+                        <Input placeholder="Deluxe King" value={newType.name} onChange={e => setNewType({...newType, name: e.target.value})} required className="h-9" />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Base Rate (Per Night)</Label>
-                        <Input 
-                          type="number" 
-                          placeholder="1500" 
-                          value={newType.rate} 
-                          onChange={e => setNewType({...newType, rate: e.target.value})}
-                          required 
-                        />
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Rate (Per Night)</Label>
+                        <Input type="number" placeholder="1500" value={newType.rate} onChange={e => setNewType({...newType, rate: e.target.value})} required className="h-9" />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Max Occupancy</Label>
-                        <Input 
-                          type="number" 
-                          value={newType.occupancy} 
-                          onChange={e => setNewType({...newType, occupancy: e.target.value})}
-                          required 
-                        />
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Max Occupancy</Label>
+                        <Input type="number" value={newType.occupancy} onChange={e => setNewType({...newType, occupancy: e.target.value})} required className="h-9" />
                       </div>
-                      <Button type="submit" className="w-full">Save Category</Button>
+                      <Button type="submit" className="w-full h-9 mt-2">Save Category</Button>
                     </form>
                   </DialogContent>
                 </Dialog>
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {roomTypes?.map(type => (
                 <Card key={type.id} className="border-none shadow-sm group">
-                  <CardHeader className="p-6">
+                  <CardHeader className="p-5">
                     <div className="flex justify-between items-start">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <CardTitle className="text-xl">{type.name}</CardTitle>
+                          <CardTitle className="text-base font-bold">{type.name}</CardTitle>
                           {isAdmin && (
                             <Button variant="ghost" size="icon" onClick={() => openEditType(type)} className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Edit3 className="w-3.5 h-3.5 text-primary" />
+                              <Edit3 className="w-3 h-3 text-primary" />
                             </Button>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground">Max Guests: {type.maxOccupancy}</p>
+                        <p className="text-[11px] text-muted-foreground uppercase font-bold">Max Guests: {type.maxOccupancy}</p>
                       </div>
                       <div className="text-right">
-                        <span className="text-2xl font-bold text-primary">₹{type.baseRate}</span>
-                        <p className="text-[10px] text-muted-foreground uppercase font-bold">Base Rate</p>
+                        <span className="text-lg font-bold text-primary">₹{type.baseRate}</span>
+                        <p className="text-[9px] text-muted-foreground uppercase font-bold">Base Rate</p>
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="px-6 pb-6">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Tag className="w-4 h-4" />
-                      <span>{rooms?.filter(r => r.roomTypeId === type.id).length || 0} Units assigned</span>
-                    </div>
-                  </CardContent>
                 </Card>
               ))}
             </div>
           </TabsContent>
         </Tabs>
-
-        {/* Edit Room Dialog */}
-        <Dialog open={isEditRoomOpen} onOpenChange={setIsEditRoomOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Edit Room Details</DialogTitle>
-              <DialogDescription>Modify room number, floor or category.</DialogDescription>
-            </DialogHeader>
-            {editingRoom && (
-              <form onSubmit={handleUpdateRoom} className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label>Room Number</Label>
-                  <Input 
-                    value={editingRoom.roomNumber} 
-                    onChange={e => setEditingRoom({...editingRoom, roomNumber: e.target.value})}
-                    required 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Floor</Label>
-                  <Input 
-                    type="number" 
-                    value={editingRoom.floor} 
-                    onChange={e => setEditingRoom({...editingRoom, floor: e.target.value})}
-                    required 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Category</Label>
-                  <Select value={editingRoom.roomTypeId} onValueChange={v => setEditingRoom({...editingRoom, roomTypeId: v})} required>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {roomTypes?.map(t => (
-                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <DialogFooter>
-                  <Button type="submit" className="w-full">Update Room</Button>
-                </DialogFooter>
-              </form>
-            )}
-          </DialogContent>
-        </Dialog>
-
-        {/* Edit Category Dialog */}
-        <Dialog open={isEditTypeOpen} onOpenChange={setIsEditTypeOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Edit Room Category</DialogTitle>
-              <DialogDescription>Update pricing and capacity settings.</DialogDescription>
-            </DialogHeader>
-            {editingType && (
-              <form onSubmit={handleUpdateType} className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label>Category Name</Label>
-                  <Input 
-                    value={editingType.name} 
-                    onChange={e => setEditingType({...editingType, name: e.target.value})}
-                    required 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Base Rate (Per Night)</Label>
-                  <Input 
-                    type="number" 
-                    value={editingType.baseRate} 
-                    onChange={e => setEditingType({...editingType, baseRate: e.target.value})}
-                    required 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Max Occupancy</Label>
-                  <Input 
-                    type="number" 
-                    value={editingType.maxOccupancy} 
-                    onChange={e => setEditingType({...editingType, maxOccupancy: e.target.value})}
-                    required 
-                  />
-                </div>
-                <DialogFooter>
-                  <Button type="submit" className="w-full">Update Category</Button>
-                </DialogFooter>
-              </form>
-            )}
-          </DialogContent>
-        </Dialog>
       </div>
     </AppLayout>
   );

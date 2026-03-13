@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -124,14 +123,12 @@ export default function HousekeepingPage() {
   const { data: activeTasks } = useCollection(tasksQuery);
   const { data: taskHistory } = useCollection(historyQuery);
 
-  // Auto-flag occupied rooms as dirty if they haven't been cleaned today
   useEffect(() => {
     if (!entityId || !rooms || !canAssignTasks) return;
     
     const today = new Date().toISOString().split('T')[0];
     
     rooms.forEach((room: any) => {
-      // Logic: If room is Occupied Clean but was last updated before today, it needs fresh cleaning
       if (room.status === 'occupied' && room.updatedAt) {
         const lastUpdate = new Date(room.updatedAt).toISOString().split('T')[0];
         if (lastUpdate < today) {
@@ -140,7 +137,6 @@ export default function HousekeepingPage() {
             status: 'occupied_dirty', 
             updatedAt: new Date().toISOString() 
           });
-          console.log(`Auto-flagging Room ${room.roomNumber} as Occupied Dirty for stayover cleaning.`);
         }
       }
     });
@@ -196,7 +192,7 @@ export default function HousekeepingPage() {
       updateDocumentNonBlocking(roomRef, { status: newStatus, updatedAt: new Date().toISOString() });
     }
 
-    toast({ title: "Task Assigned", description: `Assigned to ${staff?.name}` });
+    toast({ title: "Task Assigned" });
     setIsAssignOpen(false);
     setIsAreaAssignOpen(false);
     setSelectedRoom(null);
@@ -233,44 +229,44 @@ export default function HousekeepingPage() {
     if (task) {
       const taskRef = doc(db, "hotel_properties", entityId, "housekeeping_tasks", task.id);
       updateDocumentNonBlocking(taskRef, { status: "completed", updatedAt: new Date().toISOString() });
-      toast({ title: "Task Completed", description: `${areaName} is now marked as clean.` });
+      toast({ title: "Task Completed" });
     }
   };
 
   const StatCard = ({ id, label, value, icon: Icon, colorClass, active }: any) => (
     <Card 
       className={cn(
-        "border-none shadow-sm cursor-pointer transition-all hover:scale-[1.02]",
+        "border-none shadow-sm cursor-pointer transition-all hover:scale-[1.01]",
         active ? "ring-2 ring-primary bg-primary/5 shadow-md" : "bg-white"
       )}
       onClick={() => setActiveFilter(active ? null : id)}
     >
-      <CardContent className="p-3 flex flex-col items-center justify-center text-center">
-        <Icon className={cn("w-4 h-4 mb-1.5", colorClass)} />
-        <span className={cn("text-xl font-bold", colorClass)}>{value}</span>
-        <span className="text-[8px] uppercase font-bold text-muted-foreground">{label}</span>
+      <CardContent className="p-2.5 flex flex-col items-center justify-center text-center">
+        <Icon className={cn("w-3.5 h-3.5 mb-1", colorClass)} />
+        <span className={cn("text-lg font-bold", colorClass)}>{value}</span>
+        <span className="text-[7.5px] uppercase font-bold text-muted-foreground">{label}</span>
       </CardContent>
     </Card>
   );
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-6xl mx-auto">
+      <div className="space-y-6 max-w-5xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold tracking-tight">Housekeeping Operations</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Manage cleanliness for rooms and resort common areas</p>
+            <h1 className="text-xl font-bold tracking-tight">Housekeeping</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">Manage room cleanliness and facilities</p>
           </div>
         </div>
 
-        <Tabs defaultValue="rooms" className="space-y-6">
-          <TabsList className="bg-white border p-1 rounded-xl">
-            <TabsTrigger value="rooms" className="rounded-lg h-8 text-xs px-6">Physical Rooms</TabsTrigger>
-            <TabsTrigger value="common-areas" className="rounded-lg h-8 text-xs px-6">Common Areas</TabsTrigger>
+        <Tabs defaultValue="rooms" className="space-y-4">
+          <TabsList className="bg-white border p-1 rounded-xl h-9">
+            <TabsTrigger value="rooms" className="rounded-lg h-7 text-[11px] px-5">Rooms</TabsTrigger>
+            <TabsTrigger value="common-areas" className="rounded-lg h-7 text-[11px] px-5">Common Areas</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="rooms" className="space-y-6">
-            <div className="grid grid-cols-4 md:grid-cols-4 lg:grid-cols-8 gap-2">
+          <TabsContent value="rooms" className="space-y-4">
+            <div className="grid grid-cols-4 md:grid-cols-4 lg:grid-cols-8 gap-1.5">
               <Card 
                 className={cn(
                   "border-none shadow-sm cursor-pointer",
@@ -278,27 +274,25 @@ export default function HousekeepingPage() {
                 )}
                 onClick={() => setActiveFilter(null)}
               >
-                <CardContent className="p-3 flex flex-col items-center justify-center text-center">
-                  <DoorOpen className="w-4 h-4 text-muted-foreground mb-1.5" />
-                  <span className="text-xl font-bold">{stats.total}</span>
-                  <span className="text-[8px] uppercase font-bold text-muted-foreground">Total Rooms</span>
+                <CardContent className="p-2.5 flex flex-col items-center justify-center text-center">
+                  <DoorOpen className="w-3.5 h-3.5 text-muted-foreground mb-1" />
+                  <span className="text-lg font-bold">{stats.total}</span>
+                  <span className="text-[7.5px] uppercase font-bold text-muted-foreground">Total</span>
                 </CardContent>
               </Card>
-              <StatCard id="available" label="Vacant Ready" value={stats.available} icon={ShieldCheck} colorClass="text-emerald-500" active={activeFilter === 'available'} />
-              <StatCard id="dirty" label="Vacant Dirty" value={stats.dirty} icon={AlertTriangle} colorClass="text-orange-500" active={activeFilter === 'dirty'} />
-              <StatCard id="cleaning" label="Cleaning (Vac)" value={stats.cleaning} icon={Brush} colorClass="text-primary" active={activeFilter === 'cleaning'} />
-              <StatCard id="occupied" label="Occupied Clean" value={stats.occupied} icon={CheckCircle2} colorClass="text-blue-500" active={activeFilter === 'occupied'} />
-              <StatCard id="occupied_dirty" label="Occupied Dirty" value={stats.occupied_dirty} icon={AlertCircle} colorClass="text-amber-500" active={activeFilter === 'occupied_dirty'} />
-              <StatCard id="occupied_cleaning" label="Cleaning (Occ)" value={stats.occupied_cleaning} icon={Brush} colorClass="text-indigo-500" active={activeFilter === 'occupied_cleaning'} />
-              <StatCard id="maintenance" label="Maint/Rep" value={stats.maintenance} icon={AlertCircle} colorClass="text-rose-500" active={activeFilter === 'maintenance'} />
+              <StatCard id="available" label="Ready" value={stats.available} icon={ShieldCheck} colorClass="text-emerald-500" active={activeFilter === 'available'} />
+              <StatCard id="dirty" label="Dirty" value={stats.dirty} icon={AlertTriangle} colorClass="text-orange-500" active={activeFilter === 'dirty'} />
+              <StatCard id="cleaning" label="Cleaning" value={stats.cleaning} icon={Brush} colorClass="text-primary" active={activeFilter === 'cleaning'} />
+              <StatCard id="occupied" label="Occ Clean" value={stats.occupied} icon={CheckCircle2} colorClass="text-blue-500" active={activeFilter === 'occupied'} />
+              <StatCard id="occupied_dirty" label="Occ Dirty" value={stats.occupied_dirty} icon={AlertCircle} colorClass="text-amber-500" active={activeFilter === 'occupied_dirty'} />
+              <StatCard id="occupied_cleaning" label="Occ Clean-in" value={stats.occupied_cleaning} icon={Brush} colorClass="text-indigo-500" active={activeFilter === 'occupied_cleaning'} />
+              <StatCard id="maintenance" label="Maint" value={stats.maintenance} icon={AlertCircle} colorClass="text-rose-500" active={activeFilter === 'maintenance'} />
             </div>
 
             {isLoading ? (
-              <div className="flex justify-center py-20">
-                <Loader2 className="w-6 h-6 animate-spin text-primary" />
-              </div>
+              <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
             ) : filteredRooms.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {filteredRooms.map((room) => {
                   const config = STATUS_CONFIG[room.status] || STATUS_CONFIG.available;
                   const activeTask = activeTasks?.find(t => t.roomId === room.id);
@@ -306,14 +300,14 @@ export default function HousekeepingPage() {
                   return (
                     <Card key={room.id} className="border-none shadow-sm hover:shadow-md transition-all group overflow-hidden bg-white">
                       <div className={cn("h-1", config.bg.replace("bg-", "bg-opacity-100 bg-"))} />
-                      <CardHeader className="p-3 pb-0 flex flex-row items-center justify-between space-y-0">
+                      <CardHeader className="p-2.5 pb-0 flex flex-row items-center justify-between space-y-0">
                         <div className="flex flex-col">
-                          <span className="text-base font-bold tracking-tight">Room {room.roomNumber}</span>
-                          <span className="text-[8px] text-muted-foreground uppercase font-bold">Floor {room.floor}</span>
+                          <span className="text-sm font-bold tracking-tight">Room {room.roomNumber}</span>
+                          <span className="text-[7px] text-muted-foreground uppercase font-bold">Floor {room.floor}</span>
                         </div>
                         {canAssignTasks && (
                           <Select onValueChange={(val) => updateStatus(room, val)} value={room.status}>
-                            <SelectTrigger className="w-6 h-6 p-0 border-none shadow-none focus:ring-0">
+                            <SelectTrigger className="w-5 h-5 p-0 border-none shadow-none focus:ring-0">
                               <MoreVertical className="w-3 h-3" />
                             </SelectTrigger>
                             <SelectContent>
@@ -328,27 +322,27 @@ export default function HousekeepingPage() {
                           </Select>
                         )}
                       </CardHeader>
-                      <CardContent className="p-3 pt-3 space-y-2.5">
-                        <div className={cn("flex items-center gap-1.5 p-1.5 rounded-lg", config.bg)}>
-                          <config.icon className={cn("w-3 h-3", config.color)} />
-                          <span className={cn("text-[9px] font-bold uppercase", config.color)}>{config.label}</span>
+                      <CardContent className="p-2.5 pt-2.5 space-y-2">
+                        <div className={cn("flex items-center gap-1.5 p-1 rounded-lg", config.bg)}>
+                          <config.icon className={cn("w-2.5 h-2.5", config.color)} />
+                          <span className={cn("text-[8px] font-bold uppercase", config.color)}>{config.label}</span>
                         </div>
                         
                         {activeTask && (room.status === 'cleaning' || room.status === 'occupied_cleaning') ? (
-                          <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground bg-secondary/30 p-1.5 rounded-md border border-secondary">
-                            <UserCheck className="w-2.5 h-2.5 text-primary" />
-                            <span className="truncate font-medium">{activeTask.assignedStaffName}</span>
+                          <div className="flex items-center gap-1 text-[8px] text-muted-foreground bg-secondary/30 p-1 rounded-md border border-secondary truncate">
+                            <UserCheck className="w-2 h-2 text-primary shrink-0" />
+                            <span className="truncate">{activeTask.assignedStaffName}</span>
                           </div>
                         ) : (
-                          <div className="h-[23px]" />
+                          <div className="h-[18px]" />
                         )}
 
-                        <div className="flex items-center justify-between pt-1.5 border-t">
-                          <Badge variant="outline" className="text-[8px] uppercase px-1.5 py-0 bg-secondary/20">
+                        <div className="flex items-center justify-between pt-1 border-t">
+                          <Badge variant="outline" className="text-[7px] uppercase px-1 py-0 bg-secondary/20">
                             {room.roomTypeId}
                           </Badge>
-                          <span className="text-[8px] text-muted-foreground flex items-center gap-1">
-                            <History className="w-2.5 h-2.5" />
+                          <span className="text-[7px] text-muted-foreground flex items-center gap-1">
+                            <History className="w-2 h-2" />
                             {room.updatedAt ? new Date(room.updatedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'N/A'}
                           </span>
                         </div>
@@ -358,57 +352,56 @@ export default function HousekeepingPage() {
                 })}
               </div>
             ) : (
-              <div className="text-center py-16 bg-white rounded-2xl border border-dashed flex flex-col items-center">
-                <FilterX className="w-8 h-8 text-muted-foreground/20 mb-2" />
-                <h3 className="text-sm font-semibold">No rooms match filter</h3>
-                <p className="text-xs text-muted-foreground">Select another status or clear filter to see all rooms.</p>
-                <Button variant="link" onClick={() => setActiveFilter(null)} className="text-xs text-primary mt-2">Clear all filters</Button>
+              <div className="text-center py-12 bg-white rounded-2xl border border-dashed flex flex-col items-center">
+                <FilterX className="w-6 h-6 text-muted-foreground/20 mb-1" />
+                <h3 className="text-xs font-semibold">No matches</h3>
+                <Button variant="link" onClick={() => setActiveFilter(null)} className="text-[10px] text-primary h-auto p-0 mt-1">Clear filters</Button>
               </div>
             )}
           </TabsContent>
 
-          <TabsContent value="common-areas" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-4">
+          <TabsContent value="common-areas" className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              <div className="lg:col-span-2 space-y-3">
                 <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
-                  <ScrollArea className="h-[600px]">
+                  <ScrollArea className="h-[500px]">
                     <div className="divide-y">
                       {COMMON_AREAS.map((area) => {
                         const activeTask = activeTasks?.find(t => t.roomId === area && t.isCommonArea);
                         const lastCleaned = taskHistory?.find(t => t.roomId === area && t.isCommonArea);
 
                         return (
-                          <div key={area} className="p-4 flex items-center justify-between hover:bg-secondary/10 transition-colors">
-                            <div className="flex items-center gap-4">
+                          <div key={area} className="p-3 flex items-center justify-between hover:bg-secondary/10 transition-colors">
+                            <div className="flex items-center gap-3">
                               <div className={cn(
-                                "p-2.5 rounded-xl",
+                                "p-2 rounded-xl",
                                 activeTask ? "bg-amber-50 text-amber-600" : "bg-primary/5 text-primary"
                               )}>
-                                <Building2 className="w-5 h-5" />
+                                <Building2 className="w-4 h-4" />
                               </div>
                               <div>
-                                <h4 className="text-sm font-bold">{area}</h4>
-                                <div className="flex items-center gap-3 mt-0.5">
-                                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                                    <Clock className="w-3 h-3" />
-                                    <span>Last cleaned: {lastCleaned ? formatAppDate(lastCleaned.updatedAt) : "Never"}</span>
+                                <h4 className="text-xs font-bold">{area}</h4>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                                    <Clock className="w-2.5 h-2.5" />
+                                    <span>{lastCleaned ? formatAppDate(lastCleaned.updatedAt) : "Never"}</span>
                                   </div>
                                   {activeTask && (
-                                    <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-amber-50 text-amber-600 border-amber-100 flex gap-1">
-                                      <Brush className="w-2.5 h-2.5" /> Cleaning: {activeTask.assignedStaffName}
+                                    <Badge variant="outline" className="text-[8px] h-3.5 px-1 bg-amber-50 text-amber-600 border-amber-100">
+                                      {activeTask.assignedStaffName}
                                     </Badge>
                                   )}
                                 </div>
                               </div>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-1.5">
                               {activeTask ? (
-                                <Button size="sm" variant="outline" className="h-8 text-xs font-bold border-emerald-200 text-emerald-600 hover:bg-emerald-50" onClick={() => completeAreaTask(area)}>
-                                  <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Complete
+                                <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold text-emerald-600" onClick={() => completeAreaTask(area)}>
+                                  Complete
                                 </Button>
                               ) : (
-                                <Button size="sm" variant="ghost" className="h-8 text-xs font-bold text-primary" onClick={() => { setSelectedArea(area); setIsAreaAssignOpen(true); }}>
-                                  <Plus className="w-3.5 h-3.5 mr-1.5" /> Assign Task
+                                <Button size="sm" variant="ghost" className="h-7 text-[10px] font-bold text-primary" onClick={() => { setSelectedArea(area); setIsAreaAssignOpen(true); }}>
+                                  Assign
                                 </Button>
                               )}
                             </div>
@@ -420,32 +413,26 @@ export default function HousekeepingPage() {
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <Card className="border-none shadow-sm bg-primary/5">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-primary" />
-                      Cleaning Logs
+                  <CardHeader className="p-3 pb-2">
+                    <CardTitle className="text-xs font-bold flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-primary" />
+                      Logs
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <ScrollArea className="h-[500px]">
-                      <div className="space-y-3">
-                        {taskHistory?.filter(t => t.isCommonArea).slice(0, 15).map((log) => (
-                          <div key={log.id} className="p-3 bg-white rounded-xl border border-primary/10 flex items-start gap-3">
-                            <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
-                              <CheckCircle2 className="w-3 h-3" />
-                            </div>
+                  <CardContent className="p-3 pt-0">
+                    <ScrollArea className="h-[420px]">
+                      <div className="space-y-2">
+                        {taskHistory?.filter(t => t.isCommonArea).slice(0, 10).map((log) => (
+                          <div key={log.id} className="p-2.5 bg-white rounded-lg border border-primary/10 flex items-start gap-2">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600 mt-0.5" />
                             <div>
-                              <p className="text-[11px] font-bold leading-none">{log.roomId}</p>
-                              <p className="text-[10px] text-muted-foreground mt-1">Cleaned by {log.assignedStaffName}</p>
-                              <p className="text-[9px] text-muted-foreground/60 mt-0.5">{formatAppDate(log.updatedAt)} at {formatAppTime(log.updatedAt)}</p>
+                              <p className="text-[10px] font-bold leading-tight">{log.roomId}</p>
+                              <p className="text-[9px] text-muted-foreground mt-0.5">{log.assignedStaffName}</p>
                             </div>
                           </div>
                         ))}
-                        {(!taskHistory || taskHistory.filter(t => t.isCommonArea).length === 0) && (
-                          <p className="text-xs text-center text-muted-foreground py-10">No history available.</p>
-                        )}
                       </div>
                     </ScrollArea>
                   </CardContent>
@@ -454,84 +441,6 @@ export default function HousekeepingPage() {
             </div>
           </TabsContent>
         </Tabs>
-
-        {/* Room Assign Dialog */}
-        <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Assign Cleaning Task</DialogTitle>
-              <DialogDescription>
-                Assign Room {selectedRoom?.roomNumber} to a staff member.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={(e) => handleAssignTask(e, false)} className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label>Select Staff Member</Label>
-                <Select value={assignment.staffId} onValueChange={(val) => setAssignment({...assignment, staffId: val})} required>
-                  <SelectTrigger><SelectValue placeholder="Choose staff..." /></SelectTrigger>
-                  <SelectContent>
-                    {staffMembers?.map(member => (
-                      <SelectItem key={member.id} value={member.id}>{member.name} ({member.role})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Priority</Label>
-                <Select value={assignment.priority} onValueChange={(val) => setAssignment({...assignment, priority: val})}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="high">High (Urgent)</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <DialogFooter className="pt-2">
-                <Button type="submit" className="w-full">Confirm Assignment</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-
-        {/* Common Area Assign Dialog */}
-        <Dialog open={isAreaAssignOpen} onOpenChange={setIsAreaAssignOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Assign Facility Cleaning</DialogTitle>
-              <DialogDescription>
-                Assign **{selectedArea}** to a staff member for maintenance.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={(e) => handleAssignTask(e, true)} className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label>Select Staff Member</Label>
-                <Select value={assignment.staffId} onValueChange={(val) => setAssignment({...assignment, staffId: val})} required>
-                  <SelectTrigger><SelectValue placeholder="Choose staff..." /></SelectTrigger>
-                  <SelectContent>
-                    {staffMembers?.map(member => (
-                      <SelectItem key={member.id} value={member.id}>{member.name} ({member.role})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Priority</Label>
-                <Select value={assignment.priority} onValueChange={(val) => setAssignment({...assignment, priority: val})}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="high">High (Urgent)</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <DialogFooter className="pt-2">
-                <Button type="submit" className="w-full">Confirm Assignment</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
       </div>
     </AppLayout>
   );

@@ -92,7 +92,6 @@ export default function MaintenancePage() {
     priority: "medium" 
   });
 
-  // Simplified query to avoid potential composite index issues during rule sync
   const allTasksQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return collection(db, "hotel_properties", entityId, "housekeeping_tasks");
@@ -100,7 +99,6 @@ export default function MaintenancePage() {
 
   const { data: allTasks, isLoading } = useCollection(allTasksQuery);
 
-  // Filter tasks in memory for reliability
   const activeTasks = useMemo(() => {
     if (!allTasks) return [];
     return allTasks
@@ -147,11 +145,11 @@ export default function MaintenancePage() {
     
     sendNotification(db, user.uid, entityId, {
       title: "Maintenance Requested",
-      message: `Repair order created for ${targetArea}: ${newTask.issue}`,
+      message: `Repair for ${targetArea}: ${newTask.issue}`,
       type: "alert"
     });
 
-    toast({ title: "Work Order Created", description: `Assigned for ${targetArea}.` });
+    toast({ title: "Work Order Created" });
     setIsAddOpen(false);
     setNewTask({ areaType: "room", roomNumber: "", commonArea: COMMON_AREAS[0], issue: "", priority: "medium" });
   };
@@ -160,281 +158,143 @@ export default function MaintenancePage() {
     if (!entityId || !canUpdateStatus || !user) return;
     const taskRef = doc(db, "hotel_properties", entityId, "housekeeping_tasks", task.id);
     
-    const updateData: any = { 
-      status, 
-      updatedAt: new Date().toISOString() 
-    };
-
+    const updateData: any = { status, updatedAt: new Date().toISOString() };
     if (status === 'completed') {
       updateData.completedAt = new Date().toISOString();
       updateData.completedBy = user.displayName || "Staff";
-      
-      sendNotification(db, user.uid, entityId, {
-        title: "Repair Completed",
-        message: `Maintenance for ${task.roomId} has been marked as completed.`,
-        type: "info"
-      });
     }
 
     updateDocumentNonBlocking(taskRef, updateData);
-    toast({ title: `Status updated to ${(status || "").replace('_', ' ')}` });
+    toast({ title: `Updated` });
   };
 
   return (
     <AppLayout>
-      <div className="space-y-8 max-w-7xl mx-auto">
+      <div className="space-y-6 max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Maintenance Tracker</h1>
-            <p className="text-muted-foreground mt-1">Real-time property repair monitoring and area-wise audit history</p>
+            <h1 className="text-2xl font-bold tracking-tight">Maintenance</h1>
+            <p className="text-muted-foreground text-sm mt-0.5">Track repairs and property history</p>
           </div>
           
           {isAdmin && (
             <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
               <DialogTrigger asChild>
-                <Button className="h-11 shadow-lg px-6 font-bold bg-primary hover:bg-primary/90 text-primary-foreground">
-                  <Plus className="w-5 h-5 mr-2" />
-                  Create Work Order
+                <Button className="h-10 px-5 font-bold shadow-md">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Work Order
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[450px]">
+              <DialogContent className="sm:max-w-[400px]">
                 <DialogHeader>
-                  <DialogTitle>New Work Order</DialogTitle>
-                  <DialogDescription>Submit a formal request for facility repair or room maintenance.</DialogDescription>
+                  <DialogTitle className="text-base">New Work Order</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleAddTask} className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label>Select Area Type</Label>
+                <form onSubmit={handleAddTask} className="space-y-3 pt-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Type</Label>
                     <Tabs value={newTask.areaType} onValueChange={(v) => setNewTask({...newTask, areaType: v})} className="w-full">
-                      <TabsList className="grid w-full grid-cols-2 bg-secondary/50">
-                        <TabsTrigger value="room" className="text-xs h-8">Rooms</TabsTrigger>
-                        <TabsTrigger value="common_area" className="text-xs h-8">Common Area</TabsTrigger>
+                      <TabsList className="grid w-full grid-cols-2 bg-secondary/50 h-8">
+                        <TabsTrigger value="room" className="text-[10px] h-6">Rooms</TabsTrigger>
+                        <TabsTrigger value="common_area" className="text-[10px] h-6">Common</TabsTrigger>
                       </TabsList>
                     </Tabs>
                   </div>
 
                   {newTask.areaType === "room" ? (
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       <Label className="text-xs">Room Number</Label>
-                      <Input 
-                        placeholder="e.g. 101" 
-                        value={newTask.roomNumber}
-                        onChange={(e) => setNewTask({...newTask, roomNumber: e.target.value})}
-                        required 
-                        className="h-10"
-                      />
+                      <Input placeholder="e.g. 101" value={newTask.roomNumber} onChange={(e) => setNewTask({...newTask, roomNumber: e.target.value})} required className="h-9" />
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      <Label className="text-xs">Select Common Area</Label>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Common Area</Label>
                       <Select value={newTask.commonArea} onValueChange={(v) => setNewTask({...newTask, commonArea: v})}>
-                        <SelectTrigger className="h-10">
-                          <SelectValue />
-                        </SelectTrigger>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {COMMON_AREAS.map(area => (
-                            <SelectItem key={area} value={area} className="text-sm">{area}</SelectItem>
+                            <SelectItem key={area} value={area} className="text-xs">{area}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                   )}
 
-                  <div className="space-y-2">
-                    <Label className="text-xs">Issue Description</Label>
-                    <Input 
-                      placeholder="e.g. A/C leak, broken faucet" 
-                      value={newTask.issue}
-                      onChange={(e) => setNewTask({...newTask, issue: e.target.value})}
-                      required 
-                      className="h-10"
-                    />
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Issue</Label>
+                    <Input placeholder="Issue description" value={newTask.issue} onChange={(e) => setNewTask({...newTask, issue: e.target.value})} required className="h-9" />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs">Priority Level</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Priority</Label>
                     <Select value={newTask.priority} onValueChange={(val) => setNewTask({...newTask, priority: val})}>
-                      <SelectTrigger className="h-10">
-                        <SelectValue />
-                      </SelectTrigger>
+                      <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="high">High (Immediate Action)</SelectItem>
-                        <SelectItem value="medium">Medium (Next 24 Hours)</SelectItem>
-                        <SelectItem value="low">Low (Routine Check)</SelectItem>
+                        <SelectItem value="high" className="text-xs">High</SelectItem>
+                        <SelectItem value="medium" className="text-xs">Medium</SelectItem>
+                        <SelectItem value="low" className="text-xs">Low</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button type="submit" className="w-full h-11 font-bold mt-4">Log Work Order</Button>
+                  <Button type="submit" className="w-full h-9 font-bold mt-2">Log Request</Button>
                 </form>
               </DialogContent>
             </Dialog>
           )}
         </div>
 
-        <Tabs defaultValue="active" className="space-y-6">
-          <TabsList className="bg-white border p-1 rounded-xl shadow-sm">
-            <TabsTrigger value="active" className="rounded-lg h-9 px-8 text-xs font-bold flex gap-2">
-              <Timer className="w-4 h-4" /> Active Tracker
-            </TabsTrigger>
-            <TabsTrigger value="history" className="rounded-lg h-9 px-8 text-xs font-bold flex gap-2">
-              <History className="w-4 h-4" /> Area-Wise History
-            </TabsTrigger>
+        <Tabs defaultValue="active" className="space-y-4">
+          <TabsList className="bg-white border p-1 rounded-xl h-9">
+            <TabsTrigger value="active" className="rounded-lg h-7 px-6 text-[11px] font-bold">Active</TabsTrigger>
+            <TabsTrigger value="history" className="rounded-lg h-7 px-6 text-[11px] font-bold">History</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="active" className="space-y-6">
+          <TabsContent value="active" className="space-y-4">
             {isLoading ? (
-              <div className="flex justify-center py-20">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              </div>
+              <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
             ) : activeTasks.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                 {activeTasks.map((task) => (
-                  <Card key={task.id} className="border-none shadow-sm hover:shadow-md transition-all group relative overflow-hidden bg-white">
-                    <div className={cn(
-                      "absolute top-0 left-0 w-1 h-full",
-                      task.priority === "high" ? "bg-rose-500" : task.priority === "medium" ? "bg-amber-500" : "bg-emerald-500"
-                    )} />
-                    <CardHeader className="flex flex-row items-start justify-between p-5 pb-2">
+                  <Card key={task.id} className="border-none shadow-sm group bg-white overflow-hidden relative">
+                    <div className={cn("absolute top-0 left-0 w-1 h-full", task.priority === "high" ? "bg-rose-500" : task.priority === "medium" ? "bg-amber-500" : "bg-emerald-500")} />
+                    <CardHeader className="p-4 pb-1.5 flex flex-row items-start justify-between">
                       <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Badge className={cn(
-                            "text-[10px] uppercase font-bold px-2 py-0",
-                            task.priority === "high" && "bg-rose-50 text-rose-600 hover:bg-rose-50 border-rose-100",
-                            task.priority === "medium" && "bg-amber-50 text-amber-600 hover:bg-amber-50 border-amber-100",
-                            task.priority === "low" && "bg-emerald-50 text-emerald-600 hover:bg-emerald-50 border-emerald-100"
-                          )} variant="outline">
-                            {task.priority || "Normal"} Priority
+                        <div className="flex items-center gap-1.5">
+                          <Badge className={cn("text-[8px] uppercase px-1.5 py-0", task.priority === "high" ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-600")} variant="outline">
+                            {task.priority}
                           </Badge>
-                          <Badge variant="secondary" className="text-[10px] uppercase h-5">
-                            {(task.status || "pending").replace('_', ' ')}
+                          <Badge variant="secondary" className="text-[8px] uppercase px-1.5 py-0 h-4">
+                            {task.status}
                           </Badge>
                         </div>
-                        <CardTitle className="text-lg font-bold flex items-center gap-2 pt-1">
-                          {task.isCommonArea ? <Building2 className="w-4 h-4 text-primary" /> : <MapPin className="w-4 h-4 text-primary" />}
+                        <CardTitle className="text-base font-bold flex items-center gap-2 pt-0.5">
+                          {task.isCommonArea ? <Building2 className="w-3.5 h-3.5 text-primary" /> : <MapPin className="w-3.5 h-3.5 text-primary" />}
                           {task.isCommonArea ? task.roomId : `Room ${task.roomId}`}
                         </CardTitle>
                       </div>
                       {canUpdateStatus && (
                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="w-4 h-4" /></Button>
-                          </DropdownMenuTrigger>
+                          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7"><MoreVertical className="w-3.5 h-3.5" /></Button></DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => updateStatus(task, "in_progress")} className="text-xs">
-                              <Timer className="w-3.5 h-3.5 mr-2" /> Start Work
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => updateStatus(task, "completed")} className="text-xs text-emerald-600 font-bold">
-                              <CheckCircle2 className="w-3.5 h-3.5 mr-2" /> Mark Complete
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => updateStatus(task, "cancelled")} className="text-xs text-rose-500">
-                              <AlertTriangle className="w-3.5 h-3.5 mr-2" /> Cancel Request
-                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => updateStatus(task, "in_progress")} className="text-xs">Start</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => updateStatus(task, "completed")} className="text-xs text-emerald-600">Complete</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
                     </CardHeader>
-                    <CardContent className="p-5 pt-2 space-y-4">
-                      <div className="p-3 bg-secondary/30 rounded-xl border border-secondary">
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Issue Details</p>
-                        <p className="text-sm font-medium leading-relaxed">{task.notes || "No details provided."}</p>
+                    <CardContent className="p-4 pt-1.5 space-y-3">
+                      <div className="p-2.5 bg-secondary/30 rounded-lg border border-secondary">
+                        <p className="text-[11px] font-medium">{task.notes || "No notes."}</p>
                       </div>
-
-                      <div className="flex items-center justify-between pt-2 border-t text-[10px] font-bold text-muted-foreground uppercase">
-                        <div className="flex items-center gap-1.5">
-                          <Clock className="w-3 h-3" />
-                          <span>Log: {formatAppDate(task.createdAt)}</span>
-                        </div>
-                        <span>By: {task.requestedBy || 'System'}</span>
+                      <div className="flex items-center justify-between text-[9px] font-bold text-muted-foreground uppercase pt-1 border-t">
+                        <span>{formatAppDate(task.createdAt)}</span>
+                        <span>By: {task.requestedBy}</span>
                       </div>
                     </CardContent>
                   </Card>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-24 bg-white rounded-3xl border border-dashed flex flex-col items-center">
-                <div className="bg-emerald-50 p-4 rounded-full mb-4">
-                  <CheckCircle className="w-8 h-8 text-emerald-500" />
-                </div>
-                <h3 className="text-base font-bold">Facility is Running Smoothly</h3>
-                <p className="text-xs text-muted-foreground mt-1">No active work orders. All areas are fully functional.</p>
-              </div>
+              <div className="text-center py-16 bg-white rounded-3xl border border-dashed text-xs text-muted-foreground">All clear.</div>
             )}
-          </TabsContent>
-
-          <TabsContent value="history" className="space-y-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Search by Room or Common Area..." 
-                  className="pl-10 h-10 bg-white" 
-                  value={historySearch}
-                  onChange={(e) => setHistorySearch(e.target.value)}
-                />
-              </div>
-              <Button variant="outline" className="h-10 font-bold">
-                <Filter className="w-4 h-4 mr-2" /> Filter History
-              </Button>
-            </div>
-
-            <Card className="border-none shadow-sm overflow-hidden bg-white">
-              <ScrollArea className="h-[550px]">
-                <Table>
-                  <TableHeader className="bg-secondary/50 sticky top-0 z-10">
-                    <TableRow>
-                      <TableHead className="text-[10px] font-bold uppercase tracking-wider">Completion Date</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase tracking-wider">Area / Location</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase tracking-wider">Maintenance Details</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase tracking-wider">Staff / Tech</TableHead>
-                      <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider pr-8">Priority</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
-                    ) : historyTasks.length > 0 ? (
-                      historyTasks.map((task) => (
-                        <TableRow key={task.id} className="hover:bg-secondary/20 group">
-                          <TableCell className="text-xs font-medium">
-                            <div>{formatAppDate(task.updatedAt)}</div>
-                            <div className="text-[10px] text-muted-foreground">{formatAppTime(task.updatedAt)}</div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2 font-bold text-sm">
-                              {task.isCommonArea ? <Building2 className="w-3.5 h-3.5 text-primary" /> : <MapPin className="w-3.5 h-3.5 text-primary" />}
-                              {task.isCommonArea ? task.roomId : `Room ${task.roomId}`}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <p className="text-xs text-muted-foreground max-w-xs truncate group-hover:whitespace-normal group-hover:max-w-md transition-all">
-                              {task.notes || "N/A"}
-                            </p>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-[9px] font-bold uppercase bg-secondary/30">
-                              {task.completedBy || 'N/A'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right pr-8">
-                            <Badge className={cn(
-                              "text-[9px] uppercase font-bold border-none",
-                              task.priority === "high" ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
-                            )}>
-                              {task.priority || "Normal"}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center py-24 text-muted-foreground text-sm">
-                          No maintenance history found.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-            </Card>
           </TabsContent>
         </Tabs>
       </div>

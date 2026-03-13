@@ -73,7 +73,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  // Notifications logic
   const notificationsQuery = useMemoFirebase(() => {
     if (!firebaseUser) return null;
     return query(
@@ -114,7 +113,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!_hasHydrated || isUserLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -132,17 +131,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <aside 
         className={cn(
           "bg-white border-r transition-all duration-300 ease-in-out flex flex-col",
-          sidebarOpen ? "w-64" : "w-20"
+          sidebarOpen ? "w-56" : "w-16"
         )}
       >
-        <div className="p-6 flex items-center gap-3">
-          <div className="bg-primary h-8 w-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm">
-            <span className="text-primary-foreground font-bold">S</span>
+        <div className="p-5 flex items-center gap-2.5">
+          <div className="bg-primary h-7 w-7 rounded-lg flex items-center justify-center shrink-0 shadow-sm">
+            <span className="text-primary-foreground font-bold text-sm">S</span>
           </div>
-          {sidebarOpen && <span className="font-bold text-xl tracking-tight text-primary">SUKHA OS</span>}
+          {sidebarOpen && <span className="font-bold text-lg tracking-tight text-primary">SUKHA OS</span>}
         </div>
 
-        <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
           {filteredNavItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
             return (
@@ -150,14 +149,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 p-3 rounded-xl transition-all group",
+                  "flex items-center gap-2.5 p-2.5 rounded-xl transition-all group",
                   isActive 
                     ? "bg-primary text-primary-foreground shadow-md" 
                     : "text-muted-foreground hover:bg-secondary hover:text-primary"
                 )}
               >
-                <item.icon className={cn("w-5 h-5 shrink-0", isActive ? "text-primary-foreground" : "group-hover:text-primary")} />
-                {sidebarOpen && <span className="font-medium">{item.name}</span>}
+                <item.icon className={cn("w-4.5 h-4.5 shrink-0", isActive ? "text-primary-foreground" : "group-hover:text-primary")} />
+                {sidebarOpen && <span className="font-medium text-xs">{item.name}</span>}
               </Link>
             );
           })}
@@ -165,22 +164,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-16 bg-white border-b flex items-center justify-between px-6 shrink-0 z-10">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} suppressHydrationWarning>
-              <Menu className="w-5 h-5" />
+        <header className="h-14 bg-white border-b flex items-center justify-between px-5 shrink-0 z-10">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSidebarOpen(!sidebarOpen)} suppressHydrationWarning>
+              <Menu className="w-4 h-4" />
             </Button>
 
             {availableProperties.length > 0 && (
-              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-secondary/50 rounded-lg border border-border/50">
-                <Building2 className="w-4 h-4 text-primary" />
+              <div className="hidden md:flex items-center gap-2 px-2.5 py-1 bg-secondary/50 rounded-lg border border-border/50">
+                <Building2 className="w-3.5 h-3.5 text-primary" />
                 <Select value={entityId || ""} onValueChange={(val) => setEntityId(val)}>
-                  <SelectTrigger className="w-[180px] h-8 border-none bg-transparent p-0 focus:ring-0 shadow-none font-semibold text-xs">
-                    <SelectValue placeholder="Select Property" />
+                  <SelectTrigger className="w-[150px] h-7 border-none bg-transparent p-0 focus:ring-0 shadow-none font-semibold text-[11px]">
+                    <SelectValue placeholder="Property" />
                   </SelectTrigger>
                   <SelectContent>
                     {availableProperties.map((prop) => (
-                      <SelectItem key={prop.id} value={prop.id} className="text-xs">
+                      <SelectItem key={prop.id} value={prop.id} className="text-[11px]">
                         {prop.name}
                       </SelectItem>
                     ))}
@@ -190,95 +189,78 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative" suppressHydrationWarning>
-                  <Bell className="w-5 h-5 text-muted-foreground" />
+                <Button variant="ghost" size="icon" className="h-8 w-8 relative" suppressHydrationWarning>
+                  <Bell className="w-4 h-4 text-muted-foreground" />
                   {unreadCount > 0 && (
-                    <span className="absolute top-2 right-2.5 w-4 h-4 bg-primary text-[10px] text-white flex items-center justify-center rounded-full border-2 border-background animate-in zoom-in-50">
+                    <span className="absolute top-1.5 right-1.5 w-3.5 h-3.5 bg-primary text-[9px] text-white flex items-center justify-center rounded-full border-2 border-background">
                       {unreadCount}
                     </span>
                   )}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80 p-0 overflow-hidden rounded-2xl border-none shadow-2xl" align="end">
-                <div className="p-4 bg-primary text-primary-foreground">
-                  <h4 className="text-sm font-bold flex items-center justify-between">
+              <PopoverContent className="w-72 p-0 overflow-hidden rounded-xl border-none shadow-xl" align="end">
+                <div className="p-3 bg-primary text-primary-foreground">
+                  <h4 className="text-xs font-bold flex items-center justify-between">
                     Notifications
-                    {unreadCount > 0 && <Badge variant="secondary" className="bg-white/20 text-white border-none">{unreadCount} New</Badge>}
+                    {unreadCount > 0 && <Badge variant="secondary" className="bg-white/20 text-white text-[9px] h-4 px-1">{unreadCount} New</Badge>}
                   </h4>
                 </div>
-                <ScrollArea className="h-[350px]">
+                <ScrollArea className="h-[300px]">
                   {notifications && notifications.length > 0 ? (
                     <div className="divide-y">
                       {notifications.map((n) => (
                         <div key={n.id} className={cn(
-                          "p-4 transition-colors relative group",
+                          "p-3 transition-colors relative group",
                           n.status === 'unread' ? "bg-primary/5" : "bg-white"
                         )}>
                           <div className="flex justify-between items-start gap-2">
-                            <div className="space-y-1">
-                              <p className="text-xs font-bold leading-none">{n.title}</p>
-                              <p className="text-[11px] text-muted-foreground leading-snug">{n.message}</p>
-                              <div className="flex items-center gap-1.5 pt-1 text-[9px] text-muted-foreground">
-                                <Clock className="w-2.5 h-2.5" />
+                            <div className="space-y-0.5">
+                              <p className="text-[11px] font-bold leading-none">{n.title}</p>
+                              <p className="text-[10px] text-muted-foreground leading-tight">{n.message}</p>
+                              <div className="flex items-center gap-1 pt-1 text-[8px] text-muted-foreground">
+                                <Clock className="w-2 h-2" />
                                 {formatAppTime(n.createdAt)}
                               </div>
                             </div>
-                            {n.status === 'unread' && (
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={() => markAsRead(n.id)}
-                              >
-                                <Check className="w-3 h-3 text-primary" />
-                              </Button>
-                            )}
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="p-12 text-center flex flex-col items-center justify-center">
-                      <Bell className="w-8 h-8 text-muted-foreground/20 mb-2" />
-                      <p className="text-xs text-muted-foreground font-medium">All caught up!</p>
+                    <div className="p-10 text-center flex flex-col items-center justify-center">
+                      <p className="text-[10px] text-muted-foreground">No updates.</p>
                     </div>
                   )}
                 </ScrollArea>
-                <div className="p-2 border-t text-center bg-secondary/20">
-                  <Button variant="link" className="text-[10px] h-auto p-0 text-primary font-bold">See all updates</Button>
-                </div>
               </PopoverContent>
             </Popover>
             
-            <div className="flex items-center gap-3 pl-4 border-l">
+            <div className="flex items-center gap-3 pl-3 border-l">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <div className="flex items-center gap-3 cursor-pointer group">
+                  <div className="flex items-center gap-2.5 cursor-pointer group">
                     <div className="text-right hidden sm:block">
-                      <p className="text-sm font-semibold leading-none">{firebaseUser?.displayName || "Admin User"}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{role || "Staff"}</p>
+                      <p className="text-xs font-semibold leading-none">{firebaseUser?.displayName || "Admin"}</p>
+                      <p className="text-[10px] text-muted-foreground capitalize">{role || "Staff"}</p>
                     </div>
-                    <Avatar className="ring-offset-2 ring-primary transition-all group-hover:ring-2 h-9 w-9">
-                      <AvatarImage src={`https://picsum.photos/seed/${firebaseUser?.uid}/40/40`} />
-                      <AvatarFallback className="bg-primary text-primary-foreground">
-                        <UserIcon className="w-5 h-5" />
+                    <Avatar className="h-8 w-8 ring-offset-2 ring-primary transition-all group-hover:ring-2">
+                      <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                        <UserIcon className="w-4 h-4" />
                       </AvatarFallback>
                     </Avatar>
                   </div>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => router.push('/settings')}>
-                    <Settings className="mr-2 h-4 w-4" />
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => router.push('/settings')} className="text-xs">
+                    <Settings className="mr-2 h-3.5 w-3.5" />
                     <span>Settings</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
-                    <LogOut className="mr-2 h-4 w-4" />
+                  <DropdownMenuItem onClick={handleLogout} className="text-destructive text-xs">
+                    <LogOut className="mr-2 h-3.5 w-3.5" />
                     <span>Logout</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -287,7 +269,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+        <main className="flex-1 overflow-y-auto p-5 md:p-6">
           {children}
         </main>
       </div>

@@ -105,59 +105,59 @@ export default function DashboardPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-8 max-w-7xl mx-auto">
+      <div className="space-y-6 max-w-6xl mx-auto">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Executive Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Summary of property performance and room operations</p>
+          <h1 className="text-2xl font-bold tracking-tight">Executive Dashboard</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Summary of property performance and room operations</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {PRIMARY_STATS.map((stat) => (
             <Card key={stat.label} className="border-none shadow-sm hover:shadow-md transition-all">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-2 bg-secondary rounded-lg">
-                    <stat.icon className="w-5 h-5 text-primary" />
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-1.5 bg-secondary rounded-lg">
+                    <stat.icon className="w-4 h-4 text-primary" />
                   </div>
                   <div className={cn(
-                    "flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider",
+                    "flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider",
                     stat.trend === "up" ? "bg-emerald-50 text-emerald-600" : stat.trend === "down" ? "bg-rose-50 text-rose-600" : "bg-muted text-muted-foreground"
                   )}>
                     {stat.change}
-                    {stat.trend === "up" && <ArrowUpRight className="w-3 h-3 ml-0.5" />}
+                    {stat.trend === "up" && <ArrowUpRight className="w-2.5 h-2.5 ml-0.5" />}
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{stat.label}</p>
-                  <h3 className="text-2xl font-bold mt-1">{stat.value}</h3>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{stat.label}</p>
+                  <h3 className="text-xl font-bold mt-0.5">{stat.value}</h3>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {SECONDARY_STATS.map((stat) => (
             <Card key={stat.label} className="border-none shadow-sm">
-              <CardContent className="p-5 flex items-center gap-4">
-                <div className={cn("p-2.5 rounded-xl bg-secondary", stat.color)}>
-                  <stat.icon className="w-5 h-5" />
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className={cn("p-2 rounded-xl bg-secondary", stat.color)}>
+                  <stat.icon className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{stat.label}</p>
-                  <h4 className="text-lg font-bold">{stat.value}</h4>
+                  <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">{stat.label}</p>
+                  <h4 className="text-base font-bold">{stat.value}</h4>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="border-none shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold">Revenue Trends</CardTitle>
+            <CardHeader className="p-5 pb-0">
+              <CardTitle className="text-sm font-semibold">Revenue Trends</CardTitle>
             </CardHeader>
-            <CardContent className="h-[300px] p-6 pt-0">
+            <CardContent className="h-[260px] p-5 pt-4">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
                   <defs>
@@ -167,8 +167,8 @@ export default function DashboardPage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 11}} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 11}} />
                   <Tooltip />
                   <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
                 </AreaChart>
@@ -177,17 +177,17 @@ export default function DashboardPage() {
           </Card>
 
           <Card className="border-none shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold">Occupancy Levels (%)</CardTitle>
+            <CardHeader className="p-5 pb-0">
+              <CardTitle className="text-sm font-semibold">Occupancy Levels (%)</CardTitle>
             </CardHeader>
-            <CardContent className="h-[300px] p-6 pt-0">
+            <CardContent className="h-[260px] p-5 pt-4">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 11}} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 11}} />
                   <Tooltip />
-                  <Line type="monotone" dataKey="occupancy" stroke="hsl(var(--primary))" strokeWidth={2} dot={{r: 4, fill: 'hsl(var(--primary))', strokeWidth: 0}} activeDot={{r: 6}} />
+                  <Line type="monotone" dataKey="occupancy" stroke="hsl(var(--primary))" strokeWidth={2} dot={{r: 3, fill: 'hsl(var(--primary))', strokeWidth: 0}} activeDot={{r: 5}} />
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
