@@ -21,6 +21,14 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "@/components/ui/table";
 import { cn, formatAppDate, formatAppTime } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
@@ -43,14 +51,6 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -182,7 +182,7 @@ export default function MaintenancePage() {
     }
 
     updateDocumentNonBlocking(taskRef, updateData);
-    toast({ title: `Status updated to ${status.replace('_', ' ')}` });
+    toast({ title: `Status updated to ${(status || "").replace('_', ' ')}` });
   };
 
   return (
@@ -197,7 +197,7 @@ export default function MaintenancePage() {
           {isAdmin && (
             <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
               <DialogTrigger asChild>
-                <Button className="h-11 shadow-lg px-6 font-bold bg-primary hover:bg-primary/90">
+                <Button className="h-11 shadow-lg px-6 font-bold bg-primary hover:bg-primary/90 text-primary-foreground">
                   <Plus className="w-5 h-5 mr-2" />
                   Create Work Order
                 </Button>
@@ -307,10 +307,10 @@ export default function MaintenancePage() {
                             task.priority === "medium" && "bg-amber-50 text-amber-600 hover:bg-amber-50 border-amber-100",
                             task.priority === "low" && "bg-emerald-50 text-emerald-600 hover:bg-emerald-50 border-emerald-100"
                           )} variant="outline">
-                            {task.priority} Priority
+                            {task.priority || "Normal"} Priority
                           </Badge>
                           <Badge variant="secondary" className="text-[10px] uppercase h-5">
-                            {task.status.replace('_', ' ')}
+                            {(task.status || "pending").replace('_', ' ')}
                           </Badge>
                         </div>
                         <CardTitle className="text-lg font-bold flex items-center gap-2 pt-1">
@@ -340,7 +340,7 @@ export default function MaintenancePage() {
                     <CardContent className="p-5 pt-2 space-y-4">
                       <div className="p-3 bg-secondary/30 rounded-xl border border-secondary">
                         <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Issue Details</p>
-                        <p className="text-sm font-medium leading-relaxed">{task.notes}</p>
+                        <p className="text-sm font-medium leading-relaxed">{task.notes || "No details provided."}</p>
                       </div>
 
                       <div className="flex items-center justify-between pt-2 border-t text-[10px] font-bold text-muted-foreground uppercase">
@@ -412,7 +412,7 @@ export default function MaintenancePage() {
                             </TableCell>
                             <TableCell>
                               <p className="text-xs text-muted-foreground max-w-xs truncate group-hover:whitespace-normal group-hover:max-w-md transition-all">
-                                {task.notes}
+                                {task.notes || "N/A"}
                               </p>
                             </TableCell>
                             <TableCell>
@@ -425,7 +425,7 @@ export default function MaintenancePage() {
                                 "text-[9px] uppercase font-bold border-none",
                                 task.priority === "high" ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
                               )}>
-                                {task.priority}
+                                {task.priority || "Normal"}
                               </Badge>
                             </TableCell>
                           </TableRow>
@@ -433,7 +433,7 @@ export default function MaintenancePage() {
                       ) : (
                         <TableRow>
                           <TableCell colSpan={5} className="text-center py-24 text-muted-foreground text-sm">
-                            No maintenance history found for the selected filter.
+                            No maintenance history found.
                           </TableCell>
                         </TableRow>
                       )}
