@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,9 +54,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 const STATUS_CONFIG: any = {
   available: { icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-50", label: "Vacant Ready" },
   cleaning: { icon: Brush, color: "text-primary", bg: "bg-primary/5", label: "Cleaning (Vac)" },
-  occupied: { icon: CheckCircle2, color: "text-blue-500", bg: "bg-blue-50", label: "Occupied (Ready)" },
+  occupied: { icon: CheckCircle2, color: "text-blue-500", bg: "bg-blue-50", label: "Occupied Clean" },
   dirty: { icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-50", label: "Vacant Dirty" },
-  occupied_dirty: { icon: AlertCircle, color: "text-amber-500", bg: "bg-amber-50", label: "Occupied (Dirty)" },
+  occupied_dirty: { icon: AlertCircle, color: "text-amber-500", bg: "bg-amber-50", label: "Occupied Dirty" },
   occupied_cleaning: { icon: Brush, color: "text-indigo-500", bg: "bg-indigo-50", label: "Cleaning (Occ)" },
   maintenance: { icon: AlertCircle, color: "text-rose-500", bg: "bg-rose-50", label: "Maintenance" },
 };
@@ -123,6 +123,28 @@ export default function HousekeepingPage() {
   const { data: staffMembers } = useCollection(teamQuery);
   const { data: activeTasks } = useCollection(tasksQuery);
   const { data: taskHistory } = useCollection(historyQuery);
+
+  // Auto-flag occupied rooms as dirty if they haven't been cleaned today
+  useEffect(() => {
+    if (!entityId || !rooms || !canAssignTasks) return;
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    rooms.forEach((room: any) => {
+      // Logic: If room is Occupied Clean but was last updated before today, it needs fresh cleaning
+      if (room.status === 'occupied' && room.updatedAt) {
+        const lastUpdate = new Date(room.updatedAt).toISOString().split('T')[0];
+        if (lastUpdate < today) {
+          const roomRef = doc(db, "hotel_properties", entityId, "rooms", room.id);
+          updateDocumentNonBlocking(roomRef, { 
+            status: 'occupied_dirty', 
+            updatedAt: new Date().toISOString() 
+          });
+          console.log(`Auto-flagging Room ${room.roomNumber} as Occupied Dirty for stayover cleaning.`);
+        }
+      }
+    });
+  }, [rooms, entityId, db, canAssignTasks]);
 
   const stats = useMemo(() => {
     if (!rooms) return { total: 0, available: 0, cleaning: 0, occupied: 0, dirty: 0, maintenance: 0, occupied_dirty: 0, occupied_cleaning: 0 };
@@ -265,8 +287,8 @@ export default function HousekeepingPage() {
               <StatCard id="available" label="Vacant Ready" value={stats.available} icon={ShieldCheck} colorClass="text-emerald-500" active={activeFilter === 'available'} />
               <StatCard id="dirty" label="Vacant Dirty" value={stats.dirty} icon={AlertTriangle} colorClass="text-orange-500" active={activeFilter === 'dirty'} />
               <StatCard id="cleaning" label="Cleaning (Vac)" value={stats.cleaning} icon={Brush} colorClass="text-primary" active={activeFilter === 'cleaning'} />
-              <StatCard id="occupied" label="Occupied (Ready)" value={stats.occupied} icon={CheckCircle2} colorClass="text-blue-500" active={activeFilter === 'occupied'} />
-              <StatCard id="occupied_dirty" label="Occupied (Dirty)" value={stats.occupied_dirty} icon={AlertCircle} colorClass="text-amber-500" active={activeFilter === 'occupied_dirty'} />
+              <StatCard id="occupied" label="Occupied Clean" value={stats.occupied} icon={CheckCircle2} colorClass="text-blue-500" active={activeFilter === 'occupied'} />
+              <StatCard id="occupied_dirty" label="Occupied Dirty" value={stats.occupied_dirty} icon={AlertCircle} colorClass="text-amber-500" active={activeFilter === 'occupied_dirty'} />
               <StatCard id="occupied_cleaning" label="Cleaning (Occ)" value={stats.occupied_cleaning} icon={Brush} colorClass="text-indigo-500" active={activeFilter === 'occupied_cleaning'} />
               <StatCard id="maintenance" label="Maint/Rep" value={stats.maintenance} icon={AlertCircle} colorClass="text-rose-500" active={activeFilter === 'maintenance'} />
             </div>
@@ -298,8 +320,8 @@ export default function HousekeepingPage() {
                               <SelectItem value="available">Vacant Ready</SelectItem>
                               <SelectItem value="dirty">Vacant Dirty</SelectItem>
                               <SelectItem value="cleaning">Start Cleaning (Vac)</SelectItem>
-                              <SelectItem value="occupied">Occupied (Ready)</SelectItem>
-                              <SelectItem value="occupied_dirty">Occupied (Dirty)</SelectItem>
+                              <SelectItem value="occupied">Occupied Clean</SelectItem>
+                              <SelectItem value="occupied_dirty">Occupied Dirty</SelectItem>
                               <SelectItem value="occupied_cleaning">Start Cleaning (Occ)</SelectItem>
                               <SelectItem value="maintenance">Maintenance</SelectItem>
                             </SelectContent>
