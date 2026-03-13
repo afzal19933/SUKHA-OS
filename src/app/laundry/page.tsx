@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,9 @@ import {
   CheckCircle, 
   Loader2,
   Package,
-  ArrowRight
+  ArrowRight,
+  Trash2,
+  ShoppingCart
 } from "lucide-react";
 import { 
   Table, 
@@ -32,7 +35,8 @@ import {
   DialogHeader, 
   DialogTitle, 
   DialogTrigger,
-  DialogDescription
+  DialogDescription,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { 
   Select, 
@@ -42,13 +46,16 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { useAuthStore } from "@/store/authStore";
-import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
+import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
 import { collection, query, orderBy, doc } from "firebase/firestore";
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { sendNotification } from "@/firebase/notifications";
 
 export default function LaundryPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
+  const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
 
@@ -56,7 +63,16 @@ export default function LaundryPage() {
   const canManageOrders = ["owner", "admin", "manager", "supervisor", "staff"].includes(currentUserRole || "");
 
   const [isItemOpen, setIsItemOpen] = useState(false);
+  const [isOrderOpen, setIsOrderOpen] = useState(false);
   const [newItem, setNewItem] = useState({ name: "", type: "guest", hotelRate: "", vendorRate: "" });
+  
+  // New Order State
+  const [newOrder, setNewOrder] = useState({ 
+    roomId: "", 
+    roomNumber: "",
+    guestName: "", 
+    items: [] as { itemId: string, name: string, quantity: number, rate: number }[] 
+  });
 
   const itemsQuery = useMemoFirebase(() => {
     if (!entityId) return null;
@@ -68,8 +84,14 @@ export default function LaundryPage() {
     return query(collection(db, "hotel_properties", entityId, "guest_laundry_orders"), orderBy("createdAt", "desc"));
   }, [db, entityId]);
 
+  const roomsQuery = useMemoFirebase(() => {
+    if (!entityId) return null;
+    return query(collection(db, "hotel_properties", entityId, "rooms"), orderBy("roomNumber"));
+  }, [db, entityId]);
+
   const { data: items, isLoading: itemsLoading } = useCollection(itemsQuery);
   const { data: orders, isLoading: ordersLoading } = useCollection(ordersQuery);
+  const { data: rooms } = useCollection(roomsQuery);
 
   const handleAddServiceItem = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,6 +111,72 @@ export default function LaundryPage() {
     toast({ title: "Laundry Item Added" });
     setIsItemOpen(false);
     setNewItem({ name: "", type: "guest", hotelRate: "", vendorRate: "" });
+  };
+
+  const addItemToOrder = (itemId: string) => {
+    const item = items?.find(i => i.id === itemId);
+    if (!item) return;
+
+    const existing = newOrder.items.find(i => i.itemId === itemId);
+    if (existing) {
+      setNewOrder({
+        ...newOrder,
+        items: newOrder.items.map(i => i.itemId === itemId ? { ...i, quantity: i.quantity + 1 } : i)
+      });
+    } else {
+      setNewOrder({
+        ...newOrder,
+        items: [...newOrder.items, { itemId, name: item.itemName, quantity: 1, rate: item.hotelRate }]
+      });
+    }
+  };
+
+  const removeItemFromOrder = (itemId: string) => {
+    setNewOrder({
+      ...newOrder,
+      items: newOrder.items.filter(i => i.itemId !== itemId)
+    });
+  };
+
+  const updateItemQuantity = (itemId: string, quantity: number) => {
+    if (quantity < 1) return;
+    setNewOrder({
+      ...newOrder,
+      items: newOrder.items.map(i => i.itemId === itemId ? { ...i, quantity } : i)
+    });
+  };
+
+  const handleAddOrder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!entityId || !canManageOrders || !newOrder.roomId || newOrder.items.length === 0 || !user) {
+      toast({ variant: "destructive", title: "Error", description: "Please fill all details and add items." });
+      return;
+    }
+
+    const hotelTotal = newOrder.items.reduce((acc, i) => acc + (i.rate * i.quantity), 0);
+    
+    addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "guest_laundry_orders"), {
+      entityId,
+      roomId: newOrder.roomId,
+      roomNumber: newOrder.roomNumber,
+      guestName: newOrder.guestName,
+      items: newOrder.items,
+      itemIds: newOrder.items.map(i => i.itemId),
+      hotelTotal,
+      status: "sent",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    sendNotification(db, user.uid, entityId, {
+      title: "New Laundry Order",
+      message: `Order logged for Room ${newOrder.roomNumber} (${newOrder.guestName})`,
+      type: "info"
+    });
+
+    toast({ title: "Order Created", description: `Order for Room ${newOrder.roomNumber} logged successfully.` });
+    setIsOrderOpen(false);
+    setNewOrder({ roomId: "", roomNumber: "", guestName: "", items: [] });
   };
 
   const updateOrderStatus = (orderId: string, status: string) => {
@@ -115,18 +203,135 @@ export default function LaundryPage() {
 
         <Tabs defaultValue="orders" className="space-y-6">
           <TabsList className="bg-white border p-1 rounded-xl">
-            <TabsTrigger value="orders" className="rounded-lg">Guest Orders</TabsTrigger>
-            <TabsTrigger value="price-list" className="rounded-lg">Service Rates</TabsTrigger>
+            <TabsTrigger value="orders" className="rounded-lg h-8 text-xs px-6">Guest Orders</TabsTrigger>
+            <TabsTrigger value="price-list" className="rounded-lg h-8 text-xs px-6">Service Rates</TabsTrigger>
           </TabsList>
 
           <TabsContent value="orders" className="space-y-6">
             <div className="flex justify-between items-center gap-4">
               <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Search guest name or room..." className="pl-10" />
+                <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Search guest name or room..." className="pl-10 h-9 text-sm" />
               </div>
               {canManageOrders && (
-                <Button className="shadow-lg"><Plus className="w-4 h-4 mr-2" /> New Order</Button>
+                <Dialog open={isOrderOpen} onOpenChange={setIsOrderOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="shadow-lg h-9 text-sm"><Plus className="w-4 h-4 mr-2" /> New Order</Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[600px]">
+                    <DialogHeader>
+                      <DialogTitle>Create Guest Laundry Order</DialogTitle>
+                      <DialogDescription>Add items to be processed for a guest room.</DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleAddOrder} className="space-y-6 pt-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-xs">Room Number</Label>
+                          <Select 
+                            value={newOrder.roomId} 
+                            onValueChange={(val) => {
+                              const r = rooms?.find(room => room.id === val);
+                              setNewOrder({...newOrder, roomId: val, roomNumber: r?.roomNumber || ""});
+                            }}
+                          >
+                            <SelectTrigger className="h-9 text-sm">
+                              <SelectValue placeholder="Select Room" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {rooms?.map(room => (
+                                <SelectItem key={room.id} value={room.id}>Room {room.roomNumber}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Guest Name</Label>
+                          <Input 
+                            placeholder="Optional" 
+                            className="h-9 text-sm"
+                            value={newOrder.guestName}
+                            onChange={e => setNewOrder({...newOrder, guestName: e.target.value})}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-3">
+                          <Label className="text-xs font-bold uppercase tracking-wider">Available Services</Label>
+                          <ScrollArea className="h-[250px] border rounded-lg p-2 bg-secondary/10">
+                            <div className="space-y-1">
+                              {items?.filter(i => i.itemType === 'guest').map(item => (
+                                <div key={item.id} className="flex items-center justify-between p-2 hover:bg-white rounded-md transition-colors border border-transparent hover:border-border">
+                                  <div>
+                                    <p className="text-xs font-bold">{item.itemName}</p>
+                                    <p className="text-[10px] text-muted-foreground">₹{item.hotelRate}</p>
+                                  </div>
+                                  <Button 
+                                    type="button" 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-7 w-7 text-primary"
+                                    onClick={() => addItemToOrder(item.id)}
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                              {(!items || items.length === 0) && <p className="text-[10px] text-center text-muted-foreground py-10">No items configured.</p>}
+                            </div>
+                          </ScrollArea>
+                        </div>
+
+                        <div className="space-y-3">
+                          <Label className="text-xs font-bold uppercase tracking-wider">Selected Items</Label>
+                          <ScrollArea className="h-[250px] border rounded-lg p-2 bg-primary/5">
+                            <div className="space-y-2">
+                              {newOrder.items.map(i => (
+                                <div key={i.itemId} className="flex items-center justify-between p-2 bg-white rounded-md shadow-sm">
+                                  <div className="flex-1">
+                                    <p className="text-xs font-bold truncate">{i.name}</p>
+                                    <p className="text-[10px] text-muted-foreground">₹{i.rate * i.quantity}</p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Input 
+                                      type="number" 
+                                      className="w-12 h-7 text-[10px] p-1 text-center" 
+                                      value={i.quantity} 
+                                      onChange={(e) => updateItemQuantity(i.itemId, parseInt(e.target.value))}
+                                    />
+                                    <Button 
+                                      type="button" 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-7 w-7 text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                                      onClick={() => removeItemFromOrder(i.itemId)}
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                              {newOrder.items.length === 0 && (
+                                <div className="flex flex-col items-center justify-center py-10 text-muted-foreground opacity-30">
+                                  <ShoppingCart className="w-8 h-8 mb-1" />
+                                  <p className="text-[10px]">Cart is empty</p>
+                                </div>
+                              )}
+                            </div>
+                          </ScrollArea>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl border border-dashed">
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-muted-foreground">Total Billing</p>
+                          <p className="text-xl font-bold text-primary">₹{newOrder.items.reduce((acc, i) => acc + (i.rate * i.quantity), 0)}</p>
+                        </div>
+                        <Button type="submit" className="h-10 px-8 font-bold shadow-md">Create Order</Button>
+                      </div>
+                    </form>
+                  </DialogContent>
+                </Dialog>
               )}
             </div>
 
@@ -134,30 +339,34 @@ export default function LaundryPage() {
               <Table>
                 <TableHeader className="bg-secondary/50">
                   <TableRow>
-                    <TableHead>Order #</TableHead>
-                    <TableHead>Guest & Room</TableHead>
-                    <TableHead>Total Items</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-wider">Order #</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-wider">Guest & Room</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-wider">Details</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-wider">Amount</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-wider text-center">Status</TableHead>
+                    <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider pr-6">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {ordersLoading ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-10"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-10"><Loader2 className="animate-spin mx-auto text-primary" /></TableCell></TableRow>
                   ) : orders?.length ? (
                     orders.map(order => (
                       <TableRow key={order.id}>
-                        <TableCell className="font-mono text-xs">{order.id.slice(0, 8)}</TableCell>
+                        <TableCell className="font-mono text-[10px] font-semibold">{order.id.slice(0, 8).toUpperCase()}</TableCell>
                         <TableCell>
-                          <div className="font-medium">{order.guestName}</div>
-                          <div className="text-xs text-muted-foreground">Room {order.roomNumber}</div>
+                          <div className="font-bold text-sm">Room {order.roomNumber}</div>
+                          <div className="text-[10px] text-muted-foreground uppercase">{order.guestName || "Guest"}</div>
                         </TableCell>
-                        <TableCell>{order.itemIds?.length || 0} items</TableCell>
-                        <TableCell className="font-bold">₹{order.hotelTotal}</TableCell>
                         <TableCell>
+                          <div className="text-[10px] font-medium max-w-[200px] truncate">
+                            {order.items?.map((i: any) => `${i.quantity}x ${i.name}`).join(", ") || "No items"}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-bold text-sm">₹{order.hotelTotal}</TableCell>
+                        <TableCell className="text-center">
                           <Badge variant="outline" className={cn(
-                            "capitalize",
+                            "capitalize text-[9px] px-2 py-0.5 font-bold tracking-tight",
                             order.status === "sent" && "bg-amber-50 text-amber-600 border-amber-100",
                             order.status === "returned" && "bg-emerald-50 text-emerald-600 border-emerald-100",
                             order.status === "billed" && "bg-primary/10 text-primary border-primary/20"
@@ -165,17 +374,21 @@ export default function LaundryPage() {
                             {order.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
-                          {canManageOrders && (
-                            <Button variant="ghost" size="sm" onClick={() => updateOrderStatus(order.id, "returned")}>
-                              {order.status === "sent" ? "Mark Returned" : "Details"}
+                        <TableCell className="text-right pr-4">
+                          {canManageOrders && order.status === "sent" && (
+                            <Button variant="ghost" size="sm" className="h-8 text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" onClick={() => updateOrderStatus(order.id, "returned")}>
+                              Mark Returned
                             </Button>
                           )}
+                          <Button variant="ghost" size="icon" className="h-8 w-8 ml-1"><ArrowRight className="w-3.5 h-3.5" /></Button>
                         </TableCell>
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">No orders logged yet.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-16 flex flex-col items-center justify-center opacity-30">
+                      <Clock className="w-10 h-10 mb-2" />
+                      <p className="text-xs font-medium">No active laundry orders found.</p>
+                    </TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -184,11 +397,11 @@ export default function LaundryPage() {
 
           <TabsContent value="price-list" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold">Service Price List</h2>
+              <h2 className="text-xl font-bold tracking-tight">Service Rate Card</h2>
               {isAdmin && (
                 <Dialog open={isItemOpen} onOpenChange={setIsItemOpen}>
                   <DialogTrigger asChild>
-                    <Button className="shadow-lg"><Plus className="w-4 h-4 mr-2" /> Add Service Item</Button>
+                    <Button className="shadow-lg h-9 text-sm"><Plus className="w-4 h-4 mr-2" /> Add Service Item</Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
@@ -217,15 +430,15 @@ export default function LaundryPage() {
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Guest Rate</Label>
+                          <Label>Guest Rate (₹)</Label>
                           <Input type="number" placeholder="5.00" value={newItem.hotelRate} onChange={e => setNewItem({...newItem, hotelRate: e.target.value})} required />
                         </div>
                         <div className="space-y-2">
-                          <Label>Vendor Cost</Label>
+                          <Label>Vendor Cost (₹)</Label>
                           <Input type="number" placeholder="2.00" value={newItem.vendorRate} onChange={e => setNewItem({...newItem, vendorRate: e.target.value})} required />
                         </div>
                       </div>
-                      <Button type="submit" className="w-full">Save Service Item</Button>
+                      <Button type="submit" className="w-full h-10 font-bold">Save Service Item</Button>
                     </form>
                   </DialogContent>
                 </Dialog>
@@ -234,33 +447,39 @@ export default function LaundryPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {itemsLoading ? (
-                <div className="col-span-full flex justify-center py-10"><Loader2 className="animate-spin" /></div>
+                <div className="col-span-full flex justify-center py-10"><Loader2 className="animate-spin text-primary" /></div>
               ) : items?.map(item => (
-                <Card key={item.id} className="border-none shadow-sm hover:shadow-md transition-shadow">
+                <Card key={item.id} className="border-none shadow-sm hover:shadow-md transition-shadow group relative overflow-hidden bg-white">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-primary/20 group-hover:bg-primary transition-colors" />
                   <CardHeader className="p-4 flex flex-row items-center justify-between space-y-0">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-secondary rounded-lg">
+                      <div className="p-2 bg-secondary/50 rounded-lg">
                         <Package className="w-4 h-4 text-primary" />
                       </div>
-                      <CardTitle className="text-base">{item.itemName}</CardTitle>
+                      <CardTitle className="text-base font-bold">{item.itemName}</CardTitle>
                     </div>
-                    <Badge variant="secondary" className="capitalize text-[10px]">{item.itemType}</Badge>
+                    <Badge variant="secondary" className="capitalize text-[9px] font-bold px-1.5 h-4">{item.itemType}</Badge>
                   </CardHeader>
                   <CardContent className="p-4 pt-2">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-[10px] text-muted-foreground uppercase font-bold">Guest Price</p>
-                        <p className="text-xl font-bold">₹{item.hotelRate}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Guest Price</p>
+                        <p className="text-xl font-extrabold text-primary">₹{item.hotelRate}</p>
                       </div>
                       <ArrowRight className="w-4 h-4 text-muted-foreground opacity-30" />
                       <div className="text-right">
-                        <p className="text-[10px] text-muted-foreground uppercase font-bold">Vendor Cost</p>
-                        <p className="text-lg font-semibold text-muted-foreground">₹{item.vendorRate}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Vendor Cost</p>
+                        <p className="text-lg font-bold text-muted-foreground">₹{item.vendorRate}</p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               ))}
+              {(!items || items.length === 0) && (
+                <div className="col-span-full text-center py-20 border border-dashed rounded-3xl bg-secondary/5">
+                   <p className="text-sm text-muted-foreground">No service items configured. Click "Add Service Item" to begin.</p>
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
@@ -268,3 +487,4 @@ export default function LaundryPage() {
     </AppLayout>
   );
 }
+
