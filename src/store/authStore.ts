@@ -33,7 +33,7 @@ export const useAuthStore = create<AuthState>()(
       role: null,
       entityId: null,
       permissions: null,
-      theme: 'ayurveda',
+      theme: 'default',
       availableProperties: [],
       _hasHydrated: false,
       setUser: (user, claims) => {

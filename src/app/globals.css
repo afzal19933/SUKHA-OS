@@ -26,33 +26,6 @@
     --radius: 0.75rem;
   }
 
-  /* Royal Ayurveda Theme - $100M Luxury Wellness Style */
-  .theme-ayurveda {
-    --background: 167 52% 6%; /* #081915 - Forest Night */
-    --foreground: 48 30% 94%; /* #F5F3EA - Ivory Silk */
-    --card: 166 45% 13%; /* #122F28 - Dark Herbal */
-    --card-foreground: 48 30% 94%;
-    --popover: 166 45% 13%;
-    --popover-foreground: 48 30% 94%;
-    --primary: 40 48% 60%; /* #C8A96A - Temple Gold */
-    --primary-foreground: 167 52% 6%;
-    --secondary: 167 36% 16%; /* #1B3A34 - Soft Herbal */
-    --secondary-foreground: 43 14% 82%; /* #D9D4C8 - Soft Sand */
-    --muted: 166 45% 13%;
-    --muted-foreground: 153 6% 58%; /* #8E9A94 - Herbal Gray */
-    --accent: 161 61% 15%; /* #0F3D2E - Royal Emerald */
-    --accent-foreground: 48 30% 94%;
-    --border: 166 33% 23%; /* #274E45 - Moss Green */
-    --input: 166 43% 10%; /* #0F2621 - Dark Emerald */
-    --ring: 40 48% 60%;
-    --radius: 1rem;
-    
-    /* Specific Status Overrides */
-    --success: 142 30% 42%; /* #4C8C63 */
-    --warning: 40 62% 57%; /* #D6A74C */
-    --destructive: 0 35% 45%; /* #9C4A4A */
-  }
-
   .theme-emerald {
     --primary: 142 76% 36%;
     --ring: 142 76% 36%;
@@ -106,23 +79,5 @@
   }
   body {
     @apply bg-background text-foreground;
-  }
-}
-
-@layer components {
-  .glass-card {
-    @apply backdrop-blur-xl bg-card/70 border border-white/5 shadow-2xl;
-  }
-  
-  .gold-separator {
-    @apply h-px w-full bg-gradient-to-r from-transparent via-primary/40 to-transparent;
-  }
-
-  .font-ayurveda-heading {
-    font-family: 'Playfair Display', serif;
-  }
-
-  .font-ayurveda-stats {
-    font-family: 'Manrope', sans-serif;
   }
 }

@@ -32,9 +32,8 @@ import { collection, query, where } from "firebase/firestore";
 import { startOfDay, endOfDay } from "date-fns";
 
 export default function DashboardPage() {
-  const { entityId, theme } = useAuthStore();
+  const { entityId } = useAuthStore();
   const db = useFirestore();
-  const isAyurveda = theme === 'ayurveda';
 
   const roomsQuery = useMemoFirebase(() => {
     if (!entityId) return null;
@@ -106,36 +105,31 @@ export default function DashboardPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-8 max-w-5xl mx-auto">
+      <div className="space-y-8 max-w-7xl mx-auto">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight font-ayurveda-heading">Executive Dashboard</h1>
-          <p className="text-xs text-muted-foreground mt-1 uppercase tracking-[2px] font-medium opacity-70">Summary of property performance and room operations</p>
+          <h1 className="text-3xl font-bold tracking-tight">Executive Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Summary of property performance and room operations</p>
         </div>
-
-        <div className="gold-separator" />
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {PRIMARY_STATS.map((stat) => (
-            <Card key={stat.label} className={cn(
-              "border-none shadow-xl overflow-hidden transition-all hover:-translate-y-1",
-              isAyurveda ? "glass-card border-l-4 border-l-primary" : "bg-white"
-            )}>
+            <Card key={stat.label} className="border-none shadow-sm hover:shadow-md transition-all">
               <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-3">
-                  <div className={cn("p-2 rounded-xl", isAyurveda ? "bg-primary/20" : "bg-secondary")}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-secondary rounded-lg">
                     <stat.icon className="w-5 h-5 text-primary" />
                   </div>
                   <div className={cn(
                     "flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider",
-                    stat.trend === "up" ? "bg-emerald-500/10 text-emerald-500" : stat.trend === "down" ? "bg-rose-500/10 text-rose-500" : "bg-muted text-muted-foreground"
+                    stat.trend === "up" ? "bg-emerald-50 text-emerald-600" : stat.trend === "down" ? "bg-rose-50 text-rose-600" : "bg-muted text-muted-foreground"
                   )}>
                     {stat.change}
                     {stat.trend === "up" && <ArrowUpRight className="w-3 h-3 ml-0.5" />}
                   </div>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[1.5px]">{stat.label}</p>
-                  <h3 className="text-2xl font-bold mt-1 font-manrope">{stat.value}</h3>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{stat.label}</p>
+                  <h3 className="text-2xl font-bold mt-1">{stat.value}</h3>
                 </div>
               </CardContent>
             </Card>
@@ -144,17 +138,14 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {SECONDARY_STATS.map((stat) => (
-            <Card key={stat.label} className={cn(
-              "border-none shadow-lg transition-all hover:scale-[1.02]",
-              isAyurveda ? "glass-card" : "bg-white"
-            )}>
-              <CardContent className="p-5 flex items-center gap-5">
-                <div className={cn("p-3 rounded-2xl bg-secondary/50", stat.color)}>
-                  <stat.icon className="w-6 h-6" />
+            <Card key={stat.label} className="border-none shadow-sm">
+              <CardContent className="p-5 flex items-center gap-4">
+                <div className={cn("p-2.5 rounded-xl bg-secondary", stat.color)}>
+                  <stat.icon className="w-5 h-5" />
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{stat.label}</p>
-                  <h4 className="text-xl font-bold font-manrope">{stat.value}</h4>
+                  <h4 className="text-lg font-bold">{stat.value}</h4>
                 </div>
               </CardContent>
             </Card>
@@ -162,51 +153,41 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Card className={cn(
-            "border-none shadow-xl",
-            isAyurveda ? "glass-card" : "bg-white"
-          )}>
-            <CardHeader className="py-5">
-              <CardTitle className="text-base font-ayurveda-heading">Revenue Trends (Luxury KPI)</CardTitle>
+          <Card className="border-none shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base font-semibold">Revenue Trends</CardTitle>
             </CardHeader>
-            <CardContent className="h-[250px] p-6 pt-0">
+            <CardContent className="h-[300px] p-6 pt-0">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
                   <defs>
                     <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.1}/>
                       <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isAyurveda ? "rgba(255,255,255,0.05)" : "hsl(var(--border))"} />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 10}} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 10}} />
-                  <Tooltip 
-                    contentStyle={{borderRadius: '12px', border: 'none', backgroundColor: isAyurveda ? '#122F28' : '#fff', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', fontSize: '10px'}}
-                  />
-                  <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}} />
+                  <Tooltip />
+                  <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
                 </AreaChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          <Card className={cn(
-            "border-none shadow-xl",
-            isAyurveda ? "glass-card" : "bg-white"
-          )}>
-            <CardHeader className="py-5">
-              <CardTitle className="text-base font-ayurveda-heading">Occupancy Levels (%)</CardTitle>
+          <Card className="border-none shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base font-semibold">Occupancy Levels (%)</CardTitle>
             </CardHeader>
-            <CardContent className="h-[250px] p-6 pt-0">
+            <CardContent className="h-[300px] p-6 pt-0">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isAyurveda ? "rgba(255,255,255,0.05)" : "hsl(var(--border))"} />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 10}} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 10}} />
-                  <Tooltip 
-                    contentStyle={{borderRadius: '12px', border: 'none', backgroundColor: isAyurveda ? '#122F28' : '#fff', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', fontSize: '10px'}}
-                  />
-                  <Line type="monotone" dataKey="occupancy" stroke="hsl(var(--primary))" strokeWidth={3} dot={{r: 4, fill: 'hsl(var(--primary))', strokeWidth: 0}} activeDot={{r: 6}} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="occupancy" stroke="hsl(var(--primary))" strokeWidth={2} dot={{r: 4, fill: 'hsl(var(--primary))', strokeWidth: 0}} activeDot={{r: 6}} />
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>

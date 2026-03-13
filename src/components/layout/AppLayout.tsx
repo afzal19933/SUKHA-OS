@@ -56,7 +56,7 @@ const NAV_ITEMS = [
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user: firebaseUser, isUserLoading } = useUser();
-  const { _hasHydrated, role, permissions, entityId, setEntityId, availableProperties, theme } = useAuthStore();
+  const { _hasHydrated, role, permissions, entityId, setEntityId, availableProperties } = useAuthStore();
   const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -95,22 +95,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     router.push("/login");
   };
 
-  const isAyurveda = theme === 'ayurveda';
-
   return (
-    <div className={cn("flex h-screen bg-background overflow-hidden", isAyurveda && "theme-ayurveda")}>
+    <div className="flex h-screen bg-background overflow-hidden">
       <aside 
         className={cn(
           "bg-white border-r transition-all duration-300 ease-in-out flex flex-col",
-          sidebarOpen ? "w-64" : "w-20",
-          isAyurveda && "bg-[#081915] border-[#274E45]"
+          sidebarOpen ? "w-64" : "w-20"
         )}
       >
         <div className="p-6 flex items-center gap-3">
-          <div className="bg-primary h-8 w-8 rounded-lg flex items-center justify-center shrink-0 shadow-lg">
-            <span className="text-primary-foreground font-bold font-ayurveda-heading">S</span>
+          <div className="bg-primary h-8 w-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm">
+            <span className="text-primary-foreground font-bold">S</span>
           </div>
-          {sidebarOpen && <span className="font-bold text-xl tracking-tighter text-primary font-ayurveda-heading">SUKHA OS</span>}
+          {sidebarOpen && <span className="font-bold text-xl tracking-tight text-primary">SUKHA OS</span>}
         </div>
 
         <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
@@ -121,11 +118,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 p-3 rounded-xl transition-all group relative overflow-hidden",
+                  "flex items-center gap-3 p-3 rounded-xl transition-all group",
                   isActive 
-                    ? "bg-primary text-primary-foreground shadow-xl" 
-                    : "text-muted-foreground hover:bg-secondary/50 hover:text-primary",
-                  isAyurveda && isActive && "bg-[#1B3A34] text-[#F5F3EA] border-l-4 border-[#C8A96A] rounded-l-none"
+                    ? "bg-primary text-primary-foreground shadow-md" 
+                    : "text-muted-foreground hover:bg-secondary hover:text-primary"
                 )}
               >
                 <item.icon className={cn("w-5 h-5 shrink-0", isActive ? "text-primary-foreground" : "group-hover:text-primary")} />
@@ -137,27 +133,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className={cn(
-          "h-16 bg-white border-b flex items-center justify-between px-6 shrink-0 z-10",
-          isAyurveda && "bg-[#081915]/80 backdrop-blur-lg border-[#274E45]"
-        )}>
+        <header className="h-16 bg-white border-b flex items-center justify-between px-6 shrink-0 z-10">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} suppressHydrationWarning className="hover:bg-primary/10">
+            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} suppressHydrationWarning>
               <Menu className="w-5 h-5" />
             </Button>
 
-            {/* Entity Selector */}
             {availableProperties.length > 0 && (
-              <div className={cn(
-                "hidden md:flex items-center gap-2 px-3 py-1.5 bg-secondary/50 rounded-lg border border-border/50",
-                isAyurveda && "bg-[#122F28] border-[#274E45]"
-              )}>
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-secondary/50 rounded-lg border border-border/50">
                 <Building2 className="w-4 h-4 text-primary" />
                 <Select value={entityId || ""} onValueChange={(val) => setEntityId(val)}>
-                  <SelectTrigger className="w-[180px] h-8 border-none bg-transparent p-0 focus:ring-0 shadow-none font-semibold text-xs text-foreground">
+                  <SelectTrigger className="w-[180px] h-8 border-none bg-transparent p-0 focus:ring-0 shadow-none font-semibold text-xs">
                     <SelectValue placeholder="Select Property" />
                   </SelectTrigger>
-                  <SelectContent className={cn(isAyurveda && "bg-[#122F28] border-[#274E45]")}>
+                  <SelectContent>
                     {availableProperties.map((prop) => (
                       <SelectItem key={prop.id} value={prop.id} className="text-xs">
                         {prop.name}
@@ -170,18 +159,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="relative hover:bg-primary/10" suppressHydrationWarning>
+            <Button variant="ghost" size="icon" className="relative" suppressHydrationWarning>
               <Bell className="w-5 h-5 text-muted-foreground" />
               <span className="absolute top-2 right-2.5 w-2 h-2 bg-primary rounded-full border-2 border-background"></span>
             </Button>
             
-            <div className="flex items-center gap-3 pl-4 border-l border-border/50">
+            <div className="flex items-center gap-3 pl-4 border-l">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <div className="flex items-center gap-3 cursor-pointer group hover:opacity-80 transition-opacity">
+                  <div className="flex items-center gap-3 cursor-pointer group">
                     <div className="text-right hidden sm:block">
                       <p className="text-sm font-semibold leading-none">{firebaseUser?.displayName || "Admin User"}</p>
-                      <p className="text-xs text-muted-foreground capitalize font-manrope">{role || "Staff"}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{role || "Staff"}</p>
                     </div>
                     <Avatar className="ring-offset-2 ring-primary transition-all group-hover:ring-2 h-9 w-9">
                       <AvatarImage src={`https://picsum.photos/seed/${firebaseUser?.uid}/40/40`} />
@@ -191,14 +180,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     </Avatar>
                   </div>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className={cn("w-56", isAyurveda && "bg-[#122F28] border-[#274E45]")}>
+                <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator className={cn(isAyurveda && "bg-[#274E45]")} />
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => router.push('/settings')}>
                     <Settings className="mr-2 h-4 w-4" />
                     <span>Settings</span>
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator className={cn(isAyurveda && "bg-[#274E45]")} />
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Logout</span>
@@ -209,7 +198,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 md:p-10">
+        <main className="flex-1 overflow-y-auto p-6 md:p-8">
           {children}
         </main>
       </div>
