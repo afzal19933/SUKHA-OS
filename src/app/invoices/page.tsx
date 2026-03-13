@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Printer, FileText, Search, Loader2, Building2 } from "lucide-react";
+import { Printer, FileText, Search, Loader2, Building2, MapPin, Phone, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
   Table, 
@@ -17,9 +17,6 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Dialog, 
   DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription 
 } from "@/components/ui/dialog";
 import { cn, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
@@ -50,7 +47,6 @@ export default function InvoicesPage() {
   const { data: property } = useDoc(propertyRef);
 
   const totalRevenue = invoices?.reduce((acc, inv) => acc + (inv.totalAmount || 0), 0) || 0;
-  const outstanding = invoices?.reduce((acc, inv) => acc + (inv.balance || 0), 0) || 0;
 
   const handlePrint = () => {
     window.print();
@@ -58,29 +54,20 @@ export default function InvoicesPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-5xl mx-auto">
+      <div className="space-y-6 max-w-4xl mx-auto">
         <div>
-          <h1 className="text-xl font-bold tracking-tight">Invoices</h1>
+          <h1 className="text-xl font-bold tracking-tight">GST Invoices</h1>
           <p className="text-[10px] text-muted-foreground mt-0.5 uppercase font-bold tracking-widest">Billing records and folio history</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="p-3 bg-white rounded-xl border shadow-sm flex items-center gap-2.5">
             <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
               <FileText className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Total Revenue</p>
+              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Total Collected Revenue</p>
               <h3 className="text-sm font-bold">₹{totalRevenue.toLocaleString()}</h3>
-            </div>
-          </div>
-          <div className="p-3 bg-white rounded-xl border shadow-sm flex items-center gap-2.5">
-            <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg">
-              <FileText className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Outstanding</p>
-              <h3 className="text-sm font-bold">₹{outstanding.toLocaleString()}</h3>
             </div>
           </div>
           <div className="p-3 bg-white rounded-xl border shadow-sm flex items-center gap-2.5">
@@ -88,7 +75,7 @@ export default function InvoicesPage() {
               <Printer className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Processed</p>
+              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Total Invoices Issued</p>
               <h3 className="text-sm font-bold">{invoices?.length || 0} Invoices</h3>
             </div>
           </div>
@@ -108,15 +95,14 @@ export default function InvoicesPage() {
                 <TableHead className="px-4 h-9 text-[9px] font-bold uppercase tracking-wider">Invoice #</TableHead>
                 <TableHead className="h-9 text-[9px] font-bold uppercase tracking-wider">Guest</TableHead>
                 <TableHead className="h-9 text-[9px] font-bold uppercase tracking-wider">Date</TableHead>
-                <TableHead className="h-9 text-[9px] font-bold uppercase tracking-wider">Total Amount</TableHead>
-                <TableHead className="h-9 text-[9px] font-bold uppercase tracking-wider">Status</TableHead>
+                <TableHead className="h-9 text-[9px] font-bold uppercase tracking-wider text-right">Grand Total</TableHead>
                 <TableHead className="text-right px-4 h-9 text-[9px] font-bold uppercase tracking-wider">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                  <TableCell colSpan={5} className="text-center py-8">
                     <Loader2 className="w-4 h-4 animate-spin mx-auto text-primary" />
                   </TableCell>
                 </TableRow>
@@ -124,29 +110,19 @@ export default function InvoicesPage() {
                 invoices.map((inv) => (
                   <TableRow key={inv.id} className="hover:bg-secondary/10 group">
                     <TableCell className="px-4 font-mono text-[10px] font-bold text-primary">{inv.invoiceNumber}</TableCell>
-                    <TableCell className="text-[11px] font-medium">{inv.guestName}</TableCell>
+                    <TableCell className="text-[11px] font-medium">{inv.guestDetails?.name}</TableCell>
                     <TableCell className="text-[10px]">{formatAppDate(inv.createdAt)}</TableCell>
-                    <TableCell className="font-bold text-[11px]">₹{inv.totalAmount?.toLocaleString()}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={cn(
-                        "capitalize text-[8px] h-4 px-1.5",
-                        inv.status === "paid" && "bg-emerald-50 text-emerald-600 border-emerald-100",
-                        inv.status === "issued" && "bg-rose-50 text-rose-600 border-rose-100",
-                        inv.status === "draft" && "bg-amber-50 text-amber-600 border-amber-100"
-                      )}>
-                        {inv.status}
-                      </Badge>
-                    </TableCell>
+                    <TableCell className="font-bold text-[11px] text-right">₹{inv.totalAmount?.toLocaleString()}</TableCell>
                     <TableCell className="text-right px-4">
                       <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setSelectedInvoice(inv)}>
-                        View Folio
+                        View/Print GST Invoice
                       </Button>
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-[10px] uppercase font-bold text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center py-12 text-[10px] uppercase font-bold text-muted-foreground">
                     No billing records found.
                   </TableCell>
                 </TableRow>
@@ -155,83 +131,155 @@ export default function InvoicesPage() {
           </Table>
         </div>
 
-        {/* Invoice Detail Dialog */}
+        {/* GST Invoice Dialog */}
         <Dialog open={!!selectedInvoice} onOpenChange={(o) => !o && setSelectedInvoice(null)}>
-          <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden">
-            <div className="p-8 space-y-6 bg-white" id="printable-invoice">
-              <div className="flex justify-between items-start">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                      <Building2 className="w-5 h-5 text-white" />
+          <DialogContent className="max-w-[800px] p-0 overflow-hidden bg-white">
+            <div className="p-10 space-y-6" id="printable-invoice">
+              {/* Header */}
+              <div className="flex justify-between items-start border-b-2 border-primary pb-6">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white shadow-lg">
+                      <Building2 className="w-6 h-6" />
                     </div>
-                    <h2 className="text-lg font-bold uppercase tracking-tight">{property?.name || "SUKHA RETREATS"}</h2>
+                    <div>
+                      <h2 className="text-xl font-black text-primary uppercase tracking-tighter">Sukha Retreats</h2>
+                      <p className="text-[8px] font-bold uppercase text-muted-foreground tracking-widest">Professional Property Management</p>
+                    </div>
                   </div>
-                  <p className="text-[9px] text-muted-foreground max-w-[200px] font-medium leading-relaxed">
-                    {property?.address || "Address details on file"}
-                  </p>
+                  <div className="text-[10px] text-muted-foreground space-y-0.5 mt-2">
+                    <div className="flex items-center gap-1.5"><MapPin className="w-3 h-3 text-primary" /> Peringazha, HMT Colony, North Kalamassery, Kochi, Kerala 683503</div>
+                    <div className="flex items-center gap-1.5"><Phone className="w-3 h-3 text-primary" /> +91 9895556667</div>
+                    <div className="flex items-center gap-1.5"><Mail className="w-3 h-3 text-primary" /> sukharetreats2023@gmail.com</div>
+                    <div className="font-bold text-primary mt-1">GSTIN: 32AFAFS2812R1ZU</div>
+                  </div>
                 </div>
-                <div className="text-right space-y-1">
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-primary">Tax Invoice</h3>
-                  <p className="text-[10px] font-bold font-mono">{selectedInvoice?.invoiceNumber}</p>
-                  <p className="text-[9px] text-muted-foreground font-bold">{formatAppDate(selectedInvoice?.createdAt)}</p>
-                </div>
-              </div>
-
-              <Separator className="bg-primary/10" />
-
-              <div className="grid grid-cols-2 gap-8 text-[10px]">
-                <div className="space-y-1.5">
-                  <p className="text-[8px] font-bold uppercase text-muted-foreground">Billed To</p>
-                  <p className="font-bold text-sm">{selectedInvoice?.guestName}</p>
-                  <p className="text-muted-foreground">Room #{selectedInvoice?.roomNumber}</p>
-                </div>
-                <div className="space-y-1.5 text-right">
-                  <p className="text-[8px] font-bold uppercase text-muted-foreground">Stay Info</p>
-                  <p className="font-bold">Reservation ID: {selectedInvoice?.reservationId?.slice(-6).toUpperCase()}</p>
-                  <p className="text-muted-foreground">Folio Settlement: {selectedInvoice?.status?.toUpperCase()}</p>
+                <div className="text-right space-y-2">
+                  <Badge className="bg-primary text-white text-[12px] font-black px-4 py-1.5 uppercase rounded-lg shadow-md mb-2">TAX INVOICE</Badge>
+                  <div className="text-[10px] font-bold uppercase text-muted-foreground">Invoice Details</div>
+                  <div className="font-mono text-[14px] font-black text-primary">{selectedInvoice?.invoiceNumber}</div>
+                  <div className="text-[11px] font-bold">{formatAppDate(selectedInvoice?.createdAt)}</div>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <Table>
-                  <TableHeader className="bg-secondary/30">
-                    <TableRow className="h-8">
-                      <TableHead className="text-[9px] font-bold uppercase">Description</TableHead>
-                      <TableHead className="text-right text-[9px] font-bold uppercase">Amount</TableHead>
+              {/* Guest & Stay Details */}
+              <div className="grid grid-cols-2 gap-10 pt-4">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-[10px] font-black uppercase text-primary border-b border-primary/20 pb-1 mb-2">Billed To</h3>
+                    <div className="space-y-1">
+                      <p className="text-[13px] font-black">{selectedInvoice?.guestDetails?.name}</p>
+                      <p className="text-[11px] text-muted-foreground">{selectedInvoice?.guestDetails?.address}</p>
+                      <p className="text-[11px] font-bold">Contact: {selectedInvoice?.guestDetails?.contact}</p>
+                      <p className="text-[11px] font-bold uppercase">State: {selectedInvoice?.guestDetails?.state}</p>
+                      {selectedInvoice?.guestDetails?.gstin !== "N/A" && (
+                        <p className="text-[11px] font-black text-primary">GSTIN: {selectedInvoice?.guestDetails?.gstin}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-[10px] font-black uppercase text-primary border-b border-primary/20 pb-1 mb-2">Stay Info</h3>
+                    <div className="grid grid-cols-2 gap-y-2 text-[11px]">
+                      <span className="font-bold text-muted-foreground">Room Number:</span>
+                      <span className="font-black text-right">{selectedInvoice?.stayDetails?.roomNumber}</span>
+                      <span className="font-bold text-muted-foreground">Arrival Date:</span>
+                      <span className="font-black text-right">{formatAppDate(selectedInvoice?.stayDetails?.arrivalDate)}</span>
+                      <span className="font-bold text-muted-foreground">Check-Out Date:</span>
+                      <span className="font-black text-right">{formatAppDate(selectedInvoice?.stayDetails?.departureDate)}</span>
+                      <span className="font-bold text-muted-foreground">Place of Supply:</span>
+                      <span className="font-black text-right">{selectedInvoice?.stayDetails?.placeOfSupply}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="pt-4">
+                <Table className="border-2 border-primary/10 rounded-xl overflow-hidden shadow-sm">
+                  <TableHeader className="bg-primary/5">
+                    <TableRow className="h-10 hover:bg-transparent">
+                      <TableHead className="text-[11px] font-black uppercase text-primary w-12 text-center">#</TableHead>
+                      <TableHead className="text-[11px] font-black uppercase text-primary">Item / Description</TableHead>
+                      <TableHead className="text-[11px] font-black uppercase text-primary text-center">Qty</TableHead>
+                      <TableHead className="text-[11px] font-black uppercase text-primary text-right">Unit Price</TableHead>
+                      <TableHead className="text-[11px] font-black uppercase text-primary text-center">GST %</TableHead>
+                      <TableHead className="text-[11px] font-black uppercase text-primary text-right pr-6">Amount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {selectedInvoice?.items?.map((item: any, idx: number) => (
-                      <TableRow key={idx} className="h-9 border-b border-primary/5">
-                        <TableCell className="text-[10px] font-medium">{item.description}</TableCell>
-                        <TableCell className="text-right text-[10px] font-bold">₹{item.amount?.toLocaleString()}</TableCell>
+                      <TableRow key={idx} className="h-12 hover:bg-transparent border-b border-primary/5">
+                        <TableCell className="text-[11px] text-center font-bold text-muted-foreground">{idx + 1}</TableCell>
+                        <TableCell className="text-[11px] font-black">{item.name}</TableCell>
+                        <TableCell className="text-[11px] text-center font-bold">{item.qty}</TableCell>
+                        <TableCell className="text-[11px] text-right font-bold">₹{item.price?.toLocaleString()}</TableCell>
+                        <TableCell className="text-[11px] text-center font-bold">{item.gstRate}%</TableCell>
+                        <TableCell className="text-[11px] text-right font-black pr-6">₹{item.amount?.toLocaleString()}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
 
-              <div className="flex justify-end pt-4">
-                <div className="w-48 space-y-2">
-                  <div className="flex justify-between text-[11px] font-bold">
-                    <span className="text-muted-foreground">Grand Total</span>
-                    <span className="text-primary text-base">₹{selectedInvoice?.totalAmount?.toLocaleString()}</span>
+              {/* Calculation Area */}
+              <div className="grid grid-cols-2 gap-10 pt-6">
+                <div className="space-y-4">
+                  <div className="p-4 bg-secondary/20 rounded-xl space-y-3">
+                    <p className="text-[10px] font-black uppercase text-primary border-b border-primary/10 pb-1">Payment Details</p>
+                    <div className="text-[11px] space-y-1">
+                      <p><span className="font-bold text-muted-foreground">Bank:</span> Federal Bank, Thaikkattukara</p>
+                      <p><span className="font-bold text-muted-foreground">A/C:</span> 15120200004470</p>
+                      <p><span className="font-bold text-muted-foreground">IFSC:</span> FDRL0001512</p>
+                      <p><span className="font-bold text-muted-foreground">Account Holder:</span> Sukharetreats</p>
+                    </div>
                   </div>
-                  <div className="pt-2 border-t">
-                    <p className="text-[8px] text-muted-foreground uppercase text-right leading-relaxed font-medium">
-                      Note: This is a computer-generated document. No signature is required.
-                    </p>
+                  <div className="pt-2">
+                    <p className="text-[10px] font-black uppercase text-muted-foreground">Amount in Words:</p>
+                    <p className="text-[12px] font-black text-primary leading-tight">{selectedInvoice?.totalInWords}</p>
+                  </div>
+                </div>
+                <div className="space-y-1 px-4">
+                  <div className="flex justify-between text-[11px] py-1">
+                    <span className="font-bold text-muted-foreground">Subtotal</span>
+                    <span className="font-black">₹{selectedInvoice?.subtotal?.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px] py-1">
+                    <span className="font-bold text-muted-foreground">CGST (2.5%)</span>
+                    <span className="font-black">₹{selectedInvoice?.cgst?.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px] py-1">
+                    <span className="font-bold text-muted-foreground">SGST (2.5%)</span>
+                    <span className="font-black">₹{selectedInvoice?.sgst?.toLocaleString()}</span>
+                  </div>
+                  <Separator className="bg-primary/20 my-2" />
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-[14px] font-black text-primary uppercase">Grand Total</span>
+                    <span className="text-[20px] font-black text-primary">₹{Math.round(selectedInvoice?.totalAmount || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="pt-6 text-center space-y-4">
+                    <div className="h-16 w-full flex items-end justify-center">
+                       <div className="border-t-2 border-primary/30 w-48 pt-2">
+                        <p className="text-[10px] font-black uppercase text-primary">Authorized Signatory</p>
+                       </div>
+                    </div>
                   </div>
                 </div>
               </div>
+
+              {/* Footer */}
+              <div className="pt-10 text-center border-t-2 border-primary/10">
+                <p className="text-[12px] font-black text-primary italic">"Thanks for doing business with us!"</p>
+                <p className="text-[9px] text-muted-foreground mt-2 font-bold uppercase tracking-widest">Computer Generated Document - No Signature Required</p>
+              </div>
             </div>
             
-            <div className="p-4 bg-secondary/30 border-t flex justify-between gap-3 no-print">
-               <Button variant="ghost" className="text-xs font-bold" onClick={() => setSelectedInvoice(null)}>Close</Button>
-               <Button className="h-9 px-6 font-bold text-xs shadow-md" onClick={handlePrint}>
-                 <Printer className="w-3.5 h-3.5 mr-2" />
-                 Print / Download PDF
+            <div className="p-6 bg-secondary/50 border-t flex justify-end gap-3 no-print">
+               <Button variant="ghost" className="font-black text-xs uppercase" onClick={() => setSelectedInvoice(null)}>Close</Button>
+               <Button className="h-10 px-8 font-black text-xs uppercase shadow-xl" onClick={handlePrint}>
+                 <Printer className="w-4 h-4 mr-2" />
+                 Download PDF / Print
                </Button>
             </div>
           </DialogContent>

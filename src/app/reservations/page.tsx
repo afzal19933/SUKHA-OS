@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { 
@@ -11,10 +11,8 @@ import {
   Receipt,
   AlertCircle,
   CreditCard,
-  History,
   User,
   CalendarDays,
-  Globe,
   Tag
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -27,10 +25,10 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { cn, formatAppDate } from "@/lib/utils";
+import { cn, formatAppDate, generateInvoiceNumber, numberToWords } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
-import { collection, doc, query, where, orderBy } from "firebase/firestore";
+import { collection, doc, query, orderBy } from "firebase/firestore";
 import { 
   Dialog, 
   DialogContent, 
@@ -51,7 +49,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { sendNotification } from "@/firebase/notifications";
-import { isToday, isTomorrow, parseISO } from "date-fns";
+import { isToday, isTomorrow, parseISO, differenceInDays } from "date-fns";
 
 const BOOKING_SOURCES = [
   "Direct", 
@@ -62,13 +60,6 @@ const BOOKING_SOURCES = [
   "Ayursiha", 
   "Travel Agent", 
   "Corporate"
-];
-
-const ID_TYPES = [
-  "Aadhar",
-  "D.L",
-  "PAN",
-  "Passport"
 ];
 
 export default function ReservationsPage() {
@@ -97,7 +88,10 @@ export default function ReservationsPage() {
   const [checkInForm, setCheckInForm] = useState({
     nationality: "Indian",
     idType: "Aadhar",
-    idNumber: ""
+    idNumber: "",
+    address: "",
+    contact: "",
+    state: "Kerala"
   });
 
   // Queries
@@ -168,39 +162,61 @@ export default function ReservationsPage() {
   const generateInvoice = async (res: any) => {
     if (!entityId || !res) return;
 
-    const checkIn = new Date(res.checkInDate);
-    const checkOut = new Date();
-    const diffTime = Math.abs(checkOut.getTime() - checkIn.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+    const arrival = parseISO(res.checkInDate);
+    const departure = new Date();
+    const nights = Math.max(differenceInDays(departure, arrival), 1);
 
     const roomNumStr = res.roomNumber?.toString().trim();
     const room = rooms?.find(r => r.roomNumber?.toString().trim() === roomNumStr);
     const roomType = roomTypes?.find(t => t.id === room?.roomTypeId);
+    
     const baseRate = roomType?.baseRate || 0;
-    const roomTotal = baseRate * diffDays;
+    const subtotal = baseRate * nights;
+    
+    // Tax Calculation (Room Rent = 5% Total)
+    const cgst = subtotal * 0.025;
+    const sgst = subtotal * 0.025;
+    const totalAmount = subtotal + cgst + sgst;
 
-    const totalBeforeTax = roomTotal;
-    const gstAmount = totalBeforeTax * 0.05;
-    const grandTotal = totalBeforeTax + gstAmount;
+    const invoiceNumber = generateInvoiceNumber();
 
-    const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
-
-    addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "invoices"), {
+    const invoiceData = {
       entityId,
       invoiceNumber,
       reservationId: res.id,
-      guestName: res.guestName,
-      roomNumber: res.roomNumber,
-      totalAmount: grandTotal,
-      balance: 0,
-      status: "paid",
+      guestDetails: {
+        name: res.guestName,
+        address: res.address || "TBD",
+        contact: res.contact || "TBD",
+        gstin: res.guestGstin || "N/A",
+        state: res.state || "Kerala"
+      },
+      stayDetails: {
+        arrivalDate: res.checkInDate,
+        departureDate: new Date().toISOString().split('T')[0],
+        roomNumber: res.roomNumber,
+        placeOfSupply: "Kerala"
+      },
       items: [
-        { description: `Room Stay (${diffDays} nights)`, amount: roomTotal },
-        { description: "Taxes (GST)", amount: gstAmount }
+        { 
+          name: `Room Stay (${nights} Nights)`, 
+          qty: nights, 
+          price: baseRate, 
+          gstRate: 5,
+          amount: subtotal 
+        }
       ],
+      subtotal,
+      cgst,
+      sgst,
+      totalAmount,
+      totalInWords: numberToWords(Math.round(totalAmount)),
+      status: "paid",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    });
+    };
+
+    addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "invoices"), invoiceData);
     return invoiceNumber;
   };
 
@@ -219,6 +235,9 @@ export default function ReservationsPage() {
       updateData.nationality = checkInForm.nationality;
       updateData.idType = checkInForm.idType;
       updateData.idNumber = checkInForm.idNumber;
+      updateData.address = checkInForm.address;
+      updateData.contact = checkInForm.contact;
+      updateData.state = checkInForm.state;
     }
 
     if (status === 'checked_out') {
@@ -391,7 +410,7 @@ export default function ReservationsPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right px-4">
-                        <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold text-primary" onClick={() => { setSelectedRes(res); setCheckInForm({ nationality: res.nationality || "Indian", idType: res.idType || "Aadhar", idNumber: res.idNumber || "" }); setIsDetailsOpen(true); }}>
+                        <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold text-primary" onClick={() => { setSelectedRes(res); setCheckInForm({ nationality: res.nationality || "Indian", idType: res.idType || "Aadhar", idNumber: res.idNumber || "", address: res.address || "", contact: res.contact || "", state: res.state || "Kerala" }); setIsDetailsOpen(true); }}>
                           Folio
                         </Button>
                       </TableCell>
@@ -427,51 +446,33 @@ export default function ReservationsPage() {
                   </div>
                 </div>
 
-                {selectedRes.status === 'checked_in' && (
-                  <div className="p-2.5 border rounded-xl bg-amber-50/30 space-y-2">
-                    <p className="text-[9px] font-bold uppercase text-amber-700 flex items-center gap-1.5">
-                      <CreditCard className="w-3.5 h-3.5" /> Service Dues
-                    </p>
-                    <div className="flex justify-between items-center text-[11px]">
-                      <span className="text-muted-foreground">Laundry Balance:</span>
-                      <span className={cn("font-bold", getLaundryBalance(selectedRes.id) > 0 ? "text-rose-600" : "text-emerald-600")}>
-                        ₹{getLaundryBalance(selectedRes.id).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
                 <div className="space-y-2 pt-2">
                   {selectedRes.status === 'confirmed' && (
                     <div className="space-y-3">
                       <div className="space-y-2 border-t pt-3">
                         <Label className="text-[9px] uppercase font-bold text-muted-foreground">Check-In Requirements</Label>
+                        <Input placeholder="Guest Contact" className="h-7 text-[10px]" value={checkInForm.contact} onChange={(e) => setCheckInForm({...checkInForm, contact: e.target.value})} />
+                        <Input placeholder="Guest Address" className="h-7 text-[10px]" value={checkInForm.address} onChange={(e) => setCheckInForm({...checkInForm, address: e.target.value})} />
                         <div className="grid grid-cols-2 gap-2">
                           <Input placeholder="ID Type" className="h-7 text-[10px]" value={checkInForm.idType} onChange={(e) => setCheckInForm({...checkInForm, idType: e.target.value})} />
                           <Input placeholder="ID Number" className="h-7 text-[10px]" value={checkInForm.idNumber} onChange={(e) => setCheckInForm({...checkInForm, idNumber: e.target.value})} />
                         </div>
-                        <Input placeholder="Nationality" className="h-7 text-[10px]" value={checkInForm.nationality} onChange={(e) => setCheckInForm({...checkInForm, nationality: e.target.value})} />
                       </div>
                       <Button className="w-full h-9 text-[11px] font-bold" onClick={() => updateStatus(selectedRes.id, 'checked_in')} disabled={!checkInForm.idNumber}>Process Check-In</Button>
                     </div>
                   )}
                   {selectedRes.status === 'checked_in' && (
                     <div className="space-y-2">
-                      {getLaundryBalance(selectedRes.id) > 0 && (
-                        <p className="text-[8px] text-center text-rose-500 font-bold uppercase animate-pulse px-4">
-                          * Settle auxiliary service dues before closing stay
-                        </p>
-                      )}
-                      <Button variant="destructive" className="w-full h-9 text-[11px] font-bold" onClick={() => updateStatus(selectedRes.id, 'checked_out')} disabled={isProcessingCheckout || getLaundryBalance(selectedRes.id) > 0}>
+                      <Button variant="destructive" className="w-full h-9 text-[11px] font-bold" onClick={() => updateStatus(selectedRes.id, 'checked_out')} disabled={isProcessingCheckout}>
                         {isProcessingCheckout ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : <Receipt className="w-3 h-3 mr-1.5" />}
-                        Generate Invoice & Check-Out
+                        Generate GST Invoice & Check-Out
                       </Button>
                     </div>
                   )}
                   {selectedRes.status === 'checked_out' && (
                     <div className="p-3 bg-secondary/30 rounded-lg text-center">
                       <p className="text-[10px] font-bold uppercase text-muted-foreground">Stay Closed</p>
-                      <p className="text-[9px] mt-1 italic">Invoice #{selectedRes.invoiceNumber || 'N/A'}</p>
+                      <p className="text-[9px] mt-1 italic font-mono">Invoice #{selectedRes.invoiceNumber || 'N/A'}</p>
                     </div>
                   )}
                 </div>
