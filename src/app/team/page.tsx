@@ -27,7 +27,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/badge";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
@@ -236,7 +236,7 @@ export default function TeamPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-8 max-w-7xl mx-auto">
+      <div className="space-y-8 max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Team Management</h1>

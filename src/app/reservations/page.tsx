@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -32,7 +31,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/badge";
 import { cn, formatAppDate, formatAppTime } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
@@ -181,15 +180,8 @@ export default function ReservationsPage() {
     const baseRate = roomType?.baseRate || 0;
     const roomTotal = baseRate * diffDays;
 
-    // 3. Get Laundry Charges
-    const laundryQuery = query(
-      collection(db, "hotel_properties", entityId, "guest_laundry_orders"),
-      where("reservationId", "==", res.id)
-    );
-    const laundrySnap = await getDocs(laundryQuery);
-    const laundryTotal = laundrySnap.docs.reduce((acc, d) => acc + (d.data().hotelTotal || 0), 0);
-
-    const totalBeforeTax = roomTotal + laundryTotal;
+    // 3. Calculate GST and Totals (Excluding Laundry as requested)
+    const totalBeforeTax = roomTotal;
     const gstAmount = totalBeforeTax * 0.05; // Average GST
     const grandTotal = totalBeforeTax + gstAmount;
 
@@ -206,7 +198,6 @@ export default function ReservationsPage() {
       status: "paid",
       items: [
         { description: `Room Stay (${diffDays} nights)`, amount: roomTotal },
-        { description: "Laundry Services", amount: laundryTotal },
         { description: "Taxes (GST)", amount: gstAmount }
       ],
       createdAt: new Date().toISOString(),
@@ -333,7 +324,7 @@ export default function ReservationsPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-5xl mx-auto">
+      <div className="space-y-6 max-w-4xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-bold tracking-tight">Reservations</h1>

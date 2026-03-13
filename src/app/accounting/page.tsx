@@ -24,7 +24,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Dialog, 
@@ -49,7 +49,6 @@ import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebas
 import { collection, query, orderBy, doc } from "firebase/firestore";
 import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
-import { sendNotification } from "@/firebase/notifications";
 
 const EXPENSE_CATEGORIES = [
   "Utilities",
@@ -118,7 +117,7 @@ export default function AccountingPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-6xl mx-auto">
+      <div className="space-y-6 max-w-5xl mx-auto">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Accounting</h1>

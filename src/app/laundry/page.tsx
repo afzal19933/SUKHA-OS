@@ -5,7 +5,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { 
@@ -203,7 +203,7 @@ export default function LaundryPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-primary/10 rounded-xl">
@@ -273,7 +273,7 @@ export default function LaundryPage() {
                   <DialogTrigger asChild>
                     <Button className="h-9 px-5 font-bold text-xs"><Plus className="w-3.5 h-3.5 mr-1.5" /> New Order</Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-[480px]">
+                  <DialogContent className="sm:max-w-[380px]">
                     <DialogHeader><DialogTitle className="text-base">New Guest Order</DialogTitle></DialogHeader>
                     <form onSubmit={handleAddOrder} className="space-y-3 pt-1">
                       <div className="grid grid-cols-2 gap-3">
@@ -306,7 +306,7 @@ export default function LaundryPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-[9px] uppercase font-bold text-primary">Service List</Label>
-                          <ScrollArea className="h-[200px] border rounded-lg p-1.5 bg-secondary/10">
+                          <ScrollArea className="h-[160px] border rounded-lg p-1.5 bg-secondary/10">
                             {guestItems.map(item => (
                               <div key={item.id} className="flex items-center justify-between p-1.5 mb-1 bg-white border rounded shadow-sm">
                                 <span className="text-[10px] font-bold truncate flex-1">{item.itemName}</span>
@@ -317,7 +317,7 @@ export default function LaundryPage() {
                         </div>
                         <div className="space-y-1">
                           <Label className="text-[9px] uppercase font-bold text-primary">Basket</Label>
-                          <ScrollArea className="h-[200px] border rounded-lg p-1.5 bg-primary/5">
+                          <ScrollArea className="h-[160px] border rounded-lg p-1.5 bg-primary/5">
                             {newOrder.items.map(i => (
                               <div key={i.itemId} className="flex items-center justify-between p-1.5 mb-1 bg-white rounded border shadow-sm">
                                 <span className="text-[10px] font-bold truncate flex-1">{i.name}</span>
@@ -385,6 +385,50 @@ export default function LaundryPage() {
                   ) : (
                     <TableRow><TableCell colSpan={5} className="text-center py-12 text-xs text-muted-foreground">No orders found.</TableCell></TableRow>
                   )}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="guest-items" className="space-y-4">
+            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+               <Table>
+                <TableHeader className="bg-secondary/50">
+                  <TableRow>
+                    <TableHead className="text-[10px] h-10 font-bold uppercase pl-5">Item Name</TableHead>
+                    <TableHead className="text-[10px] h-10 font-bold uppercase">Hotel Rate</TableHead>
+                    <TableHead className="text-[10px] h-10 font-bold uppercase">Vendor Rate</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {guestItems.map(item => (
+                    <TableRow key={item.id}>
+                      <TableCell className="pl-5 text-xs font-bold">{item.itemName}</TableCell>
+                      <TableCell className="text-xs">₹{item.hotelRate}</TableCell>
+                      <TableCell className="text-xs">₹{item.vendorRate}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="hotel-laundry" className="space-y-4">
+            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+               <Table>
+                <TableHeader className="bg-secondary/50">
+                  <TableRow>
+                    <TableHead className="text-[10px] h-10 font-bold uppercase pl-5">Linen Name</TableHead>
+                    <TableHead className="text-[10px] h-10 font-bold uppercase">Cost per Piece</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {hotelLinenItems.map(item => (
+                    <TableRow key={item.id}>
+                      <TableCell className="pl-5 text-xs font-bold">{item.itemName}</TableCell>
+                      <TableCell className="text-xs">₹{item.hotelRate}</TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>
