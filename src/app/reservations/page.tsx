@@ -11,7 +11,11 @@ import {
   Receipt,
   AlertCircle,
   CreditCard,
-  History
+  History,
+  User,
+  CalendarDays,
+  Globe,
+  Tag
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
@@ -26,13 +30,14 @@ import { Badge } from "@/components/ui/badge";
 import { cn, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
-import { collection, doc, query, where } from "firebase/firestore";
+import { collection, doc, query, where, orderBy } from "firebase/firestore";
 import { 
   Dialog, 
   DialogContent, 
   DialogFooter, 
   DialogHeader, 
   DialogTitle, 
+  DialogDescription,
   DialogTrigger 
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -72,7 +77,7 @@ export default function ReservationsPage() {
   const db = useFirestore();
   const { toast } = useToast();
 
-  const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
+  const isAdmin = ["owner", "admin", "frontdesk", "manager"].includes(currentUserRole || "");
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -98,7 +103,7 @@ export default function ReservationsPage() {
   // Queries
   const reservationsQuery = useMemoFirebase(() => {
     if (!entityId) return null;
-    return collection(db, "hotel_properties", entityId, "reservations");
+    return query(collection(db, "hotel_properties", entityId, "reservations"), orderBy("checkInDate", "desc"));
   }, [db, entityId]);
 
   const roomsQuery = useMemoFirebase(() => {
@@ -130,7 +135,7 @@ export default function ReservationsPage() {
 
   const handleAddReservation = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId || !isAdmin || !user) return;
+    if (!entityId || !user || !newRes.guestName || !newRes.roomNumber) return;
 
     const resRef = collection(db, "hotel_properties", entityId, "reservations");
     const resData = {
@@ -155,7 +160,7 @@ export default function ReservationsPage() {
       type: "info"
     });
 
-    toast({ title: "Reservation created" });
+    toast({ title: "Reservation created", description: `Confirmed for ${newRes.guestName}` });
     setIsAddOpen(false);
     setNewRes({ guestName: "", roomNumber: "", checkIn: "", checkOut: "", guests: "1", requests: "", bookingSource: "Direct" });
   };
@@ -242,34 +247,114 @@ export default function ReservationsPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-5 max-w-3xl mx-auto">
+      <div className="space-y-5 max-w-4xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-lg font-bold tracking-tight">Reservations</h1>
-            <p className="text-muted-foreground text-[9px] mt-0.5 uppercase font-bold">Stay Management & Billing</p>
+            <h1 className="text-xl font-bold tracking-tight">Reservations</h1>
+            <p className="text-muted-foreground text-[10px] mt-0.5 uppercase font-bold tracking-wider">Stay Management & Billing Folios</p>
           </div>
 
-          {isAdmin && (
-            <Button className="h-8 px-3 font-semibold shadow-md text-[10px]" onClick={() => setIsAddOpen(true)}>
-              <Plus className="w-3 h-3 mr-1.5" /> New Reservation
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {isAdmin && (
+              <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                <DialogTrigger asChild>
+                  <Button className="h-8 px-4 font-bold shadow-md text-[10px] bg-primary">
+                    <Plus className="w-3 h-3 mr-1.5" /> New Reservation
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[360px]">
+                  <DialogHeader>
+                    <DialogTitle className="text-sm font-bold">Create Reservation</DialogTitle>
+                    <DialogDescription className="text-[10px]">Secure a room for an upcoming guest stay.</DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleAddReservation} className="space-y-3 pt-2">
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase font-bold">Guest Name</Label>
+                      <Input 
+                        placeholder="John Doe" 
+                        value={newRes.guestName} 
+                        onChange={e => setNewRes({...newRes, guestName: e.target.value})} 
+                        required 
+                        className="h-8 text-xs" 
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[9px] uppercase font-bold">Assign Room</Label>
+                        <Select onValueChange={val => setNewRes({...newRes, roomNumber: val})} required>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent>
+                            {rooms?.sort((a,b) => a.roomNumber.localeCompare(b.roomNumber)).map(r => (
+                              <SelectItem key={r.id} value={r.roomNumber} className="text-xs">
+                                Room {r.roomNumber} ({r.status})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] uppercase font-bold">Source</Label>
+                        <Select value={newRes.bookingSource} onValueChange={val => setNewRes({...newRes, bookingSource: val})}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {BOOKING_SOURCES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[9px] uppercase font-bold">Check-In Date</Label>
+                        <Input 
+                          type="date" 
+                          value={newRes.checkIn} 
+                          onChange={e => setNewRes({...newRes, checkIn: e.target.value})} 
+                          required 
+                          className="h-8 text-xs" 
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] uppercase font-bold">Check-Out Date</Label>
+                        <Input 
+                          type="date" 
+                          value={newRes.checkOut} 
+                          onChange={e => setNewRes({...newRes, checkOut: e.target.value})} 
+                          required 
+                          className="h-8 text-xs" 
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase font-bold">Special Requests</Label>
+                      <Input 
+                        placeholder="Early check-in, extra towels..." 
+                        value={newRes.requests} 
+                        onChange={e => setNewRes({...newRes, requests: e.target.value})} 
+                        className="h-8 text-xs" 
+                      />
+                    </div>
+                    <Button type="submit" className="w-full h-9 font-bold text-[11px] mt-2">Confirm Booking</Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
           <Table>
             <TableHeader className="bg-secondary/50">
               <TableRow>
-                <TableHead className="px-4 h-8 text-[9px] uppercase font-bold">Guest</TableHead>
-                <TableHead className="text-center h-8 text-[9px] uppercase font-bold">Room</TableHead>
-                <TableHead className="text-center h-8 text-[9px] uppercase font-bold">Checkout</TableHead>
-                <TableHead className="text-center h-8 text-[9px] uppercase font-bold">Alerts</TableHead>
-                <TableHead className="text-right px-4 h-8 text-[9px] uppercase font-bold">Actions</TableHead>
+                <TableHead className="px-4 h-9 text-[10px] uppercase font-bold">Guest Info</TableHead>
+                <TableHead className="text-center h-9 text-[10px] uppercase font-bold">Room</TableHead>
+                <TableHead className="text-center h-9 text-[10px] uppercase font-bold">Check-Out</TableHead>
+                <TableHead className="text-center h-9 text-[10px] uppercase font-bold">Financial Status</TableHead>
+                <TableHead className="text-right px-4 h-9 text-[10px] uppercase font-bold">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-6"><Loader2 className="w-3.5 h-3.5 animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-10"><Loader2 className="w-4 h-4 animate-spin mx-auto text-primary" /></TableCell></TableRow>
               ) : reservations?.length ? (
                 reservations.map((res) => {
                   const laundryBalance = getLaundryBalance(res.id);
@@ -277,25 +362,36 @@ export default function ReservationsPage() {
                   const hasAlert = laundryBalance > 0 && isCheckoutSoon;
 
                   return (
-                    <TableRow key={res.id}>
-                      <TableCell className="px-4 font-bold text-[10px]">{res.guestName}</TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="outline" className="bg-secondary/50 text-[8px] font-bold">ROOM {res.roomNumber}</Badge>
+                    <TableRow key={res.id} className="hover:bg-secondary/5">
+                      <TableCell className="px-4">
+                        <div className="flex items-center gap-2">
+                          <User className="w-3 h-3 text-muted-foreground" />
+                          <span className="font-bold text-[11px]">{res.guestName}</span>
+                          <Badge variant="secondary" className="text-[7px] px-1 h-3.5 uppercase">{res.status}</Badge>
+                        </div>
+                        <div className="text-[8px] text-muted-foreground uppercase mt-0.5 ml-5">{res.bookingSource}</div>
                       </TableCell>
-                      <TableCell className="text-center text-[9px]">
+                      <TableCell className="text-center">
+                        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10 text-[9px] font-bold px-2">ROOM {res.roomNumber}</Badge>
+                      </TableCell>
+                      <TableCell className="text-center text-[10px] font-medium">
                         {res.checkOutDate ? formatAppDate(res.checkOutDate) : "TBD"}
                       </TableCell>
                       <TableCell className="text-center">
-                        {hasAlert && (
-                          <div className="flex justify-center">
-                            <Badge variant="destructive" className="h-4 text-[7px] uppercase px-1 bg-rose-50 text-rose-600 border-rose-100 flex items-center gap-1">
-                              <AlertCircle className="w-2.5 h-2.5" /> Pending Laundry
-                            </Badge>
-                          </div>
+                        {hasAlert ? (
+                          <Badge variant="destructive" className="h-4 text-[7px] uppercase px-1.5 bg-rose-50 text-rose-600 border-rose-200 flex items-center gap-1 mx-auto">
+                            <AlertCircle className="w-2.5 h-2.5" /> Dues: ₹{laundryBalance}
+                          </Badge>
+                        ) : laundryBalance > 0 ? (
+                          <Badge variant="outline" className="h-4 text-[7px] uppercase px-1.5 bg-amber-50 text-amber-600 border-amber-200 mx-auto">
+                            Laundry: ₹{laundryBalance}
+                          </Badge>
+                        ) : (
+                          <span className="text-[10px] text-emerald-600 font-bold uppercase">Clear</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right px-4">
-                        <Button variant="ghost" size="sm" className="h-6 text-[9px] font-bold" onClick={() => { setSelectedRes(res); setCheckInForm({ nationality: res.nationality || "Indian", idType: res.idType || "Aadhar", idNumber: res.idNumber || "" }); setIsDetailsOpen(true); }}>
+                        <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold text-primary" onClick={() => { setSelectedRes(res); setCheckInForm({ nationality: res.nationality || "Indian", idType: res.idType || "Aadhar", idNumber: res.idNumber || "" }); setIsDetailsOpen(true); }}>
                           Folio
                         </Button>
                       </TableCell>
@@ -303,73 +399,82 @@ export default function ReservationsPage() {
                   );
                 })
               ) : (
-                <TableRow><TableCell colSpan={5} className="text-center py-8 text-[9px] text-muted-foreground uppercase font-bold">No active stays</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-12 text-[10px] text-muted-foreground uppercase font-bold">No records found</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
         </div>
 
+        {/* Folio Details / Check-in / Check-out Dialog */}
         <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-          <DialogContent className="sm:max-w-[340px]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-sm">
-                <History className="w-3.5 h-3.5 text-primary" /> Guest Folio Summary
+          <DialogContent className="sm:max-w-[340px] p-0 overflow-hidden">
+            <div className="bg-primary p-4 text-primary-foreground">
+              <DialogTitle className="flex items-center gap-2 text-sm font-bold">
+                <Receipt className="w-4 h-4" /> Guest Folio Summary
               </DialogTitle>
-            </DialogHeader>
+              <DialogDescription className="text-[10px] text-primary-foreground/80">Manage stay status and final settlement</DialogDescription>
+            </div>
             {selectedRes && (
-              <div className="space-y-3 pt-1">
-                <div className="bg-secondary/30 p-2.5 rounded-xl border space-y-2">
+              <div className="p-4 space-y-4">
+                <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <h3 className="text-xs font-bold">{selectedRes.guestName}</h3>
                     <Badge className="text-[8px] uppercase font-bold bg-primary/10 text-primary">{selectedRes.status}</Badge>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-[8px] text-muted-foreground uppercase font-bold">
-                    <div>Room: {selectedRes.roomNumber}</div>
-                    <div>In: {formatAppDate(selectedRes.checkInDate)}</div>
+                  <div className="grid grid-cols-2 gap-4 text-[9px] uppercase font-bold text-muted-foreground border-t pt-2">
+                    <div className="flex items-center gap-1.5"><CalendarDays className="w-3 h-3" /> In: {formatAppDate(selectedRes.checkInDate)}</div>
+                    <div className="flex items-center gap-1.5"><Tag className="w-3 h-3" /> Room: {selectedRes.roomNumber}</div>
                   </div>
                 </div>
 
                 {selectedRes.status === 'checked_in' && (
-                  <div className="p-2.5 border rounded-xl bg-amber-50/50 space-y-2">
+                  <div className="p-2.5 border rounded-xl bg-amber-50/30 space-y-2">
                     <p className="text-[9px] font-bold uppercase text-amber-700 flex items-center gap-1.5">
-                      <CreditCard className="w-3.5 h-3.5" /> Auxiliary Dues
+                      <CreditCard className="w-3.5 h-3.5" /> Service Dues
                     </p>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] text-muted-foreground">Pending Laundry:</span>
-                      <span className={cn("text-xs font-bold", getLaundryBalance(selectedRes.id) > 0 ? "text-rose-600" : "text-emerald-600")}>
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="text-muted-foreground">Laundry Balance:</span>
+                      <span className={cn("font-bold", getLaundryBalance(selectedRes.id) > 0 ? "text-rose-600" : "text-emerald-600")}>
                         ₹{getLaundryBalance(selectedRes.id).toLocaleString()}
                       </span>
                     </div>
                   </div>
                 )}
 
-                <DialogFooter className="flex-col gap-1.5">
+                <div className="space-y-2 pt-2">
                   {selectedRes.status === 'confirmed' && (
-                    <div className="space-y-2 w-full">
-                      <div className="p-2.5 border rounded-xl bg-primary/5 space-y-2">
-                        <Label className="text-[8px] uppercase text-muted-foreground">Identity Verification</Label>
+                    <div className="space-y-3">
+                      <div className="space-y-2 border-t pt-3">
+                        <Label className="text-[9px] uppercase font-bold text-muted-foreground">Check-In Requirements</Label>
                         <div className="grid grid-cols-2 gap-2">
-                          <Input placeholder="ID Type" className="h-6 text-[10px]" value={checkInForm.idType} onChange={(e) => setCheckInForm({...checkInForm, idType: e.target.value})} />
-                          <Input placeholder="ID Number" className="h-6 text-[10px]" value={checkInForm.idNumber} onChange={(e) => setCheckInForm({...checkInForm, idNumber: e.target.value})} />
+                          <Input placeholder="ID Type" className="h-7 text-[10px]" value={checkInForm.idType} onChange={(e) => setCheckInForm({...checkInForm, idType: e.target.value})} />
+                          <Input placeholder="ID Number" className="h-7 text-[10px]" value={checkInForm.idNumber} onChange={(e) => setCheckInForm({...checkInForm, idNumber: e.target.value})} />
                         </div>
+                        <Input placeholder="Nationality" className="h-7 text-[10px]" value={checkInForm.nationality} onChange={(e) => setCheckInForm({...checkInForm, nationality: e.target.value})} />
                       </div>
-                      <Button className="w-full h-8 text-[10px] font-bold" onClick={() => updateStatus(selectedRes.id, 'checked_in')} disabled={!checkInForm.idNumber}>Confirm Check-In</Button>
+                      <Button className="w-full h-9 text-[11px] font-bold" onClick={() => updateStatus(selectedRes.id, 'checked_in')} disabled={!checkInForm.idNumber}>Process Check-In</Button>
                     </div>
                   )}
                   {selectedRes.status === 'checked_in' && (
-                    <div className="space-y-1.5 w-full">
+                    <div className="space-y-2">
                       {getLaundryBalance(selectedRes.id) > 0 && (
-                        <p className="text-[7px] text-center text-rose-500 font-bold uppercase mb-1 animate-pulse">
-                          Settle Laundry Dues before closing stay
+                        <p className="text-[8px] text-center text-rose-500 font-bold uppercase animate-pulse px-4">
+                          * Settle auxiliary service dues before closing stay
                         </p>
                       )}
-                      <Button variant="destructive" className="w-full h-8 text-[10px] font-bold" onClick={() => updateStatus(selectedRes.id, 'checked_out')} disabled={isProcessingCheckout || getLaundryBalance(selectedRes.id) > 0}>
+                      <Button variant="destructive" className="w-full h-9 text-[11px] font-bold" onClick={() => updateStatus(selectedRes.id, 'checked_out')} disabled={isProcessingCheckout || getLaundryBalance(selectedRes.id) > 0}>
                         {isProcessingCheckout ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : <Receipt className="w-3 h-3 mr-1.5" />}
-                        Final Room Settlement
+                        Generate Invoice & Check-Out
                       </Button>
                     </div>
                   )}
-                </DialogFooter>
+                  {selectedRes.status === 'checked_out' && (
+                    <div className="p-3 bg-secondary/30 rounded-lg text-center">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Stay Closed</p>
+                      <p className="text-[9px] mt-1 italic">Invoice #{selectedRes.invoiceNumber || 'N/A'}</p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </DialogContent>
