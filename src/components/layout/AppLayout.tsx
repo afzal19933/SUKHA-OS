@@ -93,6 +93,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const markAllAsRead = () => {
+    if (!firebaseUser || !notifications) return;
+    notifications.forEach(n => {
+      if (n.status === 'unread') {
+        markAsRead(n.id);
+      }
+    });
+  };
+
   const filteredNavItems = useMemo(() => {
     if (role === 'owner' || role === 'admin') return NAV_ITEMS;
     if (permissions && permissions.length > 0) {
@@ -202,25 +211,41 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-72 p-0 overflow-hidden rounded-xl border-none shadow-xl" align="end">
-                <div className="p-3 bg-primary text-primary-foreground">
-                  <h4 className="text-xs font-bold flex items-center justify-between">
+                <div className="p-3 bg-primary text-primary-foreground flex items-center justify-between">
+                  <h4 className="text-xs font-bold flex items-center gap-2">
                     Notifications
                     {unreadCount > 0 && <Badge variant="secondary" className="bg-white/20 text-white text-[9px] h-4 px-1">{unreadCount} New</Badge>}
                   </h4>
+                  {unreadCount > 0 && (
+                    <Button 
+                      variant="ghost" 
+                      className="h-6 text-[9px] text-white hover:bg-white/10 p-1"
+                      onClick={markAllAsRead}
+                    >
+                      Mark all read
+                    </Button>
+                  )}
                 </div>
                 <ScrollArea className="h-[300px]">
                   {notifications && notifications.length > 0 ? (
                     <div className="divide-y">
                       {notifications.map((n) => (
-                        <div key={n.id} className={cn(
-                          "p-3 transition-colors relative group",
-                          n.status === 'unread' ? "bg-primary/5" : "bg-white"
-                        )}>
+                        <div 
+                          key={n.id} 
+                          onClick={() => n.status === 'unread' && markAsRead(n.id)}
+                          className={cn(
+                            "p-3 transition-colors relative group cursor-pointer",
+                            n.status === 'unread' ? "bg-primary/5 hover:bg-primary/10" : "bg-white hover:bg-secondary/20"
+                          )}
+                        >
                           <div className="flex justify-between items-start gap-2">
-                            <div className="space-y-0.5">
-                              <p className="text-[11px] font-bold leading-none">{n.title}</p>
-                              <p className="text-[10px] text-muted-foreground leading-tight">{n.message}</p>
-                              <div className="flex items-center gap-1 pt-1 text-[8px] text-muted-foreground">
+                            <div className="space-y-0.5 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                {n.status === 'unread' && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
+                                <p className="text-[11px] font-bold leading-none">{n.title}</p>
+                              </div>
+                              <p className="text-[10px] text-muted-foreground leading-tight mt-1">{n.message}</p>
+                              <div className="flex items-center gap-1 pt-1.5 text-[8px] text-muted-foreground">
                                 <Clock className="w-2 h-2" />
                                 {formatAppTime(n.createdAt)}
                               </div>
