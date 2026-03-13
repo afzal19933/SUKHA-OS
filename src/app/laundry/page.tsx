@@ -302,18 +302,18 @@ export default function LaundryPage() {
                       <Plus className="w-4 h-4 mr-2" /> New Guest Order
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-[700px]">
+                  <DialogContent className="sm:max-w-[560px]">
                     <DialogHeader>
-                      <DialogTitle className="flex items-center gap-2">
-                        <WashingMachine className="w-5 h-5 text-primary" />
+                      <DialogTitle className="flex items-center gap-2 text-base">
+                        <WashingMachine className="w-4 h-4 text-primary" />
                         Log Guest Laundry Order
                       </DialogTitle>
-                      <DialogDescription>Select an occupied room to automatically retrieve guest details.</DialogDescription>
+                      <DialogDescription className="text-xs">Select an occupied room to automatically retrieve guest details.</DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={handleAddOrder} className="space-y-6 pt-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Room (Occupied Only)</Label>
+                    <form onSubmit={handleAddOrder} className="space-y-4 pt-2">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Room (Occupied Only)</Label>
                           <Select 
                             value={newOrder.roomId} 
                             onValueChange={(val) => {
@@ -331,13 +331,13 @@ export default function LaundryPage() {
                               });
                             }}
                           >
-                            <SelectTrigger className="h-11 text-sm font-semibold border-primary/20 bg-primary/5">
+                            <SelectTrigger className="h-9 text-xs font-semibold border-primary/20 bg-primary/5">
                               <SelectValue placeholder="Choose Room..." />
                             </SelectTrigger>
                             <SelectContent>
                               {occupiedRooms && occupiedRooms.length > 0 ? (
                                 occupiedRooms.map(room => (
-                                  <SelectItem key={room.id} value={room.id} className="font-medium">
+                                  <SelectItem key={room.id} value={room.id} className="text-xs font-medium">
                                     Room {room.roomNumber}
                                   </SelectItem>
                                 ))
@@ -347,63 +347,63 @@ export default function LaundryPage() {
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Guest Identity</Label>
-                          <div className="h-11 px-3 bg-secondary/50 rounded-lg border flex items-center gap-2">
-                            <UserCheck className="w-4 h-4 text-primary" />
-                            <span className="text-sm font-bold truncate">
-                              {newOrder.guestName || "Waiting for room selection..."}
+                        <div className="space-y-1.5">
+                          <Label className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Guest Identity</Label>
+                          <div className="h-9 px-3 bg-secondary/50 rounded-lg border flex items-center gap-2">
+                            <UserCheck className="w-3.5 h-3.5 text-primary" />
+                            <span className="text-xs font-bold truncate">
+                              {newOrder.guestName || "Waiting..."}
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-3">
-                          <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">Guest Rate Card</Label>
-                          <ScrollArea className="h-[300px] border rounded-2xl p-3 bg-secondary/10">
-                            <div className="space-y-1.5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-[9px] font-bold uppercase tracking-widest text-primary">Guest Rate Card</Label>
+                          <ScrollArea className="h-[240px] border rounded-xl p-2 bg-secondary/10">
+                            <div className="space-y-1">
                               {guestItems.map(item => (
-                                <div key={item.id} className="flex items-center justify-between p-3 bg-white border border-transparent hover:border-primary/20 rounded-xl transition-all shadow-sm group">
+                                <div key={item.id} className="flex items-center justify-between p-2 bg-white border border-transparent hover:border-primary/20 rounded-lg transition-all shadow-sm group">
                                   <div>
-                                    <p className="text-xs font-bold group-hover:text-primary transition-colors">{item.itemName}</p>
-                                    <p className="text-[10px] text-muted-foreground font-mono">Rate: ₹{item.hotelRate}</p>
+                                    <p className="text-[11px] font-bold group-hover:text-primary transition-colors leading-tight">{item.itemName}</p>
+                                    <p className="text-[9px] text-muted-foreground font-mono">₹{item.hotelRate}</p>
                                   </div>
                                   <Button 
                                     type="button" 
                                     variant="secondary" 
                                     size="icon" 
-                                    className="h-8 w-8 rounded-lg"
+                                    className="h-6 w-6 rounded-md"
                                     onClick={() => addItemToOrder(item.id)}
                                   >
-                                    <Plus className="w-4 h-4" />
+                                    <Plus className="w-3 h-3" />
                                   </Button>
                                 </div>
                               ))}
                               {guestItems.length === 0 && (
-                                <div className="text-center py-10">
-                                  <Package className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
-                                  <p className="text-[10px] text-muted-foreground">No guest items defined.</p>
+                                <div className="text-center py-6">
+                                  <Package className="w-6 h-6 text-muted-foreground/20 mx-auto mb-1" />
+                                  <p className="text-[9px] text-muted-foreground">No items defined.</p>
                                 </div>
                               )}
                             </div>
                           </ScrollArea>
                         </div>
 
-                        <div className="space-y-3">
-                          <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">Order Basket</Label>
-                          <ScrollArea className="h-[300px] border rounded-2xl p-3 bg-primary/5">
-                            <div className="space-y-2">
+                        <div className="space-y-2">
+                          <Label className="text-[9px] font-bold uppercase tracking-widest text-primary">Order Basket</Label>
+                          <ScrollArea className="h-[240px] border rounded-xl p-2 bg-primary/5">
+                            <div className="space-y-1.5">
                               {newOrder.items.map(i => (
-                                <div key={i.itemId} className="flex items-center justify-between p-3 bg-white rounded-xl shadow-sm border border-primary/10">
+                                <div key={i.itemId} className="flex items-center justify-between p-2 bg-white rounded-lg shadow-sm border border-primary/10">
                                   <div className="flex-1">
-                                    <p className="text-xs font-bold truncate">{i.name}</p>
-                                    <p className="text-[10px] text-muted-foreground font-semibold">Total: ₹{i.rate * i.quantity}</p>
+                                    <p className="text-[11px] font-bold truncate leading-tight">{i.name}</p>
+                                    <p className="text-[9px] text-muted-foreground font-semibold">₹{i.rate * i.quantity}</p>
                                   </div>
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1.5">
                                     <Input 
                                       type="number" 
-                                      className="w-14 h-8 text-[11px] p-1 text-center font-bold" 
+                                      className="w-10 h-6 text-[10px] p-0.5 text-center font-bold" 
                                       value={i.quantity} 
                                       onChange={(e) => updateItemQuantity(i.itemId, parseInt(e.target.value))}
                                     />
@@ -411,18 +411,18 @@ export default function LaundryPage() {
                                       type="button" 
                                       variant="ghost" 
                                       size="icon" 
-                                      className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                                      className="h-6 w-6 text-rose-500 hover:text-rose-600 hover:bg-rose-50"
                                       onClick={() => removeItemFromOrder(i.itemId)}
                                     >
-                                      <Trash2 className="w-4 h-4" />
+                                      <Trash2 className="w-3 h-3" />
                                     </Button>
                                   </div>
                                 </div>
                               ))}
                               {newOrder.items.length === 0 && (
-                                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground/30">
-                                  <ShoppingCart className="w-10 h-10 mb-2" />
-                                  <p className="text-[10px] font-bold uppercase tracking-wider">Add items to basket</p>
+                                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground/30">
+                                  <ShoppingCart className="w-8 h-8 mb-1" />
+                                  <p className="text-[9px] font-bold uppercase tracking-wider">Empty</p>
                                 </div>
                               )}
                             </div>
@@ -430,12 +430,12 @@ export default function LaundryPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between p-6 bg-primary/10 rounded-3xl border border-primary/20">
+                      <div className="flex items-center justify-between p-4 bg-primary/10 rounded-2xl border border-primary/20">
                         <div>
-                          <p className="text-[10px] uppercase font-bold text-primary tracking-widest">Estimated Amount</p>
-                          <p className="text-3xl font-extrabold text-primary">₹{newOrder.items.reduce((acc, i) => acc + (i.rate * i.quantity), 0).toLocaleString()}</p>
+                          <p className="text-[9px] uppercase font-bold text-primary tracking-widest">Est. Total</p>
+                          <p className="text-xl font-extrabold text-primary">₹{newOrder.items.reduce((acc, i) => acc + (i.rate * i.quantity), 0).toLocaleString()}</p>
                         </div>
-                        <Button type="submit" className="h-14 px-12 font-bold shadow-xl rounded-2xl text-lg">Process Order</Button>
+                        <Button type="submit" className="h-10 px-8 font-bold shadow-lg rounded-xl text-sm">Process Order</Button>
                       </div>
                     </form>
                   </DialogContent>
