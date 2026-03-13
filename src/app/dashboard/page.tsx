@@ -32,8 +32,9 @@ import { collection, query, where } from "firebase/firestore";
 import { startOfDay, endOfDay } from "date-fns";
 
 export default function DashboardPage() {
-  const { entityId } = useAuthStore();
+  const { entityId, theme } = useAuthStore();
   const db = useFirestore();
+  const isAyurveda = theme === 'ayurveda';
 
   const roomsQuery = useMemoFirebase(() => {
     if (!entityId) return null;
@@ -75,7 +76,7 @@ export default function DashboardPage() {
   const PRIMARY_STATS = [
     { label: "Total Occupancy", value: `${occupancyRate}%`, icon: Users, change: "Live", trend: "neutral" },
     { label: "Vacant Ready", value: stats.vacantReady.toString(), icon: ShieldCheck, change: "Rooms", trend: "up" },
-    { label: "Today's Revenue", value: `₹${todayRevenue.toLocaleString()}`, icon: TrendingUp, change: "+0%", trend: "up" },
+    { label: "Today's Revenue", value: `₹${todayRevenue.toLocaleString()}`, icon: TrendingUp, change: "+12%", trend: "up" },
     { label: "Today's Arrival", value: (todayReservations?.length || 0).toString(), icon: CalendarCheck2, change: "Confirmed", trend: "neutral" },
   ];
 
@@ -105,93 +106,107 @@ export default function DashboardPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="space-y-8 max-w-5xl mx-auto">
         <div>
-          <h1 className="text-xl font-bold tracking-tight">Executive Dashboard</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">Summary of property performance and room operations.</p>
+          <h1 className="text-3xl font-bold tracking-tight font-ayurveda-heading">Executive Dashboard</h1>
+          <p className="text-xs text-muted-foreground mt-1 uppercase tracking-[2px] font-medium opacity-70">Summary of property performance and room operations</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="gold-separator" />
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {PRIMARY_STATS.map((stat) => (
-            <Card key={stat.label} className="border-none shadow-sm overflow-hidden bg-white">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="p-1.5 bg-secondary rounded-lg">
-                    <stat.icon className="w-4 h-4 text-primary" />
+            <Card key={stat.label} className={cn(
+              "border-none shadow-xl overflow-hidden transition-all hover:-translate-y-1",
+              isAyurveda ? "glass-card border-l-4 border-l-primary" : "bg-white"
+            )}>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className={cn("p-2 rounded-xl", isAyurveda ? "bg-primary/20" : "bg-secondary")}>
+                    <stat.icon className="w-5 h-5 text-primary" />
                   </div>
                   <div className={cn(
-                    "flex items-center text-[10px] font-medium",
-                    stat.trend === "up" ? "text-emerald-500" : stat.trend === "down" ? "text-rose-500" : "text-muted-foreground"
+                    "flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider",
+                    stat.trend === "up" ? "bg-emerald-500/10 text-emerald-500" : stat.trend === "down" ? "bg-rose-500/10 text-rose-500" : "bg-muted text-muted-foreground"
                   )}>
                     {stat.change}
                     {stat.trend === "up" && <ArrowUpRight className="w-3 h-3 ml-0.5" />}
                   </div>
                 </div>
                 <div>
-                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{stat.label}</p>
-                  <h3 className="text-xl font-bold mt-0.5">{stat.value}</h3>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[1.5px]">{stat.label}</p>
+                  <h3 className="text-2xl font-bold mt-1 font-manrope">{stat.value}</h3>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {SECONDARY_STATS.map((stat) => (
-            <Card key={stat.label} className="border-none shadow-sm bg-white">
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className={cn("p-2 rounded-xl bg-secondary", stat.color)}>
-                  <stat.icon className="w-5 h-5" />
+            <Card key={stat.label} className={cn(
+              "border-none shadow-lg transition-all hover:scale-[1.02]",
+              isAyurveda ? "glass-card" : "bg-white"
+            )}>
+              <CardContent className="p-5 flex items-center gap-5">
+                <div className={cn("p-3 rounded-2xl bg-secondary/50", stat.color)}>
+                  <stat.icon className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-medium text-muted-foreground uppercase">{stat.label}</p>
-                  <h4 className="text-lg font-bold">{stat.value}</h4>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{stat.label}</p>
+                  <h4 className="text-xl font-bold font-manrope">{stat.value}</h4>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card className="border-none shadow-sm bg-white">
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Revenue Trends</CardTitle>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <Card className={cn(
+            "border-none shadow-xl",
+            isAyurveda ? "glass-card" : "bg-white"
+          )}>
+            <CardHeader className="py-5">
+              <CardTitle className="text-base font-ayurveda-heading">Revenue Trends (Luxury KPI)</CardTitle>
             </CardHeader>
-            <CardContent className="h-[200px] p-4 pt-0">
+            <CardContent className="h-[250px] p-6 pt-0">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
                   <defs>
                     <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.1}/>
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
                       <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isAyurveda ? "rgba(255,255,255,0.05)" : "hsl(var(--border))"} />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 10}} dy={10} />
                   <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 10}} />
                   <Tooltip 
-                    contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '10px'}}
+                    contentStyle={{borderRadius: '12px', border: 'none', backgroundColor: isAyurveda ? '#122F28' : '#fff', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', fontSize: '10px'}}
                   />
-                  <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
+                  <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
                 </AreaChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-sm bg-white">
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Occupancy Level (%)</CardTitle>
+          <Card className={cn(
+            "border-none shadow-xl",
+            isAyurveda ? "glass-card" : "bg-white"
+          )}>
+            <CardHeader className="py-5">
+              <CardTitle className="text-base font-ayurveda-heading">Occupancy Levels (%)</CardTitle>
             </CardHeader>
-            <CardContent className="h-[200px] p-4 pt-0">
+            <CardContent className="h-[250px] p-6 pt-0">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isAyurveda ? "rgba(255,255,255,0.05)" : "hsl(var(--border))"} />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 10}} dy={10} />
                   <YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 10}} />
                   <Tooltip 
-                    contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '10px'}}
+                    contentStyle={{borderRadius: '12px', border: 'none', backgroundColor: isAyurveda ? '#122F28' : '#fff', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', fontSize: '10px'}}
                   />
-                  <Line type="monotone" dataKey="occupancy" stroke="hsl(var(--accent))" strokeWidth={2} dot={{r: 2}} activeDot={{r: 4}} />
+                  <Line type="monotone" dataKey="occupancy" stroke="hsl(var(--primary))" strokeWidth={3} dot={{r: 4, fill: 'hsl(var(--primary))', strokeWidth: 0}} activeDot={{r: 6}} />
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>

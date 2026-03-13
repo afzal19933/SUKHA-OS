@@ -12,6 +12,8 @@ export default {
       fontFamily: {
         body: ['Inter', 'sans-serif'],
         headline: ['Inter', 'sans-serif'],
+        ayurveda: ['Playfair Display', 'serif'],
+        manrope: ['Manrope', 'sans-serif'],
         code: ['monospace'],
       },
       colors: {
