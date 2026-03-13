@@ -27,7 +27,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Badge } from "@/components/badge";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
@@ -236,67 +236,57 @@ export default function TeamPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-8 max-w-6xl mx-auto">
+      <div className="space-y-6 max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Team Management</h1>
-            <p className="text-muted-foreground mt-1">Manage staff roles, system access, and profiles</p>
+            <h1 className="text-2xl font-bold tracking-tight">Team Management</h1>
+            <p className="text-muted-foreground text-sm mt-0.5">Manage staff roles and system access</p>
           </div>
           
           <div className="flex items-center gap-2">
             {!entityId && (
-              <Button variant="outline" onClick={handleResync} disabled={isResyncing} className="h-11 px-4">
-                <RefreshCw className={cn("w-4 h-4 mr-2", isResyncing && "animate-spin")} />
-                Resync Session
+              <Button variant="outline" size="sm" onClick={handleResync} disabled={isResyncing} className="h-9 px-3">
+                <RefreshCw className={cn("w-3 h-3 mr-2", isResyncing && "animate-spin")} />
+                Resync
               </Button>
             )}
             {isAdmin && (
               <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
                 <DialogTrigger asChild>
-                  <Button className="h-11 shadow-lg bg-primary hover:bg-primary/90 px-6 font-semibold">
-                    <UserPlus className="w-5 h-5 mr-2" />
-                    Add Team Member
+                  <Button className="h-9 shadow-md bg-primary hover:bg-primary/90 px-4 font-semibold text-xs">
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Add Member
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
+                <DialogContent className="sm:max-w-[340px]">
                   <DialogHeader>
-                    <DialogTitle>Add New Member</DialogTitle>
-                    <DialogDescription>Create a new staff profile. Use a unique username for login.</DialogDescription>
+                    <DialogTitle className="text-sm">Add New Member</DialogTitle>
+                    <DialogDescription className="text-xs">Create a new staff profile.</DialogDescription>
                   </DialogHeader>
-                  {!entityId && (
-                    <div className="bg-rose-50 text-rose-600 p-3 rounded-lg flex items-center gap-2 text-xs">
-                      <AlertCircle className="w-4 h-4" />
-                      Warning: Property context loading. <button type="button" onClick={handleResync} className="underline font-bold">Resync</button>
+                  <form onSubmit={handleAddMember} className="space-y-3 pt-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="name" className="text-xs">Full Name</Label>
+                      <Input id="name" placeholder="Jane Smith" value={newMember.name} onChange={(e) => setNewMember({...newMember, name: e.target.value})} required className="h-9 text-xs" />
                     </div>
-                  )}
-                  <form onSubmit={handleAddMember} className="space-y-4 pt-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Full Name</Label>
-                      <Input id="name" placeholder="Jane Smith" value={newMember.name} onChange={(e) => setNewMember({...newMember, name: e.target.value})} required disabled={isSubmitting} />
+                    <div className="space-y-1.5">
+                      <Label htmlFor="username" className="text-xs">Username</Label>
+                      <Input id="username" placeholder="janesmith" value={newMember.username} onChange={(e) => setNewMember({...newMember, username: e.target.value})} required className="h-9 text-xs" />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="username">Username</Label>
-                      <Input id="username" placeholder="janesmith" value={newMember.username} onChange={(e) => setNewMember({...newMember, username: e.target.value})} required disabled={isSubmitting} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="role">Role</Label>
-                      <Select value={newMember.role} onValueChange={(val) => setNewMember({...newMember, role: val})} disabled={isSubmitting}>
-                        <SelectTrigger id="role"><SelectValue placeholder="Select a role" /></SelectTrigger>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="role" className="text-xs">Role</Label>
+                      <Select value={newMember.role} onValueChange={(val) => setNewMember({...newMember, role: val})}>
+                        <SelectTrigger id="role" className="h-9 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="admin">Admin</SelectItem>
                           <SelectItem value="manager">Manager</SelectItem>
                           <SelectItem value="supervisor">Supervisor</SelectItem>
                           <SelectItem value="staff">Staff</SelectItem>
-                          <SelectItem value="frontdesk">Front Desk</SelectItem>
-                          <SelectItem value="housekeeping">Housekeeping Staff</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <DialogFooter className="pt-4">
-                      <Button type="submit" className="w-full h-11" disabled={isSubmitting || !entityId}>
-                        {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processing...</> : "Create Profile"}
-                      </Button>
-                    </DialogFooter>
+                    <Button type="submit" className="w-full h-9 text-xs font-bold mt-2" disabled={isSubmitting || !entityId}>
+                      {isSubmitting ? "Processing..." : "Create Profile"}
+                    </Button>
                   </form>
                 </DialogContent>
               </Dialog>
@@ -304,54 +294,54 @@ export default function TeamPage() {
           </div>
         </div>
 
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Search by name or username..." className="pl-10 h-10 bg-white" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
+          <Input placeholder="Search team..." className="pl-9 h-9 text-xs bg-white" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
           <Table>
             <TableHeader className="bg-secondary/50">
               <TableRow>
-                <TableHead>Member</TableHead>
-                <TableHead>Username</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase h-9">Member</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase h-9">Username</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase h-9">Role</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase h-9">Status</TableHead>
+                <TableHead className="text-right text-[10px] font-bold uppercase h-9 pr-4">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-10"><Loader2 className="w-5 h-5 animate-spin mx-auto text-primary" /></TableCell></TableRow>
               ) : filteredMembers && filteredMembers.length > 0 ? (
                 filteredMembers.map((member) => (
                   <TableRow key={member.id} className="group">
                     <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">{member.name?.charAt(0) || "U"}</div>
-                        <span className="font-semibold">{member.name}</span>
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">{member.name?.charAt(0) || "U"}</div>
+                        <span className="font-semibold text-[11px]">{member.name}</span>
                       </div>
                     </TableCell>
-                    <TableCell><span className="text-xs font-mono bg-secondary px-2 py-1 rounded text-muted-foreground">{member.email?.split('@')[0]}</span></TableCell>
+                    <TableCell><span className="text-[10px] font-mono bg-secondary px-1.5 py-0.5 rounded text-muted-foreground">{member.email?.split('@')[0]}</span></TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className="capitalize font-medium">
+                      <Badge variant="secondary" className="capitalize font-medium text-[9px] h-4">
                         {member.role?.replace('_', ' ') || "Staff"}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        {member.isActive ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <XCircle className="w-4 h-4 text-rose-500" />}
-                        <span className="text-sm font-medium">{member.isActive ? "Active" : "Inactive"}</span>
+                      <div className="flex items-center gap-1.5">
+                        {member.isActive ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <XCircle className="w-3.5 h-3.5 text-rose-500" />}
+                        <span className="text-[10px] font-medium">{member.isActive ? "Active" : "Inactive"}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right pr-4">
                       {isAdmin && member.role !== 'owner' && (
                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
+                          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7"><MoreVertical className="w-3.5 h-3.5" /></Button></DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => { setEditingMember(member); setIsEditOpen(true); }}><Edit2 className="w-4 h-4 mr-2" /> Edit Info</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => { setEditingMember(member); setIsPermissionsOpen(true); }}><Lock className="w-4 h-4 mr-2" /> Module Access</DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteMember(member)}><Trash2 className="w-4 h-4 mr-2" /> Delete</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { setEditingMember(member); setIsEditOpen(true); }} className="text-xs"><Edit2 className="w-3.5 h-3.5 mr-2" /> Edit</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { setEditingMember(member); setIsPermissionsOpen(true); }} className="text-xs"><Lock className="w-3.5 h-3.5 mr-2" /> Access</DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive text-xs" onClick={() => handleDeleteMember(member)}><Trash2 className="w-3.5 h-3.5 mr-2" /> Delete</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
@@ -359,65 +349,59 @@ export default function TeamPage() {
                   </TableRow>
                 ))
               ) : (
-                <TableRow><TableCell colSpan={5} className="text-center py-20 text-muted-foreground">No members found.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-12 text-[11px] text-muted-foreground">No members found.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
         </div>
 
-        {/* Edit Info Dialog */}
         <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader><DialogTitle>Edit Member</DialogTitle></DialogHeader>
+          <DialogContent className="sm:max-w-[340px]">
+            <DialogHeader><DialogTitle className="text-sm">Edit Member</DialogTitle></DialogHeader>
             {editingMember && (
-              <form onSubmit={handleUpdateMember} className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label>Full Name</Label>
-                  <Input value={editingMember.name} onChange={(e) => setEditingMember({...editingMember, name: e.target.value})} required />
+              <form onSubmit={handleUpdateMember} className="space-y-3 pt-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Full Name</Label>
+                  <Input value={editingMember.name} onChange={(e) => setEditingMember({...editingMember, name: e.target.value})} required className="h-9 text-xs" />
                 </div>
-                <div className="space-y-2">
-                  <Label>Role</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Role</Label>
                   <Select value={editingMember.role} onValueChange={(val) => setEditingMember({...editingMember, role: val})}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="supervisor">Supervisor</SelectItem>
                       <SelectItem value="staff">Staff</SelectItem>
-                      <SelectItem value="frontdesk">Front Desk</SelectItem>
-                      <SelectItem value="housekeeping">Housekeeping Staff</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex items-center space-x-2 pt-2">
+                <div className="flex items-center space-x-2 pt-1">
                   <Checkbox id="active-edit" checked={editingMember.isActive} onCheckedChange={(val) => setEditingMember({...editingMember, isActive: !!val})} />
-                  <Label htmlFor="active-edit">Account Active</Label>
+                  <Label htmlFor="active-edit" className="text-xs">Account Active</Label>
                 </div>
-                <DialogFooter className="pt-4"><Button type="submit" className="w-full h-11">Save Changes</Button></DialogFooter>
+                <Button type="submit" className="w-full h-9 text-xs font-bold mt-2">Save Changes</Button>
               </form>
             )}
           </DialogContent>
         </Dialog>
 
-        {/* Permissions Dialog */}
         <Dialog open={isPermissionsOpen} onOpenChange={setIsPermissionsOpen}>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[340px]">
             <DialogHeader>
-              <DialogTitle>Module Access Control</DialogTitle>
-              <DialogDescription>Assign system modules for {editingMember?.name}</DialogDescription>
+              <DialogTitle className="text-sm">Access Control</DialogTitle>
+              <DialogDescription className="text-xs">Module assignment for {editingMember?.name}</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
+            <div className="space-y-2 py-2">
               {SYSTEM_MODULES.map(moduleName => {
                 const hasAccess = editingMember?.permissions?.includes(moduleName);
                 return (
-                  <div key={moduleName} className="flex items-center justify-between p-3 bg-secondary/30 rounded-xl border">
-                    <Label htmlFor={`perm-${moduleName}`} className="text-sm font-semibold cursor-pointer">{moduleName}</Label>
+                  <div key={moduleName} className="flex items-center justify-between p-2 bg-secondary/30 rounded-lg border">
+                    <Label htmlFor={`perm-${moduleName}`} className="text-[11px] font-semibold cursor-pointer">{moduleName}</Label>
                     <Checkbox 
                       id={`perm-${moduleName}`}
                       checked={hasAccess}
                       onCheckedChange={() => {
                         togglePermission(editingMember.id, moduleName);
-                        // Optimistic local update for the dialog state
                         const updatedPerms = hasAccess 
                           ? editingMember.permissions.filter((p: string) => p !== moduleName)
                           : [...(editingMember.permissions || []), moduleName];
@@ -428,9 +412,7 @@ export default function TeamPage() {
                 );
               })}
             </div>
-            <DialogFooter>
-              <Button onClick={() => setIsPermissionsOpen(false)} className="w-full h-11">Done</Button>
-            </DialogFooter>
+            <Button onClick={() => setIsPermissionsOpen(false)} className="w-full h-9 text-xs mt-2">Done</Button>
           </DialogContent>
         </Dialog>
       </div>
