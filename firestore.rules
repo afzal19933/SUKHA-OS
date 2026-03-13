@@ -6,9 +6,10 @@ service cloud.firestore {
     /**
      * SUKHA OS SECURITY RULES
      * 
-     * [DEPLOYMENT TRIGGER: Re-provisioning paths for maintenance/housekeeping tasks]
+     * [DEPLOYMENT TRIGGER: Applying global authenticated access for PMS operations]
      * 
-     * Broad access for authenticated users to manage all resort operations.
+     * Broad access for authenticated users to manage all resort operations, 
+     * including collection listing (housekeeping tasks, maintenance, etc.)
      */
 
     match /{document=**} {

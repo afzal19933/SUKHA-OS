@@ -93,7 +93,7 @@ export default function MaintenancePage() {
     priority: "medium" 
   });
 
-  // Queries - Simplified to avoid indexing conflicts during rule/environment fixes
+  // Queries - Simplified to ensure reliability
   const activeTasksQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return query(
@@ -134,8 +134,8 @@ export default function MaintenancePage() {
     if (!historySearch) return sortedHistoryTasks;
     const search = historySearch.toLowerCase();
     return sortedHistoryTasks.filter(t => 
-      t.roomId?.toLowerCase().includes(search) || 
-      t.notes?.toLowerCase().includes(search)
+      (t.roomId || "").toLowerCase().includes(search) || 
+      (t.notes || "").toLowerCase().includes(search)
     );
   }, [sortedHistoryTasks, historySearch]);
 
