@@ -433,7 +433,7 @@ export default function ReservationsPage() {
                           {isParadise && res.building && (
                             <span className="text-[8px] uppercase font-bold text-muted-foreground">{res.building}</span>
                           )}
-                          <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10 text-[9px] font-bold px-2 mt-0.5">R {res.roomNumber}</Badge>
+                          <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10 text-[9px] font-bold px-2 mt-0.5">{res.roomNumber}</Badge>
                         </div>
                       </TableCell>
                       <TableCell className="text-center text-[10px] font-medium">

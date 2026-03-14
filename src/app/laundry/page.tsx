@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo } from "react";
@@ -193,7 +194,7 @@ export default function LaundryPage() {
                     guestOrders.map(order => (
                       <TableRow key={order.id} className="hover:bg-secondary/5">
                         <TableCell className="pl-4">
-                          <div className="font-bold text-[10px]">R {order.roomNumber}</div>
+                          <div className="font-bold text-[10px]">{order.roomNumber}</div>
                           <div className="text-[7px] text-muted-foreground truncate max-w-[80px]">{order.guestName}</div>
                         </TableCell>
                         <TableCell>
