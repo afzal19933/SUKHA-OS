@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -130,17 +129,6 @@ export default function ReservationsPage() {
     contact: "",
     state: "Kerala"
   });
-
-  // Handle AI Deep-linking (New Reservation)
-  useEffect(() => {
-    if (searchParams.get('new') === 'true') {
-      setIsAddOpen(true);
-      // Clean up URL
-      const newParams = new URLSearchParams(searchParams);
-      newParams.delete('new');
-      router.replace(`/reservations?${newParams.toString()}`);
-    }
-  }, [searchParams]);
 
   // Queries
   const reservationsQuery = useMemoFirebase(() => {

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -126,21 +125,6 @@ export default function DashboardPage() {
   const { data: property } = useDoc(propertyRef);
 
   const isParadise = property?.name?.toLowerCase().includes("paradise");
-
-  // Handle AI Deep-linking (Checkout)
-  useEffect(() => {
-    const checkoutRoom = searchParams.get('checkout');
-    if (checkoutRoom && rooms && checkedInReservations) {
-      const room = rooms.find(r => r.roomNumber === checkoutRoom);
-      if (room && room.status.includes('occupied')) {
-        handleQuickCheckoutAction(room);
-        // Clear param to prevent re-opening
-        const newParams = new URLSearchParams(searchParams);
-        newParams.delete('checkout');
-        router.replace(`/dashboard?${newParams.toString()}`);
-      }
-    }
-  }, [searchParams, rooms, checkedInReservations]);
 
   // Statistics Calculation
   const stats = useMemo(() => ({
