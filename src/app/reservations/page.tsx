@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -499,14 +498,14 @@ export default function ReservationsPage() {
           <Table>
             <TableHeader className="bg-secondary/50 border-b">
               <TableRow>
-                <TableHead className="px-6 h-11 text-[10px] uppercase font-black tracking-widest text-muted-foreground">Guest Name</TableHead>
-                <TableHead className="h-11 text-[10px] uppercase font-black tracking-widest text-muted-foreground">Source</TableHead>
-                <TableHead className="h-11 text-[10px] uppercase font-black tracking-widest text-muted-foreground">Status</TableHead>
+                <TableHead className="h-11 text-[10px] uppercase font-black tracking-widest text-muted-foreground text-center">Guest Name</TableHead>
+                <TableHead className="h-11 text-[10px] uppercase font-black tracking-widest text-muted-foreground text-center">Source</TableHead>
+                <TableHead className="h-11 text-[10px] uppercase font-black tracking-widest text-muted-foreground text-center">Status</TableHead>
                 <TableHead className="h-11 text-[10px] uppercase font-black tracking-widest text-muted-foreground text-center">Room</TableHead>
                 <TableHead className="h-11 text-[10px] uppercase font-black tracking-widest text-muted-foreground text-center">Check-In</TableHead>
                 <TableHead className="h-11 text-[10px] uppercase font-black tracking-widest text-muted-foreground text-center">Check-Out</TableHead>
                 <TableHead className="h-11 text-[10px] uppercase font-black tracking-widest text-muted-foreground text-center">Stay Type</TableHead>
-                <TableHead className="w-12 h-11 pr-6"></TableHead>
+                <TableHead className="w-12 h-11"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -514,21 +513,21 @@ export default function ReservationsPage() {
                 <TableRow><TableCell colSpan={8} className="text-center py-20"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
               ) : filteredReservations.length > 0 ? (
                 filteredReservations.map((res) => (
-                  <TableRow key={res.id} className="hover:bg-secondary/10 transition-colors group">
-                    <TableCell className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/5 flex items-center justify-center text-primary border border-primary/10">
+                  <TableRow key={res.id} className="hover:bg-primary/5 transition-colors group">
+                    <TableCell className="py-4 text-center">
+                      <div className="flex items-center justify-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary border border-primary/10 shrink-0">
                           <User className="w-4 h-4" />
                         </div>
                         <span className="font-bold text-[13px] tracking-tight">{res.guestName}</span>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">
                       <Badge variant="outline" className="text-[9px] font-black uppercase bg-primary/5 text-primary border-primary/10 tracking-tighter h-5">
                         {res.bookingSource}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">
                       <Badge className={cn(
                         "text-[9px] font-black uppercase tracking-tighter h-5 px-2",
                         res.status === 'checked_in' ? "bg-emerald-500 hover:bg-emerald-600" :
@@ -543,7 +542,7 @@ export default function ReservationsPage() {
                         {isParadise && res.building && (
                           <span className="text-[8px] uppercase font-bold text-muted-foreground mb-0.5">{res.building}</span>
                         )}
-                        <span className="w-10 h-10 flex items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 font-black text-sm border border-emerald-100">
+                        <span className="w-10 h-10 flex items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 font-black text-sm border border-emerald-100 mx-auto">
                           {res.roomNumber}
                         </span>
                       </div>
@@ -559,7 +558,7 @@ export default function ReservationsPage() {
                         {res.stayType || "Daily"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="pr-6 text-right">
+                    <TableCell className="text-center pr-4">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/5">
