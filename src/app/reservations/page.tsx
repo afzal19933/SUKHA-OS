@@ -11,7 +11,10 @@ import {
   Receipt,
   User,
   CalendarDays,
-  Tag
+  Tag,
+  MoreVertical,
+  Edit2,
+  Trash2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
@@ -38,7 +41,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { 
   Select, 
   SelectContent, 
@@ -46,6 +49,12 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
 import { sendNotification } from "@/firebase/notifications";
 import { parseISO, differenceInDays } from "date-fns";
 
@@ -77,9 +86,12 @@ export default function ReservationsPage() {
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
   
   const [selectedRes, setSelectedRes] = useState<any>(null);
+  const [editingRes, setEditingRes] = useState<any>(null);
+
   const [newRes, setNewRes] = useState({ 
     guestName: "", 
     building: "",
@@ -138,13 +150,14 @@ export default function ReservationsPage() {
   const filteredRoomsForForm = useMemo(() => {
     if (!rooms) return [];
     if (!isParadise) return rooms;
-    return rooms.filter(r => r.building === newRes.building || !r.building);
-  }, [rooms, newRes.building, isParadise]);
+    return rooms.filter(r => r.building === (isEditOpen ? editingRes?.building : newRes.building) || !r.building);
+  }, [rooms, newRes.building, editingRes?.building, isParadise, isEditOpen]);
 
   const availableStayTypes = useMemo(() => {
+    const building = isEditOpen ? editingRes?.building : newRes.building;
     if (!isParadise) return STAY_TYPES.default;
-    return STAY_TYPES[newRes.building] || ["Daily"];
-  }, [newRes.building, isParadise]);
+    return STAY_TYPES[building] || ["Daily"];
+  }, [newRes.building, editingRes?.building, isParadise, isEditOpen]);
 
   const handleAddReservation = (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,6 +193,28 @@ export default function ReservationsPage() {
     setNewRes({ guestName: "", building: "", roomNumber: "", stayType: "Daily", checkIn: "", checkOut: "", guests: "1", requests: "", bookingSource: "Direct" });
   };
 
+  const handleUpdateReservation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!entityId || !editingRes) return;
+
+    const resRef = doc(db, "hotel_properties", entityId, "reservations", editingRes.id);
+    updateDocumentNonBlocking(resRef, {
+      ...editingRes,
+      updatedAt: new Date().toISOString()
+    });
+
+    toast({ title: "Reservation Updated" });
+    setIsEditOpen(false);
+    setEditingRes(null);
+  };
+
+  const handleDeleteReservation = (resId: string) => {
+    if (!entityId || !window.confirm("Are you sure you want to permanently delete this reservation record?")) return;
+    const resRef = doc(db, "hotel_properties", entityId, "reservations", resId);
+    deleteDocumentNonBlocking(resRef);
+    toast({ title: "Reservation Deleted" });
+  };
+
   const generateInvoice = async (res: any) => {
     if (!entityId || !res) return;
 
@@ -191,7 +226,7 @@ export default function ReservationsPage() {
     const room = rooms?.find(r => r.roomNumber?.toString().trim() === roomNumStr && (!isParadise || r.building === res.building));
     const roomType = roomTypes?.find(t => t.id === room?.roomTypeId);
     
-    const baseRate = roomType?.baseRate || 0;
+    const baseRate = res.negotiatedRate || roomType?.baseRate || 0;
     const subtotal = baseRate * nights;
     
     const cgst = subtotal * 0.025;
@@ -443,9 +478,26 @@ export default function ReservationsPage() {
                         <Badge variant="ghost" className="text-[8px] uppercase">{res.stayType || "Daily"}</Badge>
                       </TableCell>
                       <TableCell className="text-right px-4">
-                        <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold text-primary" onClick={() => { setSelectedRes(res); setCheckInForm({ nationality: res.nationality || "Indian", idType: res.idType || "Aadhar", idNumber: res.idNumber || "", address: res.address || "", contact: res.contact || "", state: res.state || "Kerala" }); setIsDetailsOpen(true); }}>
-                          Folio
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold text-primary" onClick={() => { setSelectedRes(res); setCheckInForm({ nationality: res.nationality || "Indian", idType: res.idType || "Aadhar", idNumber: res.idNumber || "", address: res.address || "", contact: res.contact || "", state: res.state || "Kerala" }); setIsDetailsOpen(true); }}>
+                            Folio
+                          </Button>
+                          {isAdmin && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7"><MoreVertical className="w-3.5 h-3.5" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem className="text-xs" onClick={() => { setEditingRes(res); setIsEditOpen(true); }}>
+                                  <Edit2 className="w-3 h-3 mr-2" /> Edit Reservation
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="text-xs text-destructive" onClick={() => handleDeleteReservation(res.id)}>
+                                  <Trash2 className="w-3 h-3 mr-2" /> Delete Record
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -456,6 +508,73 @@ export default function ReservationsPage() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Edit Reservation Dialog */}
+        <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle className="text-sm font-bold">Edit Reservation</DialogTitle>
+              <DialogDescription className="text-[10px]">Modify details for {editingRes?.guestName}</DialogDescription>
+            </DialogHeader>
+            {editingRes && (
+              <form onSubmit={handleUpdateReservation} className="space-y-3 pt-2">
+                <div className="space-y-1">
+                  <Label className="text-[9px] uppercase font-bold">Guest Name</Label>
+                  <Input value={editingRes.guestName} onChange={e => setEditingRes({...editingRes, guestName: e.target.value})} required className="h-8 text-xs" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {isParadise && (
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase font-bold">Building</Label>
+                      <Select value={editingRes.building} onValueChange={val => setEditingRes({...editingRes, building: val, roomNumber: ""})}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>{BUILDINGS.map(b => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <div className="space-y-1 flex-1">
+                    <Label className="text-[9px] uppercase font-bold">Stay Type</Label>
+                    <Select value={editingRes.stayType} onValueChange={val => setEditingRes({...editingRes, stayType: val})}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>{availableStayTypes.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[9px] uppercase font-bold">Assign Room</Label>
+                    <Select onValueChange={val => setEditingRes({...editingRes, roomNumber: val})} value={editingRes.roomNumber}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {filteredRoomsForForm?.sort((a,b) => a.roomNumber.localeCompare(b.roomNumber)).map(r => (
+                          <SelectItem key={r.id} value={r.roomNumber} className="text-xs">{r.roomNumber}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[9px] uppercase font-bold">Source</Label>
+                    <Select value={editingRes.bookingSource} onValueChange={val => setEditingRes({...editingRes, bookingSource: val})}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>{BOOKING_SOURCES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[9px] uppercase font-bold">Check-In</Label>
+                    <Input type="date" value={editingRes.checkInDate} onChange={e => setEditingRes({...editingRes, checkInDate: e.target.value})} className="h-8 text-xs" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[9px] uppercase font-bold">Check-Out</Label>
+                    <Input type="date" value={editingRes.checkOutDate} onChange={e => setEditingRes({...editingRes, checkOutDate: e.target.value})} className="h-8 text-xs" />
+                  </div>
+                </div>
+                <Button type="submit" className="w-full h-9 font-bold text-[11px] mt-2">Save Changes</Button>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Folio Details Dialog */}
         <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
