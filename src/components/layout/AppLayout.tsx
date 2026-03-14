@@ -22,7 +22,8 @@ import {
   ChevronDown,
   Clock,
   Check,
-  Monitor
+  Monitor,
+  Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -53,6 +54,7 @@ import Link from "next/link";
 import { cn, formatAppTime } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { AIAssistant } from "@/components/ai/AIAssistant";
 
 const NAV_ITEMS = [
   { name: "Command Center", href: "/command-center", icon: Monitor, restricted: ["owner", "admin", "manager"] },
@@ -347,6 +349,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <AIAssistant />
     </div>
   );
 }
