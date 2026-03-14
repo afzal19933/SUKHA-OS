@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -20,7 +21,8 @@ import {
   Building2,
   ChevronDown,
   Clock,
-  Check
+  Check,
+  ShieldAlert
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -53,6 +55,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 
 const NAV_ITEMS = [
+  { name: "Command Center", href: "/command-center", icon: ShieldAlert, restricted: ["owner", "admin", "manager"] },
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Reservations", href: "/reservations", icon: CalendarDays },
   { name: "Rooms", href: "/rooms", icon: DoorOpen },
@@ -103,14 +106,25 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   const filteredNavItems = useMemo(() => {
-    if (role === 'owner' || role === 'admin') return NAV_ITEMS;
-    if (permissions && permissions.length > 0) {
-      return NAV_ITEMS.filter(item => 
-        item.name === "Dashboard" || 
-        permissions.includes(item.name)
-      );
-    }
-    return NAV_ITEMS;
+    return NAV_ITEMS.filter(item => {
+      // 1. Check Role-based restriction for the item itself
+      if (item.restricted && !item.restricted.includes(role || "")) {
+        return false;
+      }
+      
+      // 2. Dashboard is always visible
+      if (item.name === "Dashboard") return true;
+
+      // 3. For owners/admins, all (non-restricted by other means) items are visible
+      if (role === 'owner' || role === 'admin') return true;
+
+      // 4. For others, check specific permissions
+      if (permissions && permissions.length > 0) {
+        return permissions.includes(item.name);
+      }
+
+      return false;
+    });
   }, [role, permissions]);
 
   useEffect(() => {
@@ -179,7 +193,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <Menu className="w-4 h-4" />
             </Button>
 
-            {availableProperties.length > 0 && (
+            {availableProperties.length > 0 && pathname !== '/command-center' && (
               <div className="hidden md:flex items-center gap-2 px-2.5 py-1 bg-secondary/50 rounded-lg border border-border/50">
                 <Building2 className="w-3.5 h-3.5 text-primary" />
                 <Select value={entityId || ""} onValueChange={(val) => setEntityId(val)}>
@@ -194,6 +208,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+            {pathname === '/command-center' && (
+              <div className="hidden md:flex items-center gap-2 px-2.5 py-1 bg-primary/5 rounded-lg border border-primary/10">
+                <ShieldAlert className="w-3.5 h-3.5 text-primary" />
+                <span className="text-[11px] font-black uppercase text-primary tracking-widest">Command Center Mode</span>
               </div>
             )}
           </div>
