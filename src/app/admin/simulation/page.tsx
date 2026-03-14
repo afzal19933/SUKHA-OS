@@ -1,19 +1,19 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { 
   PlayCircle, 
   RefreshCcw, 
-  CheckCircle2, 
   AlertTriangle, 
   Loader2,
   Database,
   Building2,
-  Trash2
+  Trash2,
+  ShieldAlert
 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { useFirestore } from "@/firebase";
@@ -28,9 +28,10 @@ import { cn } from "@/lib/utils";
  */
 
 export default function SimulationPage() {
-  const { entityId, role, availableProperties } = useAuthStore();
+  const { entityId, role, availableProperties, _hasHydrated } = useAuthStore();
   const db = useFirestore();
   const { toast } = useToast();
+  
   const [isSimulating, setIsSimulating] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -38,8 +39,19 @@ export default function SimulationPage() {
   const isAdmin = role === "owner" || role === "admin";
   const currentPropertyName = availableProperties.find(p => p.id === entityId)?.name || "Current Property";
 
+  // Debug check for entity context
+  useEffect(() => {
+    if (_hasHydrated && !entityId) {
+      console.warn("Simulation Engine: No active entity detected.");
+    }
+  }, [_hasHydrated, entityId]);
+
   const run30DaySimulation = async () => {
-    if (!entityId || !isAdmin) return;
+    if (!entityId || !isAdmin) {
+      toast({ variant: "destructive", title: "Action Denied", description: "Admin permissions and active property required." });
+      return;
+    }
+    
     setIsSimulating(true);
     setProgress(0);
 
@@ -47,7 +59,7 @@ export default function SimulationPage() {
       const batch = writeBatch(db);
       const now = new Date();
       
-      // 1. Generate 30 days of Reservations
+      // 1. Generate 30 days of Reservations & Housekeeping
       for (let day = 0; day < 30; day++) {
         const currentDate = subDays(now, 30 - day);
         const dateStr = currentDate.toISOString().split('T')[0];
@@ -74,7 +86,7 @@ export default function SimulationPage() {
             bookingSource: isAyursiha ? "Ayursiha" : "Direct",
             createdAt: dateStr,
             updatedAt: dateStr,
-            isSimulated: true // Tag for reset logic
+            isSimulated: true 
           });
         }
         
@@ -89,13 +101,13 @@ export default function SimulationPage() {
           assignedStaffName: "Simulated Staff",
           updatedAt: currentDate.toISOString(),
           createdAt: currentDate.toISOString(),
-          isSimulated: true // Tag for reset logic
+          isSimulated: true
         });
 
         setProgress(Math.round(((day + 1) / 30) * 100));
       }
 
-      // 3. Generate 3 Ayursiha Cycle Summary Reports (as Invoices)
+      // 3. Generate 3 Ayursiha Cycle Invoices
       const cycles = [
         { name: "Cycle 1", start: 30, end: 20 },
         { name: "Cycle 2", start: 20, end: 10 },
@@ -114,15 +126,15 @@ export default function SimulationPage() {
           status: cycle.name === "Cycle 3" ? "pending" : "paid",
           createdAt: subDays(now, cycle.end).toISOString(),
           isCycleInvoice: true,
-          isSimulated: true // Tag for reset logic
+          isSimulated: true
         });
       }
 
       await batch.commit();
-      toast({ title: "Simulation Complete", description: "30 days of operational history seeded." });
-    } catch (error) {
-      console.error(error);
-      toast({ variant: "destructive", title: "Simulation Failed" });
+      toast({ title: "Simulation Complete", description: "30 days of history successfully seeded." });
+    } catch (error: any) {
+      console.error("Simulation Error:", error);
+      toast({ variant: "destructive", title: "Simulation Failed", description: error.message });
     } finally {
       setIsSimulating(false);
     }
@@ -130,60 +142,72 @@ export default function SimulationPage() {
 
   const resetSimulationData = async () => {
     if (!entityId || !isAdmin) {
-      toast({ variant: "destructive", title: "Action Forbidden", description: "You must be logged in as an Admin." });
+      toast({ variant: "destructive", title: "Access Forbidden", description: "Manager permissions required." });
       return;
     }
 
-    if (!confirm(`Wipe simulated data for ${currentPropertyName}? Live records will be preserved.`)) return;
+    const confirmed = window.confirm(`DANGER: This will permanently delete ALL simulated records for ${currentPropertyName}. Live records will not be affected. Proceed?`);
+    if (!confirmed) return;
     
     setIsResetting(true);
     try {
-      const collections = ["reservations", "housekeeping_tasks", "invoices"];
+      // Include all potential collections simulation might have touched
+      const targetCollections = ["reservations", "housekeeping_tasks", "invoices", "guest_laundry_orders"];
       let totalDeleted = 0;
 
-      for (const coll of collections) {
-        const q = query(
-          collection(db, "hotel_properties", entityId, coll),
-          where("isSimulated", "==", true)
-        );
+      for (const collName of targetCollections) {
+        // Query documents marked with the simulated flag in the current property
+        const collRef = collection(db, "hotel_properties", entityId, collName);
+        const q = query(collRef, where("isSimulated", "==", true));
         
         const snapshot = await getDocs(q);
-        const docsToDelete = snapshot.docs;
+        const docs = snapshot.docs;
         
-        if (docsToDelete.length === 0) continue;
+        if (docs.length === 0) {
+          console.log(`No simulated docs found in ${collName}`);
+          continue;
+        }
 
-        // Process in batches of 500 (Firestore limit)
-        for (let i = 0; i < docsToDelete.length; i += 500) {
+        // Process deletions in standard Firestore batches of 500
+        for (let i = 0; i < docs.length; i += 500) {
           const batch = writeBatch(db);
-          const chunk = docsToDelete.slice(i, i + 500);
+          const chunk = docs.slice(i, i + 500);
+          
           chunk.forEach((d) => {
             batch.delete(d.ref);
             totalDeleted++;
           });
+          
           await batch.commit();
         }
       }
 
       if (totalDeleted > 0) {
-        toast({ title: "Reset Successful", description: `Cleaned up ${totalDeleted} simulated records.` });
+        toast({ title: "Cleanup Successful", description: `Removed ${totalDeleted} simulated records.` });
       } else {
-        toast({ title: "No Data Found", description: "No documents marked as 'Simulated' were found." });
+        toast({ title: "No Records Found", description: "No documents with the 'isSimulated' flag were detected." });
       }
-    } catch (error) {
-      console.error("Reset Error:", error);
-      toast({ variant: "destructive", title: "Reset Operation Failed", description: "Check console for details." });
+    } catch (error: any) {
+      console.error("Reset Failure:", error);
+      toast({ 
+        variant: "destructive", 
+        title: "Reset Failed", 
+        description: error.message || "An unexpected error occurred during database cleanup." 
+      });
     } finally {
       setIsResetting(false);
     }
   };
 
+  if (!_hasHydrated) return null;
+
   if (!isAdmin) {
     return (
       <AppLayout>
         <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-          <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" />
-          <h2 className="text-xl font-bold">Access Denied</h2>
-          <p className="text-muted-foreground">The Simulation Engine is restricted to System Administrators only.</p>
+          <ShieldAlert className="w-12 h-12 text-amber-500 mb-4" />
+          <h2 className="text-xl font-bold">Manager Access Required</h2>
+          <p className="text-muted-foreground">The Simulation Engine is restricted to Property Owners and Administrators.</p>
         </div>
       </AppLayout>
     );
@@ -232,7 +256,7 @@ export default function SimulationPage() {
             {isSimulating ? (
               <div className="space-y-3">
                 <div className="flex justify-between text-xs font-bold uppercase">
-                  <span>Simulating Day {Math.floor((progress / 100) * 30)}/30</span>
+                  <span>Processing History...</span>
                   <span>{progress}%</span>
                 </div>
                 <div className="h-2 bg-secondary rounded-full overflow-hidden">
@@ -242,7 +266,7 @@ export default function SimulationPage() {
                   />
                 </div>
                 <p className="text-[10px] text-center text-muted-foreground animate-pulse font-bold uppercase">
-                  Writing operational logs to Firestore...
+                  Writing operational records to Firestore...
                 </p>
               </div>
             ) : (
@@ -282,10 +306,10 @@ export default function SimulationPage() {
         <footer className="p-6 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-4">
           <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p className="text-xs font-bold text-amber-900 uppercase">Data Control Notice</p>
+            <p className="text-xs font-bold text-amber-900 uppercase">Data Integrity Guard</p>
             <p className="text-[11px] text-amber-800 leading-relaxed">
-              The 'Reset' option only removes documents created by this engine (`isSimulated: true`). 
-              Live reservations, manually created invoices, or inventory master lists will not be touched.
+              The 'Reset' option strictly removes documents created by this engine (`isSimulated: true`). 
+              Live reservations, manually created invoices, and inventory master lists are safely excluded from cleanup.
             </p>
           </div>
         </footer>
