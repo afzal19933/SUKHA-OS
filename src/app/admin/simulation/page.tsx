@@ -158,15 +158,13 @@ export default function SimulationPage() {
       for (const collName of targetCollections) {
         // Query documents marked with the simulated flag in the current property
         const collRef = collection(db, "hotel_properties", entityId, collName);
-        const q = query(collRef, where("isSimulated", "==", true));
         
+        // Simple equality query - usually works without manual indexes
+        const q = query(collRef, where("isSimulated", "==", true));
         const snapshot = await getDocs(q);
         const docs = snapshot.docs;
         
-        if (docs.length === 0) {
-          console.log(`No simulated docs found in ${collName}`);
-          continue;
-        }
+        if (docs.length === 0) continue;
 
         // Process deletions in standard Firestore batches of 500
         for (let i = 0; i < docs.length; i += 500) {
@@ -183,7 +181,7 @@ export default function SimulationPage() {
       }
 
       if (totalDeleted > 0) {
-        toast({ title: "Cleanup Successful", description: `Removed ${totalDeleted} simulated records.` });
+        toast({ title: "Cleanup Successful", description: `Removed ${totalDeleted} simulated records from ${currentPropertyName}.` });
       } else {
         toast({ title: "No Records Found", description: "No documents with the 'isSimulated' flag were detected." });
       }
