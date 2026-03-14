@@ -21,6 +21,7 @@ import { useFirestore } from "@/firebase";
 import { collection, doc, writeBatch, query, getDocs, where } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { subDays, addDays, format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 /**
  * @fileOverview Operational Simulation Engine for SUKHA OS.
