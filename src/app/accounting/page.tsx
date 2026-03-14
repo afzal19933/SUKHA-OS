@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { 
@@ -10,7 +11,9 @@ import {
   Loader2, 
   TrendingUp, 
   TrendingDown,
-  Building2
+  Building2,
+  Hospital,
+  ArrowRight
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
@@ -33,27 +36,14 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 
-const EXPENSE_CATEGORIES = [
-  "Utilities",
-  "Maintenance",
-  "Staffing",
-  "Laundry",
-  "Supplies",
-  "Marketing",
-  "Other"
-];
-
 export default function AccountingPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
-  const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
 
   const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
 
-  const [isExpenseOpen, setIsExpenseOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
-  const [newExpense, setNewExpense] = useState({ description: "", amount: "", category: "Other", date: new Date().toISOString().split('T')[0] });
 
   // Data fetching
   const invoiceQuery = useMemoFirebase(() => {
@@ -79,24 +69,10 @@ export default function AccountingPage() {
   const totalExpenses = expenses?.reduce((acc, exp) => acc + (exp.amount || 0), 0) || 0;
   const netProfit = totalRevenue - totalExpenses;
 
-  const handleAddExpense = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!entityId || !isAdmin || !user) return;
-
-    addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "expenses"), {
-      entityId,
-      description: newExpense.description,
-      amount: parseFloat(newExpense.amount),
-      category: newExpense.category,
-      date: newExpense.date,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    toast({ title: "Expense Logged" });
-    setIsExpenseOpen(false);
-    setNewExpense({ description: "", amount: "", category: "Other", date: new Date().toISOString().split('T')[0] });
-  };
+  // Ayursiha Cycle Filtering
+  const ayurCycles = useMemo(() => {
+    return invoices?.filter(inv => inv.isCycleInvoice || inv.invoiceNumber?.startsWith('AYUR')) || [];
+  }, [invoices]);
 
   const handlePrint = () => {
     window.print();
@@ -145,17 +121,11 @@ export default function AccountingPage() {
         <Tabs defaultValue="invoices" className="space-y-4">
           <TabsList className="bg-white border p-1 rounded-xl h-9">
             <TabsTrigger value="invoices" className="rounded-lg text-[10px] h-7 px-5">Invoices</TabsTrigger>
+            <TabsTrigger value="ayursiha" className="rounded-lg text-[10px] h-7 px-5">Ayursiha Cycles</TabsTrigger>
             <TabsTrigger value="expenses" className="rounded-lg text-[10px] h-7 px-5">Expenses</TabsTrigger>
           </TabsList>
 
           <TabsContent value="invoices" className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1 max-w-xs">
-                <Search className="absolute left-3 top-2.5 w-3 h-3 text-muted-foreground" />
-                <Input placeholder="Invoice #" className="pl-8 h-8 text-[10px]" />
-              </div>
-            </div>
-
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
               <Table>
                 <TableHeader className="bg-secondary/50">
@@ -196,12 +166,60 @@ export default function AccountingPage() {
             </div>
           </TabsContent>
 
+          <TabsContent value="ayursiha" className="space-y-4">
+            <div className="bg-primary/5 p-4 rounded-2xl border border-primary/10 flex items-center gap-4">
+              <div className="p-3 bg-primary text-white rounded-xl shadow-lg">
+                <Hospital className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-tight text-primary">Ayursiha Hospital Billing</h3>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase">Consolidated 10-Day Cycle Invoices</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              {ayurCycles.length > 0 ? (
+                ayurCycles.map((cycle) => (
+                  <div key={cycle.id} className="p-4 bg-white rounded-2xl border shadow-sm flex items-center justify-between group hover:border-primary/50 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="text-center w-12">
+                        <p className="text-[8px] font-black text-muted-foreground uppercase">Cycle</p>
+                        <p className="text-sm font-black">{cycle.invoiceNumber.split('-')[1]}</p>
+                      </div>
+                      <div className="h-8 w-px bg-border" />
+                      <div>
+                        <p className="text-xs font-bold">{cycle.guestName || "Ayursiha Hospital"}</p>
+                        <p className="text-[10px] text-muted-foreground font-medium">{formatAppDate(cycle.createdAt)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="text-right">
+                        <p className="text-[8px] font-black text-muted-foreground uppercase">Settlement</p>
+                        <Badge variant="outline" className={cn("text-[8px] h-4 uppercase", cycle.status === 'paid' ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600")}>
+                          {cycle.status}
+                        </Badge>
+                      </div>
+                      <div className="text-right w-24">
+                        <p className="text-[8px] font-black text-muted-foreground uppercase">Amount</p>
+                        <p className="text-sm font-black text-primary">₹{cycle.totalAmount?.toLocaleString()}</p>
+                      </div>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-primary opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setSelectedInvoice(cycle)}>
+                        <ArrowRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-12 border-2 border-dashed rounded-3xl text-muted-foreground font-bold uppercase text-[10px]">
+                  No Ayursiha cycle invoices generated yet.
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
           <TabsContent value="expenses" className="space-y-4">
              <div className="flex justify-between items-center">
               <h2 className="text-[10px] font-bold uppercase text-muted-foreground">Operating Costs</h2>
-              {isAdmin && (
-                <Button size="sm" className="h-7 text-[10px] font-bold" onClick={() => setIsExpenseOpen(true)}>Log Expense</Button>
-              )}
             </div>
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
               <Table>
@@ -262,12 +280,12 @@ export default function AccountingPage() {
               <div className="grid grid-cols-2 gap-8 text-[10px]">
                 <div className="space-y-1.5">
                   <p className="text-[8px] font-bold uppercase text-muted-foreground">Billed To</p>
-                  <p className="font-bold text-sm">{selectedInvoice?.guestName}</p>
-                  <p className="text-muted-foreground">Room #{selectedInvoice?.roomNumber}</p>
+                  <p className="font-bold text-sm">{selectedInvoice?.guestName || selectedInvoice?.guestDetails?.name}</p>
+                  <p className="text-muted-foreground">Room #{selectedInvoice?.roomNumber || selectedInvoice?.stayDetails?.roomNumber || "Cycle"}</p>
                 </div>
                 <div className="space-y-1.5 text-right">
-                  <p className="text-[8px] font-bold uppercase text-muted-foreground">Stay Info</p>
-                  <p className="font-bold">Reservation ID: {selectedInvoice?.reservationId?.slice(-6).toUpperCase()}</p>
+                  <p className="text-[8px] font-bold uppercase text-muted-foreground">Reference Info</p>
+                  <p className="font-bold">Entity: {property?.name}</p>
                   <p className="text-muted-foreground">Folio Settlement: {selectedInvoice?.status?.toUpperCase()}</p>
                 </div>
               </div>
@@ -281,12 +299,19 @@ export default function AccountingPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedInvoice?.items?.map((item: any, idx: number) => (
-                      <TableRow key={idx} className="h-9 border-b border-primary/5">
-                        <TableCell className="text-[10px] font-medium">{item.description}</TableCell>
-                        <TableCell className="text-right text-[10px] font-bold">₹{item.amount?.toLocaleString()}</TableCell>
+                    {selectedInvoice?.items ? (
+                      selectedInvoice.items.map((item: any, idx: number) => (
+                        <TableRow key={idx} className="h-9 border-b border-primary/5">
+                          <TableCell className="text-[10px] font-medium">{item.name || item.description}</TableCell>
+                          <TableCell className="text-right text-[10px] font-bold">₹{item.amount?.toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow className="h-9 border-b border-primary/5">
+                        <TableCell className="text-[10px] font-medium">Professional Accommodation Services</TableCell>
+                        <TableCell className="text-right text-[10px] font-bold">₹{selectedInvoice?.totalAmount?.toLocaleString()}</TableCell>
                       </TableRow>
-                    ))}
+                    )}
                   </TableBody>
                 </Table>
               </div>

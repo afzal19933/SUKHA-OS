@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -21,7 +22,8 @@ import {
   ChevronDown,
   Clock,
   Check,
-  Monitor
+  Monitor,
+  PlayCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -63,6 +65,7 @@ const NAV_ITEMS = [
   { name: "Laundry", href: "/laundry", icon: WashingMachine },
   { name: "Accounting", href: "/accounting", icon: Calculator },
   { name: "Team", href: "/team", icon: Users },
+  { name: "Simulation", href: "/admin/simulation", icon: PlayCircle, restricted: ["owner", "admin"] },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
