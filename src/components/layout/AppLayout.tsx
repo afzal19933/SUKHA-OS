@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -22,7 +21,7 @@ import {
   ChevronDown,
   Clock,
   Check,
-  ShieldAlert
+  Monitor
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -55,7 +54,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 
 const NAV_ITEMS = [
-  { name: "Command Center", href: "/command-center", icon: ShieldAlert, restricted: ["owner", "admin", "manager"] },
+  { name: "Command Center", href: "/command-center", icon: Monitor, restricted: ["owner", "admin", "manager"] },
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Reservations", href: "/reservations", icon: CalendarDays },
   { name: "Rooms", href: "/rooms", icon: DoorOpen },
@@ -212,7 +211,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             )}
             {pathname === '/command-center' && (
               <div className="hidden md:flex items-center gap-2 px-2.5 py-1 bg-primary/5 rounded-lg border border-primary/10">
-                <ShieldAlert className="w-3.5 h-3.5 text-primary" />
+                <Monitor className="w-3.5 h-3.5 text-primary" />
                 <span className="text-[11px] font-black uppercase text-primary tracking-widest">Command Center Mode</span>
               </div>
             )}

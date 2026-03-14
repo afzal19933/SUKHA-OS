@@ -19,7 +19,7 @@ import {
   AlertTriangle,
   History,
   Info,
-  ShieldAlert
+  Monitor
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -267,7 +267,7 @@ export default function CommandCenterPage() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <div className="bg-primary text-white p-1 rounded">
-                <ShieldAlert className="w-5 h-5" />
+                <Monitor className="w-5 h-5" />
               </div>
               <h1 className="text-3xl font-black tracking-tighter text-primary">COMMAND CENTER</h1>
             </div>
