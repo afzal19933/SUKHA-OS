@@ -52,6 +52,10 @@
 }
 
 @layer base {
+  html {
+    /* Increases overall font size by 5% (16px * 1.05 = 16.8px base) */
+    font-size: 105%;
+  }
   * {
     @apply border-border;
   }
@@ -71,6 +75,7 @@
     background: white !important;
     padding: 0 !important;
     margin: 0 !important;
+    font-size: 12pt;
   }
 
   main {
