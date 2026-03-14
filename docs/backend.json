@@ -13,7 +13,8 @@
         "isActive": { "type": "boolean" },
         "gstin": { "type": "string" },
         "whatsappNumber": { "type": "string", "description": "The official business number used to send messages." },
-        "whatsappBusinessId": { "type": "string" }
+        "whatsappBusinessId": { "type": "string" },
+        "whatsappAccessToken": { "type": "string", "description": "Meta Cloud API permanent access token." }
       }
     },
     "UserProfile": {

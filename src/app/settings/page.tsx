@@ -52,7 +52,16 @@ export default function SettingsPage() {
   const { data: property, isLoading: propLoading } = useDoc(propertyRef);
   const { data: gst, isLoading: gstLoading } = useDoc(gstRef);
 
-  const [propForm, setPropForm] = useState({ name: "", address: "", phone: "", email: "", whatsappNumber: "", whatsappBusinessId: "" });
+  const [propForm, setPropForm] = useState({ 
+    name: "", 
+    address: "", 
+    phone: "", 
+    email: "", 
+    whatsappNumber: "", 
+    whatsappBusinessId: "",
+    whatsappAccessToken: "" 
+  });
+  
   const [gstForm, setGstForm] = useState({ 
     gstin: "", 
     sacCode: "", 
@@ -75,7 +84,8 @@ export default function SettingsPage() {
         phone: property.phone || "",
         email: property.email || "",
         whatsappNumber: property.whatsappNumber || "",
-        whatsappBusinessId: property.whatsappBusinessId || ""
+        whatsappBusinessId: property.whatsappBusinessId || "",
+        whatsappAccessToken: property.whatsappAccessToken || ""
       });
     }
     if (gst) {
@@ -421,7 +431,14 @@ export default function SettingsPage() {
                     </div>
                     <div className="space-y-2">
                       <Label className="text-[10px] uppercase font-bold text-muted-foreground">System Access Token</Label>
-                      <Input type="password" value="••••••••••••••••••••••••" disabled className="bg-white/50" />
+                      <Input 
+                        type="password" 
+                        placeholder="Paste your Meta access token here" 
+                        value={propForm.whatsappAccessToken} 
+                        onChange={e => setPropForm({...propForm, whatsappAccessToken: e.target.value})}
+                        disabled={!isAdmin} 
+                        className="bg-white/50" 
+                      />
                       <p className="text-[9px] text-primary font-medium italic">Tokens are managed securely via Firebase Environment Variables in production.</p>
                     </div>
                   </div>
