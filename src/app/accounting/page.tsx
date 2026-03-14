@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { 
@@ -19,7 +19,10 @@ import {
   PieChart,
   Settings2,
   ChevronRight,
-  Loader2
+  Loader2,
+  Save,
+  Percent,
+  BarChart3
 } from "lucide-react";
 import { 
   Table, 
@@ -30,7 +33,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { doc } from "firebase/firestore";
+import { doc, setDoc, updateDoc } from "firebase/firestore";
 import { cn, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useDoc } from "@/firebase";
@@ -38,19 +41,38 @@ import { collection, query, orderBy } from "firebase/firestore";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart as RePieChart,
+  Pie,
+  Cell,
+  Cell as ReCell
+} from "recharts";
 
 const SIDEBAR_ITEMS = [
   { id: 'overview', label: 'Financial Overview', icon: LayoutDashboard },
   { id: 'invoices', label: 'Revenue & Invoices', icon: Receipt },
   { id: 'ayurcycles', label: 'Ayursiha Cycles', icon: Hospital },
   { id: 'expenses', label: 'Operating Expenses', icon: CreditCard },
-  { id: 'reports', label: 'Analytics Reports', icon: PieChart },
+  { id: 'reports', label: 'Analytics Reports', icon: BarChart3 },
   { id: 'settings', label: 'Tax Settings', icon: Settings2 },
 ];
+
+const COLORS = ['#5F5FA7', '#10b981', '#f59e0b', '#e11d48', '#334155'];
 
 export default function AccountingPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
   const db = useFirestore();
+  const { toast } = useToast();
   const [activeView, setActiveView] = useState('overview');
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
 
@@ -72,9 +94,41 @@ export default function AccountingPage() {
     return doc(db, "hotel_properties", entityId);
   }, [db, entityId]);
 
+  const gstRef = useMemoFirebase(() => {
+    if (!entityId) return null;
+    return doc(db, "hotel_properties", entityId, "gst_settings", "default");
+  }, [db, entityId]);
+
   const { data: invoices, isLoading: invLoading } = useCollection(invoiceQuery);
   const { data: expenses, isLoading: expLoading } = useCollection(expenseQuery);
   const { data: property } = useDoc(propertyRef);
+  const { data: gst } = useDoc(gstRef);
+
+  const [gstForm, setGstForm] = useState({ 
+    gstin: "", 
+    sacCode: "", 
+    roomGstRate: "5", 
+    roomCgstRate: "2.5", 
+    roomSgstRate: "2.5",
+    serviceGstRate: "18",
+    serviceCgstRate: "9",
+    serviceSgstRate: "9"
+  });
+
+  useEffect(() => {
+    if (gst) {
+      setGstForm({
+        gstin: gst.gstin || "",
+        sacCode: gst.sacCode || "",
+        roomGstRate: gst.roomGstRate?.toString() || "5",
+        roomCgstRate: gst.roomCgstRate?.toString() || "2.5",
+        roomSgstRate: gst.roomSgstRate?.toString() || "2.5",
+        serviceGstRate: gst.serviceGstRate?.toString() || "18",
+        serviceCgstRate: gst.serviceCgstRate?.toString() || "9",
+        serviceSgstRate: gst.serviceSgstRate?.toString() || "9"
+      });
+    }
+  }, [gst]);
 
   const totalRevenue = invoices?.reduce((acc, inv) => acc + (inv.totalAmount || 0), 0) || 0;
   const totalExpenses = expenses?.reduce((acc, exp) => acc + (exp.amount || 0), 0) || 0;
@@ -83,6 +137,48 @@ export default function AccountingPage() {
   const ayurCycles = useMemo(() => {
     return invoices?.filter(inv => inv.isCycleInvoice || inv.invoiceNumber?.startsWith('AYUR')) || [];
   }, [invoices]);
+
+  const chartData = useMemo(() => {
+    // Group last 6 months data for simple bar chart
+    return [
+      { name: 'Revenue', amount: totalRevenue },
+      { name: 'Expenses', amount: totalExpenses },
+      { name: 'Net Profit', amount: netProfit },
+    ];
+  }, [totalRevenue, totalExpenses, netProfit]);
+
+  const sourceData = useMemo(() => {
+    const sources: Record<string, number> = {};
+    invoices?.forEach(inv => {
+      const source = inv.bookingSource || 'Unknown';
+      sources[source] = (sources[source] || 0) + (inv.totalAmount || 0);
+    });
+    return Object.entries(sources).map(([name, value]) => ({ name, value }));
+  }, [invoices]);
+
+  const handleUpdateGst = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gstRef || !isAdmin) return;
+    
+    const updateData = {
+      ...gstForm,
+      roomGstRate: parseFloat(gstForm.roomGstRate),
+      roomCgstRate: parseFloat(gstForm.roomCgstRate),
+      roomSgstRate: parseFloat(gstForm.roomSgstRate),
+      serviceGstRate: parseFloat(gstForm.serviceGstRate),
+      serviceCgstRate: parseFloat(gstForm.serviceCgstRate),
+      serviceSgstRate: parseFloat(gstForm.serviceSgstRate),
+      entityId,
+      updatedAt: new Date().toISOString()
+    };
+
+    try {
+      await setDoc(gstRef, updateData, { merge: true });
+      toast({ title: "Tax settings updated" });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Update failed" });
+    }
+  };
 
   const handlePrint = () => {
     window.print();
@@ -95,7 +191,7 @@ export default function AccountingPage() {
         <aside className="w-64 bg-white rounded-3xl border shadow-sm flex flex-col shrink-0 overflow-hidden">
           <div className="p-6 border-b">
             <h2 className="text-sm font-black uppercase tracking-widest text-primary">Accounting</h2>
-            <p className="text-[10px] text-muted-foreground font-bold">FOLIO & REVENUE</p>
+            <p className="text-[10px] text-muted-foreground font-bold uppercase">FOLIO & REVENUE</p>
           </div>
           <ScrollArea className="flex-1 p-2">
             <div className="space-y-1">
@@ -313,7 +409,138 @@ export default function AccountingPage() {
                 </div>
               )}
 
-              {(activeView === 'reports' || activeView === 'settings') && (
+              {activeView === 'reports' && isAdmin && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+                  <div className="space-y-1">
+                    <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Analytics Reports</h1>
+                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Financial Performance Visualization</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div className="p-6 bg-white rounded-3xl border shadow-sm space-y-4">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Revenue vs Expenses Summary</h3>
+                      <div className="h-[250px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 700 }} />
+                            <YAxis tick={{ fontSize: 10, fontWeight: 700 }} />
+                            <Tooltip 
+                              contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                              cursor={{ fill: '#f1f5f9' }}
+                            />
+                            <Bar dataKey="amount" fill="#5F5FA7" radius={[10, 10, 0, 0]} barSize={40} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    <div className="p-6 bg-white rounded-3xl border shadow-sm space-y-4">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Revenue by Booking Source</h3>
+                      <div className="h-[250px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RePieChart>
+                            <Pie
+                              data={sourceData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={60}
+                              outerRadius={80}
+                              paddingAngle={5}
+                              dataKey="value"
+                            >
+                              {sourceData.map((entry, index) => (
+                                <ReCell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip contentStyle={{ borderRadius: '16px', border: 'none' }} />
+                          </RePieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex flex-wrap justify-center gap-4">
+                        {sourceData.map((entry, index) => (
+                          <div key={index} className="flex items-center gap-1.5">
+                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                            <span className="text-[10px] font-bold uppercase">{entry.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeView === 'settings' && isAdmin && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+                  <div className="space-y-1">
+                    <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Tax & SAC Settings</h1>
+                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Configure Billing Compliance</p>
+                  </div>
+
+                  <div className="p-8 bg-white rounded-3xl border shadow-sm max-w-2xl">
+                    <form onSubmit={handleUpdateGst} className="space-y-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">GSTIN Number</Label>
+                          <Input className="h-11 rounded-2xl border-primary/10 bg-secondary/30 text-xs font-bold" placeholder="Enter GSTIN" value={gstForm.gstin} onChange={e => setGstForm({...gstForm, gstin: e.target.value})} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">SAC Code (Accommodation)</Label>
+                          <Input className="h-11 rounded-2xl border-primary/10 bg-secondary/30 text-xs font-bold" placeholder="9963" value={gstForm.sacCode} onChange={e => setGstForm({...gstForm, sacCode: e.target.value})} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-6">
+                        <div className="p-6 bg-primary/5 rounded-[2rem] border border-primary/10 space-y-6">
+                          <h3 className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                            <Percent className="w-4 h-4" /> Room Rent GST (Typical: 5%)
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="space-y-2">
+                              <Label className="text-[9px] font-black uppercase text-muted-foreground">Total Rate (%)</Label>
+                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-primary/5 text-xs" value={gstForm.roomGstRate} onChange={e => setGstForm({...gstForm, roomGstRate: e.target.value})} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[9px] font-black uppercase text-muted-foreground">CGST (%)</Label>
+                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-primary/5 text-xs" value={gstForm.roomCgstRate} onChange={e => setGstForm({...gstForm, roomCgstRate: e.target.value})} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[9px] font-black uppercase text-muted-foreground">SGST (%)</Label>
+                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-primary/5 text-xs" value={gstForm.roomSgstRate} onChange={e => setGstForm({...gstForm, roomSgstRate: e.target.value})} />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-6 bg-emerald-50/50 rounded-[2rem] border border-emerald-100 space-y-6">
+                          <h3 className="text-xs font-black uppercase tracking-widest text-emerald-700 flex items-center gap-2">
+                            <Percent className="w-4 h-4" /> Service / Extra GST (Typical: 18%)
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="space-y-2">
+                              <Label className="text-[9px] font-black uppercase text-muted-foreground">Total Rate (%)</Label>
+                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-emerald-100 text-xs" value={gstForm.serviceGstRate} onChange={e => setGstForm({...gstForm, serviceGstRate: e.target.value})} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[9px] font-black uppercase text-muted-foreground">CGST (%)</Label>
+                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-emerald-100 text-xs" value={gstForm.serviceCgstRate} onChange={e => setGstForm({...gstForm, serviceCgstRate: e.target.value})} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[9px] font-black uppercase text-muted-foreground">SGST (%)</Label>
+                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-emerald-100 text-xs" value={gstForm.serviceSgstRate} onChange={e => setGstForm({...gstForm, serviceSgstRate: e.target.value})} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Button type="submit" className="w-full h-12 rounded-2xl shadow-xl shadow-primary/20 font-black uppercase tracking-widest text-xs">
+                        <Save className="w-4 h-4 mr-2" /> Commit Tax Configuration
+                      </Button>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {((activeView === 'reports' || activeView === 'settings') && !isAdmin) && (
                 <div className="flex flex-col items-center justify-center py-32 text-center space-y-4">
                   <div className="p-6 bg-secondary/50 rounded-full">
                     <Settings2 className="w-12 h-12 text-muted-foreground/30" />
@@ -328,7 +555,7 @@ export default function AccountingPage() {
           </ScrollArea>
         </main>
 
-        {/* Invoice Detail Dialog (Same as before) */}
+        {/* Invoice Detail Dialog */}
         <Dialog open={!!selectedInvoice} onOpenChange={(o) => !o && setSelectedInvoice(null)}>
           <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden rounded-[2.5rem]">
             <div className="p-10 space-y-8 bg-white" id="printable-invoice">
