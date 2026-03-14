@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
@@ -33,6 +33,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc } from "@/firebase";
 import { collection, query, where, doc, addDoc, updateDoc } from "firebase/firestore";
 import { parseISO, differenceInDays } from "date-fns";
+import { useSearchParams, useRouter } from "next/navigation";
 import { 
   Dialog, 
   DialogContent, 
@@ -54,6 +55,8 @@ export default function DashboardPage() {
   const { entityId } = useAuthStore();
   const db = useFirestore();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
   
@@ -123,6 +126,21 @@ export default function DashboardPage() {
   const { data: property } = useDoc(propertyRef);
 
   const isParadise = property?.name?.toLowerCase().includes("paradise");
+
+  // Handle AI Deep-linking (Checkout)
+  useEffect(() => {
+    const checkoutRoom = searchParams.get('checkout');
+    if (checkoutRoom && rooms && checkedInReservations) {
+      const room = rooms.find(r => r.roomNumber === checkoutRoom);
+      if (room && room.status.includes('occupied')) {
+        handleQuickCheckoutAction(room);
+        // Clear param to prevent re-opening
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('checkout');
+        router.replace(`/dashboard?${newParams.toString()}`);
+      }
+    }
+  }, [searchParams, rooms, checkedInReservations]);
 
   // Statistics Calculation
   const stats = useMemo(() => ({
@@ -503,7 +521,7 @@ export default function DashboardPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Quick Booking Dialog - Enhanced to match full check-in */}
+        {/* Quick Booking Dialog */}
         <Dialog open={isQuickResOpen} onOpenChange={setIsQuickResOpen}>
           <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden">
             <div className="bg-primary p-5 text-primary-foreground">

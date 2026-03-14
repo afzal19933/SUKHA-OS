@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { 
@@ -33,6 +34,7 @@ import { cn, formatAppDate, generateInvoiceNumber, numberToWords } from "@/lib/u
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc } from "@/firebase";
 import { collection, doc, query, orderBy } from "firebase/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
 import { 
   Dialog, 
   DialogContent, 
@@ -86,6 +88,8 @@ export default function ReservationsPage() {
   const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   const isAdmin = ["owner", "admin", "frontdesk", "manager"].includes(currentUserRole || "");
 
@@ -126,6 +130,17 @@ export default function ReservationsPage() {
     contact: "",
     state: "Kerala"
   });
+
+  // Handle AI Deep-linking (New Reservation)
+  useEffect(() => {
+    if (searchParams.get('new') === 'true') {
+      setIsAddOpen(true);
+      // Clean up URL
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('new');
+      router.replace(`/reservations?${newParams.toString()}`);
+    }
+  }, [searchParams]);
 
   // Queries
   const reservationsQuery = useMemoFirebase(() => {
@@ -443,7 +458,7 @@ export default function ReservationsPage() {
           </div>
         </div>
 
-        {/* Professional Filter Bar */}
+        {/* Filter Bar */}
         <div className="bg-white p-4 rounded-2xl border shadow-sm space-y-4">
           <div className="flex items-center gap-2 mb-1">
             <Filter className="w-3.5 h-3.5 text-primary" />
