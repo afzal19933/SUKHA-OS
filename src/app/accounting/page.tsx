@@ -7,15 +7,20 @@ import { Button } from "@/components/ui/button";
 import { 
   Printer, 
   FileText, 
-  Search, 
-  Loader2, 
   TrendingUp, 
   TrendingDown,
   Building2,
   Hospital,
-  ArrowRight
+  ArrowRight,
+  LayoutDashboard,
+  Receipt,
+  History,
+  CreditCard,
+  PieChart,
+  Settings2,
+  ChevronRight,
+  Loader2
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { 
   Table, 
   TableBody, 
@@ -25,25 +30,31 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { doc } from "firebase/firestore";
 import { cn, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
-import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc } from "@/firebase";
+import { useCollection, useMemoFirebase, useFirestore, useDoc } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+const SIDEBAR_ITEMS = [
+  { id: 'overview', label: 'Financial Overview', icon: LayoutDashboard },
+  { id: 'invoices', label: 'Revenue & Invoices', icon: Receipt },
+  { id: 'ayurcycles', label: 'Ayursiha Cycles', icon: Hospital },
+  { id: 'expenses', label: 'Operating Expenses', icon: CreditCard },
+  { id: 'reports', label: 'Analytics Reports', icon: PieChart },
+  { id: 'settings', label: 'Tax Settings', icon: Settings2 },
+];
 
 export default function AccountingPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
   const db = useFirestore();
-  const { toast } = useToast();
+  const [activeView, setActiveView] = useState('overview');
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
 
   const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
-
-  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
 
   // Data fetching
   const invoiceQuery = useMemoFirebase(() => {
@@ -69,7 +80,6 @@ export default function AccountingPage() {
   const totalExpenses = expenses?.reduce((acc, exp) => acc + (exp.amount || 0), 0) || 0;
   const netProfit = totalRevenue - totalExpenses;
 
-  // Ayursiha Cycle Filtering
   const ayurCycles = useMemo(() => {
     return invoices?.filter(inv => inv.isCycleInvoice || inv.invoiceNumber?.startsWith('AYUR')) || [];
   }, [invoices]);
@@ -80,236 +90,302 @@ export default function AccountingPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-4xl mx-auto">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Financial Hub</h1>
-            <p className="text-[10px] text-muted-foreground mt-0.5 uppercase font-bold tracking-widest">Revenue & Expense Reconciliation</p>
+      <div className="flex h-[calc(100vh-8rem)] gap-6 max-w-6xl mx-auto overflow-hidden">
+        {/* Accounting Sidebar */}
+        <aside className="w-64 bg-white rounded-3xl border shadow-sm flex flex-col shrink-0 overflow-hidden">
+          <div className="p-6 border-b">
+            <h2 className="text-sm font-black uppercase tracking-widest text-primary">Accounting</h2>
+            <p className="text-[10px] text-muted-foreground font-bold">FOLIO & REVENUE</p>
           </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="p-3 bg-white rounded-xl border shadow-sm flex items-center gap-2.5">
-            <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
-              <TrendingUp className="w-3.5 h-3.5" />
-            </div>
-            <div>
-              <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Gross Revenue</p>
-              <h3 className="text-sm font-bold">₹{totalRevenue.toLocaleString()}</h3>
-            </div>
-          </div>
-          <div className="p-3 bg-white rounded-xl border shadow-sm flex items-center gap-2.5">
-            <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg">
-              <TrendingDown className="w-3.5 h-3.5" />
-            </div>
-            <div>
-              <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Total Expenses</p>
-              <h3 className="text-sm font-bold">₹{totalExpenses.toLocaleString()}</h3>
-            </div>
-          </div>
-          <div className="p-3 bg-white rounded-xl border shadow-sm flex items-center gap-2.5">
-            <div className={cn("p-1.5 rounded-lg", netProfit >= 0 ? "bg-primary/10 text-primary" : "bg-rose-50 text-rose-600")}>
-              <TrendingUp className="w-3.5 h-3.5" />
-            </div>
-            <div>
-              <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Net Profit</p>
-              <h3 className="text-sm font-bold">₹{netProfit.toLocaleString()}</h3>
-            </div>
-          </div>
-        </div>
-
-        <Tabs defaultValue="invoices" className="space-y-4">
-          <TabsList className="bg-white border p-1 rounded-xl h-9">
-            <TabsTrigger value="invoices" className="rounded-lg text-[10px] h-7 px-5">Invoices</TabsTrigger>
-            <TabsTrigger value="ayursiha" className="rounded-lg text-[10px] h-7 px-5">Ayursiha Cycles</TabsTrigger>
-            <TabsTrigger value="expenses" className="rounded-lg text-[10px] h-7 px-5">Expenses</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="invoices" className="space-y-3">
-            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-              <Table>
-                <TableHeader className="bg-secondary/50">
-                  <TableRow>
-                    <TableHead className="text-[9px] h-8 font-bold uppercase pl-4">Invoice #</TableHead>
-                    <TableHead className="text-[9px] h-8 font-bold uppercase">Date</TableHead>
-                    <TableHead className="text-[9px] h-8 font-bold uppercase">Amount</TableHead>
-                    <TableHead className="text-[9px] h-8 font-bold uppercase">Status</TableHead>
-                    <TableHead className="text-right text-[9px] h-8 font-bold uppercase pr-4">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {invLoading ? (
-                    <TableRow><TableCell colSpan={5} className="text-center py-6"><Loader2 className="w-3.5 h-3.5 animate-spin mx-auto text-primary" /></TableCell></TableRow>
-                  ) : invoices?.length ? (
-                    invoices.map((inv) => (
-                      <TableRow key={inv.id} className="group">
-                        <TableCell className="pl-4 font-mono text-[9px] font-bold text-primary">{inv.invoiceNumber}</TableCell>
-                        <TableCell className="text-[10px]">{formatAppDate(inv.createdAt)}</TableCell>
-                        <TableCell className="font-bold text-[10px]">₹{inv.totalAmount?.toLocaleString()}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={cn("text-[8px] h-3.5 px-1.5", inv.status === "paid" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600")}>
-                            {inv.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right pr-4">
-                          <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setSelectedInvoice(inv)}>
-                            <Printer className="w-2.5 h-2.5" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-[9px] text-muted-foreground uppercase font-bold">No revenue records</TableCell></TableRow>
+          <ScrollArea className="flex-1 p-2">
+            <div className="space-y-1">
+              {SIDEBAR_ITEMS.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveView(item.id)}
+                  className={cn(
+                    "w-full flex items-center justify-between p-3 rounded-2xl transition-all group",
+                    activeView === item.id 
+                      ? "bg-primary text-white shadow-lg shadow-primary/20" 
+                      : "text-muted-foreground hover:bg-secondary hover:text-primary"
                   )}
-                </TableBody>
-              </Table>
+                >
+                  <div className="flex items-center gap-3">
+                    <item.icon className={cn("w-4 h-4", activeView === item.id ? "text-white" : "group-hover:text-primary")} />
+                    <span className="text-[11px] font-bold">{item.label}</span>
+                  </div>
+                  {activeView === item.id && <ChevronRight className="w-3.5 h-3.5" />}
+                </button>
+              ))}
             </div>
-          </TabsContent>
-
-          <TabsContent value="ayursiha" className="space-y-4">
-            <div className="bg-primary/5 p-4 rounded-2xl border border-primary/10 flex items-center gap-4">
-              <div className="p-3 bg-primary text-white rounded-xl shadow-lg">
-                <Hospital className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-tight text-primary">Ayursiha Hospital Billing</h3>
-                <p className="text-[10px] text-muted-foreground font-bold uppercase">Consolidated 10-Day Cycle Invoices</p>
-              </div>
+          </ScrollArea>
+          <div className="p-4 bg-secondary/30 border-t">
+            <div className="p-3 bg-white rounded-2xl border flex items-center gap-2">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              <span className="text-[9px] font-black uppercase text-muted-foreground">GST Sync Active</span>
             </div>
+          </div>
+        </aside>
 
-            <div className="grid grid-cols-1 gap-3">
-              {ayurCycles.length > 0 ? (
-                ayurCycles.map((cycle) => (
-                  <div key={cycle.id} className="p-4 bg-white rounded-2xl border shadow-sm flex items-center justify-between group hover:border-primary/50 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className="text-center w-12">
-                        <p className="text-[8px] font-black text-muted-foreground uppercase">Cycle</p>
-                        <p className="text-sm font-black">{cycle.invoiceNumber.split('-')[1]}</p>
-                      </div>
-                      <div className="h-8 w-px bg-border" />
+        {/* View Content */}
+        <main className="flex-1 bg-white rounded-3xl border shadow-sm overflow-hidden flex flex-col">
+          <ScrollArea className="flex-1">
+            <div className="p-8 space-y-8">
+              {activeView === 'overview' && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="space-y-1">
+                    <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Financial Overview</h1>
+                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Real-time property health</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 space-y-2">
+                      <TrendingUp className="w-6 h-6 text-emerald-600" />
                       <div>
-                        <p className="text-xs font-bold">{cycle.guestName || "Ayursiha Hospital"}</p>
-                        <p className="text-[10px] text-muted-foreground font-medium">{formatAppDate(cycle.createdAt)}</p>
+                        <p className="text-[10px] font-black uppercase text-emerald-600/70">Gross Revenue</p>
+                        <h3 className="text-2xl font-black text-emerald-700">₹{totalRevenue.toLocaleString()}</h3>
                       </div>
                     </div>
-                    <div className="flex items-center gap-6">
-                      <div className="text-right">
-                        <p className="text-[8px] font-black text-muted-foreground uppercase">Settlement</p>
-                        <Badge variant="outline" className={cn("text-[8px] h-4 uppercase", cycle.status === 'paid' ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600")}>
-                          {cycle.status}
-                        </Badge>
+                    <div className="p-6 bg-rose-50 rounded-3xl border border-rose-100 space-y-2">
+                      <TrendingDown className="w-6 h-6 text-rose-600" />
+                      <div>
+                        <p className="text-[10px] font-black uppercase text-rose-600/70">Total Expenses</p>
+                        <h3 className="text-2xl font-black text-rose-700">₹{totalExpenses.toLocaleString()}</h3>
                       </div>
-                      <div className="text-right w-24">
-                        <p className="text-[8px] font-black text-muted-foreground uppercase">Amount</p>
-                        <p className="text-sm font-black text-primary">₹{cycle.totalAmount?.toLocaleString()}</p>
+                    </div>
+                    <div className="p-6 bg-primary/5 rounded-3xl border border-primary/10 space-y-2">
+                      <LayoutDashboard className="w-6 h-6 text-primary" />
+                      <div>
+                        <p className="text-[10px] font-black uppercase text-primary/70">Net Operating Profit</p>
+                        <h3 className="text-2xl font-black text-primary">₹{netProfit.toLocaleString()}</h3>
                       </div>
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-primary opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setSelectedInvoice(cycle)}>
-                        <ArrowRight className="w-4 h-4" />
-                      </Button>
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-12 border-2 border-dashed rounded-3xl text-muted-foreground font-bold uppercase text-[10px]">
-                  No Ayursiha cycle invoices generated yet.
+
+                  <div className="p-8 bg-secondary/20 rounded-[2.5rem] border border-dashed border-muted-foreground/20 text-center">
+                    <PieChart className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />
+                    <h4 className="text-sm font-black uppercase text-muted-foreground">Revenue Analytics coming soon</h4>
+                    <p className="text-[10px] text-muted-foreground font-medium mt-1">Deep drill-down by booking source and room category</p>
+                  </div>
+                </div>
+              )}
+
+              {activeView === 'invoices' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Revenue Ledger</h1>
+                      <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">All processed GST invoices</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border overflow-hidden">
+                    <Table>
+                      <TableHeader className="bg-secondary/50">
+                        <TableRow>
+                          <TableHead className="text-[10px] font-black uppercase pl-6 h-12">Invoice #</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12">Guest</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12">Amount</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12">Status</TableHead>
+                          <TableHead className="text-right text-[10px] font-black uppercase pr-6 h-12">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {invLoading ? (
+                          <TableRow><TableCell colSpan={5} className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                        ) : invoices?.length ? (
+                          invoices.map((inv) => (
+                            <TableRow key={inv.id} className="group hover:bg-primary/5 transition-colors">
+                              <TableCell className="pl-6 font-mono text-[11px] font-bold text-primary">{inv.invoiceNumber}</TableCell>
+                              <TableCell className="text-[11px] font-bold">{inv.guestDetails?.name || inv.guestName}</TableCell>
+                              <TableCell className="font-black text-[11px]">₹{inv.totalAmount?.toLocaleString()}</TableCell>
+                              <TableCell>
+                                <Badge className={cn("text-[9px] uppercase font-black px-2 h-5", inv.status === "paid" ? "bg-emerald-500" : "bg-rose-500")}>
+                                  {inv.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right pr-6">
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-primary opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setSelectedInvoice(inv)}>
+                                  <Printer className="w-4 h-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow><TableCell colSpan={5} className="text-center py-20 text-[10px] text-muted-foreground uppercase font-black">No revenue records found</TableCell></TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {activeView === 'ayurcycles' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+                  <div className="bg-primary p-8 rounded-[2.5rem] text-white space-y-4 shadow-xl">
+                    <div className="flex items-center gap-4">
+                      <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-md">
+                        <Hospital className="w-10 h-10 text-white" />
+                      </div>
+                      <div>
+                        <h1 className="text-2xl font-black uppercase tracking-tight">Ayursiha Hospital Billing</h1>
+                        <p className="text-xs text-white/70 font-bold uppercase tracking-widest">Consolidated 10-Day Cycle Reconciliation</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4">
+                    {ayurCycles.length > 0 ? (
+                      ayurCycles.map((cycle) => (
+                        <div key={cycle.id} className="p-6 bg-white rounded-[2rem] border shadow-sm flex items-center justify-between group hover:border-primary transition-all">
+                          <div className="flex items-center gap-6">
+                            <div className="text-center w-16">
+                              <p className="text-[10px] font-black text-muted-foreground uppercase">Cycle</p>
+                              <p className="text-lg font-black text-primary">{cycle.invoiceNumber.split('-')[1] || "CYC"}</p>
+                            </div>
+                            <div className="h-12 w-px bg-border" />
+                            <div>
+                              <p className="text-sm font-black">{cycle.guestName || "Ayursiha Hospital"}</p>
+                              <p className="text-[11px] text-muted-foreground font-bold">{formatAppDate(cycle.createdAt)}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-8">
+                            <div className="text-right">
+                              <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Status</p>
+                              <Badge className={cn("text-[9px] font-black px-2 h-5 uppercase", cycle.status === 'paid' ? "bg-emerald-500" : "bg-rose-500")}>
+                                {cycle.status}
+                              </Badge>
+                            </div>
+                            <div className="text-right w-32">
+                              <p className="text-[10px] font-black text-muted-foreground uppercase">Cycle Total</p>
+                              <p className="text-xl font-black text-primary">₹{cycle.totalAmount?.toLocaleString()}</p>
+                            </div>
+                            <Button size="icon" variant="ghost" className="h-10 w-10 text-primary opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setSelectedInvoice(cycle)}>
+                              <ArrowRight className="w-5 h-5" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-24 border-2 border-dashed rounded-[3rem] text-muted-foreground font-black uppercase text-xs">
+                        No Ayursiha cycle invoices generated yet.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeView === 'expenses' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+                  <div className="space-y-1">
+                    <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Expense Ledger</h1>
+                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Property operating costs</p>
+                  </div>
+
+                  <div className="rounded-2xl border overflow-hidden">
+                    <Table>
+                      <TableHeader className="bg-secondary/50">
+                        <TableRow>
+                          <TableHead className="text-[10px] font-black uppercase pl-6 h-12">Description</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12">Category</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12">Date</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12 text-right pr-6">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {expLoading ? (
+                          <TableRow><TableCell colSpan={4} className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                        ) : expenses?.length ? (
+                          expenses.map((exp) => (
+                            <TableRow key={exp.id} className="hover:bg-rose-50/30 transition-colors">
+                              <TableCell className="pl-6 text-[11px] font-bold">{exp.description}</TableCell>
+                              <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase px-2 h-5 bg-secondary/50">{exp.category}</Badge></TableCell>
+                              <TableCell className="text-[11px] font-bold text-muted-foreground">{formatAppDate(exp.date)}</TableCell>
+                              <TableCell className="text-[11px] font-black text-rose-600 text-right pr-6">₹{exp.amount?.toLocaleString()}</TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow><TableCell colSpan={4} className="text-center py-20 text-[10px] text-muted-foreground uppercase font-black">No expense records logged</TableCell></TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {(activeView === 'reports' || activeView === 'settings') && (
+                <div className="flex flex-col items-center justify-center py-32 text-center space-y-4">
+                  <div className="p-6 bg-secondary/50 rounded-full">
+                    <Settings2 className="w-12 h-12 text-muted-foreground/30" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-black uppercase text-primary">Module Restricted</h3>
+                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Only authorized personnel can access these settings.</p>
+                  </div>
                 </div>
               )}
             </div>
-          </TabsContent>
+          </ScrollArea>
+        </main>
 
-          <TabsContent value="expenses" className="space-y-4">
-             <div className="flex justify-between items-center">
-              <h2 className="text-[10px] font-bold uppercase text-muted-foreground">Operating Costs</h2>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-              <Table>
-                <TableHeader className="bg-secondary/50">
-                  <TableRow>
-                    <TableHead className="text-[9px] h-8 font-bold uppercase pl-4">Description</TableHead>
-                    <TableHead className="text-[9px] h-8 font-bold uppercase">Category</TableHead>
-                    <TableHead className="text-[9px] h-8 font-bold uppercase">Date</TableHead>
-                    <TableHead className="text-[9px] h-8 font-bold uppercase">Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {expLoading ? (
-                    <TableRow><TableCell colSpan={4} className="text-center py-6"><Loader2 className="w-3.5 h-3.5 animate-spin mx-auto text-primary" /></TableCell></TableRow>
-                  ) : expenses?.length ? (
-                    expenses.map((exp) => (
-                      <TableRow key={exp.id}>
-                        <TableCell className="pl-4 text-[10px] font-medium">{exp.description}</TableCell>
-                        <TableCell><Badge variant="outline" className="text-[8px] h-3.5">{exp.category}</Badge></TableCell>
-                        <TableCell className="text-[10px]">{formatAppDate(exp.date)}</TableCell>
-                        <TableCell className="text-[10px] font-bold text-rose-600">₹{exp.amount?.toLocaleString()}</TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-[9px] text-muted-foreground uppercase font-bold">No expense records</TableCell></TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        {/* Invoice Detail Dialog */}
+        {/* Invoice Detail Dialog (Same as before) */}
         <Dialog open={!!selectedInvoice} onOpenChange={(o) => !o && setSelectedInvoice(null)}>
-          <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden">
-            <div className="p-8 space-y-6 bg-white" id="printable-invoice">
+          <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden rounded-[2.5rem]">
+            <div className="p-10 space-y-8 bg-white" id="printable-invoice">
               <div className="flex justify-between items-start">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                      <Building2 className="w-5 h-5 text-white" />
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg">
+                      <Building2 className="w-6 h-6 text-white" />
                     </div>
-                    <h2 className="text-lg font-bold uppercase tracking-tight">{property?.name || "SUKHA RETREATS"}</h2>
+                    <h2 className="text-xl font-black uppercase tracking-tight text-primary">{property?.name || "SUKHA RETREATS"}</h2>
                   </div>
-                  <p className="text-[9px] text-muted-foreground max-w-[200px] font-medium leading-relaxed">
+                  <p className="text-[10px] text-muted-foreground max-w-[240px] font-bold uppercase leading-relaxed tracking-wider">
                     {property?.address || "Address details on file"}
                   </p>
                 </div>
                 <div className="text-right space-y-1">
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-primary">Tax Invoice</h3>
-                  <p className="text-[10px] font-bold font-mono">{selectedInvoice?.invoiceNumber}</p>
-                  <p className="text-[9px] text-muted-foreground font-bold">{formatAppDate(selectedInvoice?.createdAt)}</p>
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-primary">Tax Invoice</h3>
+                  <p className="text-[11px] font-black font-mono">{selectedInvoice?.invoiceNumber}</p>
+                  <p className="text-[10px] text-muted-foreground font-black uppercase">{formatAppDate(selectedInvoice?.createdAt)}</p>
                 </div>
               </div>
 
               <Separator className="bg-primary/10" />
 
-              <div className="grid grid-cols-2 gap-8 text-[10px]">
-                <div className="space-y-1.5">
-                  <p className="text-[8px] font-bold uppercase text-muted-foreground">Billed To</p>
-                  <p className="font-bold text-sm">{selectedInvoice?.guestName || selectedInvoice?.guestDetails?.name}</p>
-                  <p className="text-muted-foreground">Room #{selectedInvoice?.roomNumber || selectedInvoice?.stayDetails?.roomNumber || "Cycle"}</p>
+              <div className="grid grid-cols-2 gap-12">
+                <div className="space-y-2">
+                  <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Billed To</p>
+                  <p className="font-black text-sm text-primary uppercase">{selectedInvoice?.guestName || selectedInvoice?.guestDetails?.name}</p>
+                  <p className="text-[10px] font-bold text-muted-foreground">Room #{selectedInvoice?.roomNumber || selectedInvoice?.stayDetails?.roomNumber || "Cycle"}</p>
                 </div>
-                <div className="space-y-1.5 text-right">
-                  <p className="text-[8px] font-bold uppercase text-muted-foreground">Reference Info</p>
-                  <p className="font-bold">Entity: {property?.name}</p>
-                  <p className="text-muted-foreground">Folio Settlement: {selectedInvoice?.status?.toUpperCase()}</p>
+                <div className="space-y-2 text-right">
+                  <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Reference Info</p>
+                  <p className="font-black text-[10px] uppercase">Entity: {property?.name}</p>
+                  <p className="text-[10px] font-bold uppercase text-emerald-600">Settlement: {selectedInvoice?.status}</p>
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="rounded-2xl border overflow-hidden">
                 <Table>
                   <TableHeader className="bg-secondary/30">
-                    <TableRow className="h-8">
-                      <TableHead className="text-[9px] font-bold uppercase">Description</TableHead>
-                      <TableHead className="text-right text-[9px] font-bold uppercase">Amount</TableHead>
+                    <TableRow className="h-10">
+                      <TableHead className="text-[9px] font-black uppercase tracking-widest pl-4">Description</TableHead>
+                      <TableHead className="text-right text-[9px] font-black uppercase tracking-widest pr-4">Amount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {selectedInvoice?.items ? (
                       selectedInvoice.items.map((item: any, idx: number) => (
-                        <TableRow key={idx} className="h-9 border-b border-primary/5">
-                          <TableCell className="text-[10px] font-medium">{item.name || item.description}</TableCell>
-                          <TableCell className="text-right text-[10px] font-bold">₹{item.amount?.toLocaleString()}</TableCell>
+                        <TableRow key={idx} className="h-12 border-b border-primary/5">
+                          <TableCell className="text-[11px] font-bold pl-4 uppercase">{item.name || item.description}</TableCell>
+                          <TableCell className="text-right text-[11px] font-black pr-4">₹{item.amount?.toLocaleString()}</TableCell>
                         </TableRow>
                       ))
                     ) : (
-                      <TableRow className="h-9 border-b border-primary/5">
-                        <TableCell className="text-[10px] font-medium">Professional Accommodation Services</TableCell>
-                        <TableCell className="text-right text-[10px] font-bold">₹{selectedInvoice?.totalAmount?.toLocaleString()}</TableCell>
+                      <TableRow className="h-12 border-b border-primary/5">
+                        <TableCell className="text-[11px] font-bold pl-4 uppercase">Professional Accommodation Services</TableCell>
+                        <TableCell className="text-right text-[11px] font-black pr-4">₹{selectedInvoice?.totalAmount?.toLocaleString()}</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -317,13 +393,13 @@ export default function AccountingPage() {
               </div>
 
               <div className="flex justify-end pt-4">
-                <div className="w-48 space-y-2">
-                  <div className="flex justify-between text-[11px] font-bold">
-                    <span className="text-muted-foreground">Grand Total</span>
-                    <span className="text-primary text-base">₹{selectedInvoice?.totalAmount?.toLocaleString()}</span>
+                <div className="w-56 space-y-3">
+                  <div className="flex justify-between items-center text-[12px] font-black">
+                    <span className="text-muted-foreground uppercase tracking-widest">Grand Total</span>
+                    <span className="text-primary text-xl">₹{selectedInvoice?.totalAmount?.toLocaleString()}</span>
                   </div>
-                  <div className="pt-2 border-t">
-                    <p className="text-[8px] text-muted-foreground uppercase text-right leading-relaxed font-medium">
+                  <div className="pt-4 border-t-2 border-primary/10">
+                    <p className="text-[8px] text-muted-foreground uppercase text-right leading-relaxed font-black tracking-widest">
                       Note: This is a computer-generated document. No signature is required.
                     </p>
                   </div>
@@ -331,10 +407,10 @@ export default function AccountingPage() {
               </div>
             </div>
             
-            <div className="p-4 bg-secondary/30 border-t flex justify-between gap-3 no-print">
-               <Button variant="ghost" className="text-xs font-bold" onClick={() => setSelectedInvoice(null)}>Close</Button>
-               <Button className="h-9 px-6 font-bold text-xs shadow-md" onClick={handlePrint}>
-                 <Printer className="w-3.5 h-3.5 mr-2" />
+            <div className="p-6 bg-secondary/30 border-t flex justify-between gap-4 no-print">
+               <Button variant="ghost" className="text-[10px] font-black uppercase" onClick={() => setSelectedInvoice(null)}>Close</Button>
+               <Button className="h-11 px-8 font-black text-[10px] uppercase shadow-xl tracking-widest" onClick={handlePrint}>
+                 <Printer className="w-4 h-4 mr-2" />
                  Print / Download PDF
                </Button>
             </div>
