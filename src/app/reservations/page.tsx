@@ -113,12 +113,12 @@ export default function ReservationsPage() {
   const filteredReservations = useMemo(() => {
     if (!reservations) return [];
     return reservations.filter(res => {
-      const matchesName = res.guestName?.toLowerCase().includes(nameSearch.toLowerCase());
+      const matchesName = (res.guestName || "").toLowerCase().includes(nameSearch.toLowerCase());
       const matchesStatus = statusFilter === "all" || res.status === statusFilter;
       const matchesSource = sourceFilter === "all" || res.bookingSource === sourceFilter;
-      const matchesRoom = roomSearch === "" || res.roomNumber?.toString().includes(roomSearch);
+      const matchesRoom = roomSearch === "" || (res.roomNumber || "").toString().includes(roomSearch);
       
-      const resDate = res.checkInDate;
+      const resDate = res.checkInDate || "";
       const matchesStart = !startDate || resDate >= startDate;
       const matchesEnd = !endDate || resDate <= endDate;
 
@@ -144,20 +144,24 @@ export default function ReservationsPage() {
       updatedAt: new Date().toISOString(),
     };
 
-    await addDoc(collection(db, "hotel_properties", entityId, "reservations"), resData);
+    try {
+      await addDoc(collection(db, "hotel_properties", entityId, "reservations"), resData);
 
-    // Send WhatsApp Automation
-    if (newRes.phoneNumber) {
-      triggerWhatsAppAutomation(db, 'booking_created', {
-        ...resData,
-        checkIn: newRes.checkIn,
-        checkOut: newRes.checkOut
-      });
+      // Send WhatsApp Automation
+      if (newRes.phoneNumber) {
+        triggerWhatsAppAutomation(db, 'booking_created', {
+          ...resData,
+          checkIn: newRes.checkIn,
+          checkOut: newRes.checkOut
+        });
+      }
+
+      toast({ title: "Reservation confirmed" });
+      setIsAddOpen(false);
+      setNewRes({ guestName: "", roomNumber: "", bookingSource: "Direct", phoneNumber: "", checkIn: "", checkOut: "", negotiatedRate: "" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Error creating reservation" });
     }
-
-    toast({ title: "Reservation confirmed" });
-    setIsAddOpen(false);
-    setNewRes({ guestName: "", roomNumber: "", bookingSource: "Direct", phoneNumber: "", checkIn: "", checkOut: "", negotiatedRate: "" });
   };
 
   const updateStatus = async (resId: string, status: string) => {
@@ -190,7 +194,7 @@ export default function ReservationsPage() {
     
     // Update room status
     if (currentRes?.roomNumber && rooms) {
-      const room = rooms.find(r => r.roomNumber === currentRes.roomNumber);
+      const room = rooms.find(r => r.roomNumber?.toString() === currentRes.roomNumber?.toString());
       if (room) {
         const newRoomStatus = status === 'checked_in' ? 'occupied' : status === 'checked_out' ? 'dirty' : room.status;
         updateDocumentNonBlocking(doc(db, "hotel_properties", entityId, "rooms", room.id), { status: newRoomStatus });
@@ -259,7 +263,7 @@ export default function ReservationsPage() {
                         <Label className="text-[10px] uppercase font-black text-muted-foreground">Booking Source</Label>
                         <Select value={newRes.bookingSource} onValueChange={val => setNewRes({...newRes, bookingSource: val})}>
                           <SelectTrigger className="h-10 text-xs bg-secondary/30 rounded-xl"><SelectValue /></SelectTrigger>
-                          <SelectContent>{BOOKING_SOURCES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                          <SelectContent>{BOOKING_SOURCES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                     </div>
@@ -287,7 +291,7 @@ export default function ReservationsPage() {
 
         {/* Professional Filter Bar */}
         <div className="bg-white p-6 rounded-[2rem] border shadow-sm space-y-4">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 text-left">
             <CalendarDays className="w-4 h-4 text-primary" />
             <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Advanced Filters</span>
           </div>
@@ -304,8 +308,8 @@ export default function ReservationsPage() {
               <Select value={sourceFilter} onValueChange={setSourceFilter}>
                 <SelectTrigger className="h-9 text-[10px] rounded-xl border-none bg-secondary/40"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Sources</SelectItem>
-                  {BOOKING_SOURCES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  <SelectItem value="all" className="text-xs">All Sources</SelectItem>
+                  {BOOKING_SOURCES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -314,10 +318,10 @@ export default function ReservationsPage() {
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="h-9 text-[10px] rounded-xl border-none bg-secondary/40"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Stays</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="checked_in">Checked In</SelectItem>
-                  <SelectItem value="checked_out">Checked Out</SelectItem>
+                  <SelectItem value="all" className="text-xs">All Stays</SelectItem>
+                  <SelectItem value="confirmed" className="text-xs">Confirmed</SelectItem>
+                  <SelectItem value="checked_in" className="text-xs">Checked In</SelectItem>
+                  <SelectItem value="checked_out" className="text-xs">Checked Out</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -366,7 +370,7 @@ export default function ReservationsPage() {
                         "text-[9px] font-black uppercase px-3 h-6 rounded-lg",
                         res.status === 'checked_in' ? "bg-emerald-500 shadow-md shadow-emerald-100" : res.status === 'confirmed' ? "bg-blue-500 shadow-md shadow-blue-100" : "bg-slate-400"
                       )}>
-                        {res.status.replace('_', ' ')}
+                        {(res.status || "").replace('_', ' ')}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
@@ -388,7 +392,7 @@ export default function ReservationsPage() {
                             <Receipt className="w-4 h-4 mr-3 text-emerald-600" /> Manage Folio
                           </DropdownMenuItem>
                           {res.phoneNumber && (
-                            <DropdownMenuItem className="text-[11px] font-black uppercase p-3 rounded-xl cursor-pointer text-blue-600" onClick={() => window.open(`https://wa.me/${res.phoneNumber.replace(/\D/g, '')}`, '_blank')}>
+                            <DropdownMenuItem className="text-[11px] font-black uppercase p-3 rounded-xl cursor-pointer text-blue-600" onClick={() => window.open(`https://wa.me/${(res.phoneNumber || "").replace(/\D/g, '')}`, '_blank')}>
                               <MessageSquare className="w-4 h-4 mr-3" /> WhatsApp Guest
                             </DropdownMenuItem>
                           )}
@@ -415,7 +419,7 @@ export default function ReservationsPage() {
         {/* Folio Management Dialog */}
         <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
           <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden rounded-[2.5rem]">
-            <div className="bg-primary p-8 text-primary-foreground space-y-2">
+            <div className="bg-primary p-8 text-primary-foreground space-y-2 text-left">
               <div className="flex items-center justify-between">
                 <DialogTitle className="flex items-center gap-3 text-xl font-black uppercase">
                   <Receipt className="w-6 h-6" /> Folio Control
@@ -425,7 +429,7 @@ export default function ReservationsPage() {
               <DialogDescription className="text-xs text-primary-foreground/70 font-bold uppercase tracking-widest">{selectedRes?.guestName}</DialogDescription>
             </div>
             {selectedRes && (
-              <div className="p-8 space-y-6">
+              <div className="p-8 space-y-6 text-left">
                 {selectedRes.status === 'confirmed' && (
                   <div className="space-y-5">
                     <div className="space-y-4">
@@ -442,7 +446,7 @@ export default function ReservationsPage() {
                   <div className="space-y-6">
                     <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 text-center space-y-1 shadow-inner">
                       <p className="text-[10px] font-black uppercase text-emerald-600/70 tracking-widest">Active Folio Value</p>
-                      <p className="text-3xl font-black text-emerald-800">₹{selectedRes.negotiatedRate?.toLocaleString()}</p>
+                      <p className="text-3xl font-black text-emerald-800">₹{(selectedRes.negotiatedRate || 0).toLocaleString()}</p>
                       <p className="text-[9px] uppercase font-black text-emerald-600/50">Base Daily Rate</p>
                     </div>
                     <Button variant="destructive" className="w-full h-14 font-black uppercase tracking-[0.2em] shadow-xl rounded-2xl" onClick={() => updateStatus(selectedRes.id, 'checked_out')}>

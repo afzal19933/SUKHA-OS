@@ -137,6 +137,49 @@ export default function LaundryPage() {
     setNewOrder({ roomId: "", roomNumber: "", guestName: "", reservationId: "", items: [] });
   };
 
+  const processReconciliation = async (file: File) => {
+    if (!entityId) return;
+    setIsReconciling(true);
+    setAuditResult(null);
+
+    try {
+      // 1. Convert file to Data URI
+      const reader = new FileReader();
+      const dataUri = await new Promise<string>((resolve) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+
+      // 2. Prepare internal records (simulated for period)
+      const recordedBatches = linenBatches?.map(b => ({
+        date: b.createdAt.split('T')[0],
+        items: b.items.map((i: any) => ({
+          name: i.itemName,
+          quantity: i.quantity,
+          rate: i.vendorRate || 0
+        }))
+      })) || [];
+
+      // 3. Call AI Flow
+      const result = await reconcileLaundryInvoice({
+        invoicePhotoUri: dataUri,
+        recordedBatches: recordedBatches as any
+      });
+
+      setAuditResult(result);
+      toast({ 
+        title: result.isMatch ? "Audit Complete" : "Discrepancy Detected", 
+        description: result.summary,
+        variant: result.isMatch ? "default" : "destructive"
+      });
+    } catch (error) {
+      console.error(error);
+      toast({ variant: "destructive", title: "AI Audit Failed", description: "Could not process invoice image." });
+    } finally {
+      setIsReconciling(false);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="max-w-5xl mx-auto space-y-4">
@@ -393,7 +436,17 @@ export default function LaundryPage() {
                     <span>Audit Result</span>
                     <Badge variant={auditResult.isMatch ? "outline" : "destructive"} className="h-4 text-[7px]">{auditResult.isMatch ? "Match" : "Mismatch"}</Badge>
                   </div>
-                  <p className="font-medium">{auditResult.summary}</p>
+                  <p className="font-medium whitespace-pre-wrap">{auditResult.summary}</p>
+                  {auditResult.discrepancies?.length > 0 && (
+                    <div className="pt-2 space-y-1.5">
+                      <p className="font-black uppercase text-[8px] text-rose-600">Discrepancies:</p>
+                      {auditResult.discrepancies.map((d, i) => (
+                        <div key={i} className="p-1.5 bg-rose-50 rounded border border-rose-100 text-[9px]">
+                          <span className="font-bold">{d.itemName} ({d.date}):</span> {d.issue}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </ScrollArea>
               )}
             </div>
