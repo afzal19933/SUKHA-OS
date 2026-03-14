@@ -8,14 +8,10 @@ import {
   Plus, 
   Search, 
   Loader2, 
-  Info,
   Receipt,
-  AlertCircle,
-  CreditCard,
   User,
   CalendarDays,
-  Tag,
-  Building2
+  Tag
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
@@ -29,8 +25,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn, formatAppDate, generateInvoiceNumber, numberToWords } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
-import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
-import { collection, doc, query, orderBy, where } from "firebase/firestore";
+import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc } from "@/firebase";
+import { collection, doc, query, orderBy } from "firebase/firestore";
 import { 
   Dialog, 
   DialogContent, 
@@ -51,7 +47,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { sendNotification } from "@/firebase/notifications";
-import { isToday, isTomorrow, parseISO, differenceInDays } from "date-fns";
+import { parseISO, differenceInDays } from "date-fns";
 
 const BOOKING_SOURCES = [
   "Direct", 
@@ -67,7 +63,8 @@ const BOOKING_SOURCES = [
 const BUILDINGS = ["Old Apartment", "New Apartment"];
 const STAY_TYPES: Record<string, string[]> = {
   "Old Apartment": ["Daily", "Monthly", "Yearly"],
-  "New Apartment": ["Daily"]
+  "New Apartment": ["Daily"],
+  "default": ["Daily", "Monthly", "Yearly"]
 };
 
 export default function ReservationsPage() {
@@ -85,7 +82,7 @@ export default function ReservationsPage() {
   const [selectedRes, setSelectedRes] = useState<any>(null);
   const [newRes, setNewRes] = useState({ 
     guestName: "", 
-    building: "Old Apartment",
+    building: "",
     roomNumber: "", 
     stayType: "Daily",
     checkIn: "", 
@@ -125,26 +122,29 @@ export default function ReservationsPage() {
     return collection(db, "hotel_properties", entityId, "room_types");
   }, [db, entityId]);
 
+  const propertyRef = useMemoFirebase(() => {
+    if (!entityId) return null;
+    return doc(db, "hotel_properties", entityId);
+  }, [db, entityId]);
+
   const { data: reservations, isLoading } = useCollection(reservationsQuery);
   const { data: rooms } = useCollection(roomsQuery);
   const { data: laundryOrders } = useCollection(laundryQuery);
   const { data: roomTypes } = useCollection(typesQuery);
+  const { data: property } = useDoc(propertyRef);
+
+  const isParadise = property?.name?.toLowerCase().includes("paradise");
 
   const filteredRoomsForForm = useMemo(() => {
     if (!rooms) return [];
+    if (!isParadise) return rooms;
     return rooms.filter(r => r.building === newRes.building || !r.building);
-  }, [rooms, newRes.building]);
+  }, [rooms, newRes.building, isParadise]);
 
   const availableStayTypes = useMemo(() => {
+    if (!isParadise) return STAY_TYPES.default;
     return STAY_TYPES[newRes.building] || ["Daily"];
-  }, [newRes.building]);
-
-  const getLaundryBalance = (resId: string) => {
-    if (!laundryOrders) return 0;
-    return laundryOrders
-      .filter(o => o.reservationId === resId && o.status !== "paid")
-      .reduce((sum, o) => sum + (o.hotelTotal || 0), 0);
-  };
+  }, [newRes.building, isParadise]);
 
   const handleAddReservation = (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,7 +154,7 @@ export default function ReservationsPage() {
     const resData = {
       entityId,
       guestName: newRes.guestName,
-      building: newRes.building,
+      building: isParadise ? newRes.building : "",
       roomNumber: newRes.roomNumber,
       stayType: newRes.stayType,
       checkInDate: newRes.checkIn,
@@ -171,13 +171,13 @@ export default function ReservationsPage() {
 
     sendNotification(db, user.uid, entityId, {
       title: "New Reservation Confirmed",
-      message: `${newRes.guestName} booked for ${newRes.building} Room ${newRes.roomNumber}`,
+      message: `${newRes.guestName} booked Room ${newRes.roomNumber}`,
       type: "info"
     });
 
     toast({ title: "Reservation created", description: `Confirmed for ${newRes.guestName}` });
     setIsAddOpen(false);
-    setNewRes({ guestName: "", building: "Old Apartment", roomNumber: "", stayType: "Daily", checkIn: "", checkOut: "", guests: "1", requests: "", bookingSource: "Direct" });
+    setNewRes({ guestName: "", building: "", roomNumber: "", stayType: "Daily", checkIn: "", checkOut: "", guests: "1", requests: "", bookingSource: "Direct" });
   };
 
   const generateInvoice = async (res: any) => {
@@ -188,7 +188,7 @@ export default function ReservationsPage() {
     const nights = Math.max(differenceInDays(departure, arrival), 1);
 
     const roomNumStr = res.roomNumber?.toString().trim();
-    const room = rooms?.find(r => r.roomNumber?.toString().trim() === roomNumStr && r.building === res.building);
+    const room = rooms?.find(r => r.roomNumber?.toString().trim() === roomNumStr && (!isParadise || r.building === res.building));
     const roomType = roomTypes?.find(t => t.id === room?.roomTypeId);
     
     const baseRate = roomType?.baseRate || 0;
@@ -272,7 +272,7 @@ export default function ReservationsPage() {
     
     if (currentRes?.roomNumber && rooms) {
       const roomNumStr = currentRes.roomNumber.toString().trim();
-      const room = rooms.find(r => r.roomNumber?.toString().trim() === roomNumStr && r.building === currentRes.building);
+      const room = rooms.find(r => r.roomNumber?.toString().trim() === roomNumStr && (!isParadise || r.building === currentRes.building));
       if (room) {
         const roomRef = doc(db, "hotel_properties", entityId, "rooms", room.id);
         const newRoomStatus = status === 'checked_in' ? 'occupied' : status === 'checked_out' ? 'dirty' : room.status;
@@ -318,16 +318,18 @@ export default function ReservationsPage() {
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-[9px] uppercase font-bold">Building</Label>
-                        <Select value={newRes.building} onValueChange={val => setNewRes({...newRes, building: val, roomNumber: "", stayType: "Daily"})}>
-                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {BUILDINGS.map(b => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
+                      {isParadise && (
+                        <div className="space-y-1">
+                          <Label className="text-[9px] uppercase font-bold">Building</Label>
+                          <Select value={newRes.building} onValueChange={val => setNewRes({...newRes, building: val, roomNumber: "", stayType: "Daily"})}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectContent>
+                              {BUILDINGS.map(b => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      <div className="space-y-1 flex-1">
                         <Label className="text-[9px] uppercase font-bold">Stay Type</Label>
                         <Select value={newRes.stayType} onValueChange={val => setNewRes({...newRes, stayType: val})}>
                           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
@@ -405,7 +407,7 @@ export default function ReservationsPage() {
             <TableHeader className="bg-secondary/50">
               <TableRow>
                 <TableHead className="px-4 h-9 text-[10px] uppercase font-bold">Guest Info</TableHead>
-                <TableHead className="text-center h-9 text-[10px] uppercase font-bold">Building / Room</TableHead>
+                <TableHead className="text-center h-9 text-[10px] uppercase font-bold">{isParadise ? "Building / Room" : "Room"}</TableHead>
                 <TableHead className="text-center h-9 text-[10px] uppercase font-bold">Check-Out</TableHead>
                 <TableHead className="text-center h-9 text-[10px] uppercase font-bold">Type</TableHead>
                 <TableHead className="text-right px-4 h-9 text-[10px] uppercase font-bold">Action</TableHead>
@@ -416,10 +418,6 @@ export default function ReservationsPage() {
                 <TableRow><TableCell colSpan={5} className="text-center py-10"><Loader2 className="w-4 h-4 animate-spin mx-auto text-primary" /></TableCell></TableRow>
               ) : reservations?.length ? (
                 reservations.map((res) => {
-                  const laundryBalance = getLaundryBalance(res.id);
-                  const isCheckoutSoon = res.checkOutDate && (isToday(parseISO(res.checkOutDate)) || isTomorrow(parseISO(res.checkOutDate)));
-                  const hasAlert = laundryBalance > 0 && isCheckoutSoon;
-
                   return (
                     <TableRow key={res.id} className="hover:bg-secondary/5">
                       <TableCell className="px-4">
@@ -432,7 +430,9 @@ export default function ReservationsPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex flex-col items-center">
-                          <span className="text-[8px] uppercase font-bold text-muted-foreground">{res.building}</span>
+                          {isParadise && res.building && (
+                            <span className="text-[8px] uppercase font-bold text-muted-foreground">{res.building}</span>
+                          )}
                           <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10 text-[9px] font-bold px-2 mt-0.5">R {res.roomNumber}</Badge>
                         </div>
                       </TableCell>
@@ -472,7 +472,10 @@ export default function ReservationsPage() {
                   <div className="flex justify-between items-center">
                     <div className="flex flex-col">
                       <h3 className="text-xs font-bold">{selectedRes.guestName}</h3>
-                      <span className="text-[8px] text-muted-foreground uppercase">{selectedRes.building} - {selectedRes.stayType} Stay</span>
+                      <span className="text-[8px] text-muted-foreground uppercase">
+                        {isParadise && selectedRes.building ? `${selectedRes.building} - ` : ""}
+                        {selectedRes.stayType} Stay
+                      </span>
                     </div>
                     <Badge className="text-[8px] uppercase font-bold bg-primary/10 text-primary">{selectedRes.status}</Badge>
                   </div>

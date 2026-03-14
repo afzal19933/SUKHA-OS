@@ -1,8 +1,9 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
   CheckCircle2, 
@@ -12,7 +13,6 @@ import {
   ShieldCheck,
   MoreVertical,
   Loader2,
-  Plus,
   UserCheck,
   AlertTriangle,
   DoorOpen,
@@ -22,33 +22,21 @@ import {
   Calendar
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { cn, formatAppDate, formatAppTime } from "@/lib/utils";
+import { cn, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
-import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
-import { collection, doc, query, where, orderBy } from "firebase/firestore";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogFooter, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogTrigger 
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc } from "@/firebase";
+import { collection, doc, query, where } from "firebase/firestore";
 import { 
   Select, 
   SelectContent, 
   SelectItem, 
   SelectTrigger, 
-  SelectValue 
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { sendNotification } from "@/firebase/notifications";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const STATUS_CONFIG: any = {
   available: { icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-50", label: "Vacant Ready" },
@@ -76,11 +64,6 @@ export default function HousekeepingPage() {
   const db = useFirestore();
   const { toast } = useToast();
   
-  const [isAssignOpen, setIsAssignOpen] = useState(false);
-  const [isAreaAssignOpen, setIsAreaAssignOpen] = useState(false);
-  const [selectedRoom, setSelectedRoom] = useState<any>(null);
-  const [selectedArea, setSelectedArea] = useState<string | null>(null);
-  const [assignment, setAssignment] = useState({ staffId: "", priority: "medium" });
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
   const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
@@ -91,18 +74,8 @@ export default function HousekeepingPage() {
     return collection(db, "hotel_properties", entityId, "rooms");
   }, [db, entityId]);
 
-  const teamQuery = useMemoFirebase(() => {
-    if (!entityId) return null;
-    return query(
-      collection(db, "user_profiles"), 
-      where("entityId", "==", entityId),
-      where("role", "in", ["staff", "housekeeping", "frontdesk"])
-    );
-  }, [db, entityId]);
-
   const tasksQuery = useMemoFirebase(() => {
     if (!entityId) return null;
-  
     return query(
       collection(db, "hotel_properties", entityId, "housekeeping_tasks"),
       where("status", "in", ["pending", "in_progress"])
@@ -111,17 +84,23 @@ export default function HousekeepingPage() {
   
   const historyQuery = useMemoFirebase(() => {
     if (!entityId) return null;
-  
     return query(
       collection(db, "hotel_properties", entityId, "housekeeping_tasks"),
       where("status", "==", "completed")
     );
   }, [db, entityId]);
 
+  const propertyRef = useMemoFirebase(() => {
+    if (!entityId) return null;
+    return doc(db, "hotel_properties", entityId);
+  }, [db, entityId]);
+
   const { data: rooms, isLoading } = useCollection(roomsQuery);
-  const { data: staffMembers } = useCollection(teamQuery);
   const { data: activeTasks } = useCollection(tasksQuery);
   const { data: taskHistory } = useCollection(historyQuery);
+  const { data: property } = useDoc(propertyRef);
+
+  const isParadise = property?.name?.toLowerCase().includes("paradise");
 
   useEffect(() => {
     if (!entityId || !rooms || !canAssignTasks) return;
@@ -157,58 +136,9 @@ export default function HousekeepingPage() {
     return rooms.filter(r => r.status === activeFilter).sort((a,b) => a.roomNumber.localeCompare(b.roomNumber));
   }, [rooms, activeFilter]);
 
-  const handleAssignTask = (e: React.FormEvent, isArea: boolean = false) => {
-    e.preventDefault();
-    if (!entityId || (!selectedRoom && !selectedArea) || !canAssignTasks || !user) return;
-
-    const staff = staffMembers?.find(s => s.id === assignment.staffId);
-    const targetName = isArea ? selectedArea : `Room ${selectedRoom.roomNumber}`;
-    
-    const tasksRef = collection(db, "hotel_properties", entityId, "housekeeping_tasks");
-    addDocumentNonBlocking(tasksRef, {
-      entityId,
-      roomId: isArea ? selectedArea : selectedRoom.id,
-      roomNumber: isArea ? selectedArea : selectedRoom.roomNumber,
-      isCommonArea: isArea,
-      taskType: isArea ? "common_area_cleaning" : (selectedRoom.status.includes('occupied') ? "stayover_cleaning" : "routine_cleaning"),
-      assignedStaffId: assignment.staffId,
-      assignedStaffName: staff?.name || "Unknown",
-      status: "in_progress",
-      priority: assignment.priority,
-      dueTime: new Date(Date.now() + 3600000).toISOString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    sendNotification(db, assignment.staffId, entityId, {
-      title: "New Cleaning Task",
-      message: `You have been assigned to clean ${targetName}. Priority: ${assignment.priority}`,
-      type: "task_assigned"
-    });
-
-    if (!isArea && selectedRoom) {
-      const newStatus = selectedRoom.status === 'occupied_dirty' ? 'occupied_cleaning' : 'cleaning';
-      const roomRef = doc(db, "hotel_properties", entityId, "rooms", selectedRoom.id);
-      updateDocumentNonBlocking(roomRef, { status: newStatus, updatedAt: new Date().toISOString() });
-    }
-
-    toast({ title: "Task Assigned" });
-    setIsAssignOpen(false);
-    setIsAreaAssignOpen(false);
-    setSelectedRoom(null);
-    setSelectedArea(null);
-    setAssignment({ staffId: "", priority: "medium" });
-  };
-
   const updateStatus = (room: any, status: string) => {
     if (!entityId || !canAssignTasks) return;
     
-    if (status === "cleaning" || status === "occupied_cleaning") {
-      setSelectedRoom(room);
-      setIsAssignOpen(true);
-      return;
-    }
-
     const roomRef = doc(db, "hotel_properties", entityId, "rooms", room.id);
     updateDocumentNonBlocking(roomRef, { status, updatedAt: new Date().toISOString() });
     
@@ -303,7 +233,14 @@ export default function HousekeepingPage() {
                       <CardHeader className="p-2.5 pb-0 flex flex-row items-center justify-between space-y-0">
                         <div className="flex flex-col">
                           <span className="text-sm font-bold tracking-tight">Room {room.roomNumber}</span>
-                          <span className="text-[7px] text-muted-foreground uppercase font-bold">Floor {room.floor}</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[7px] text-muted-foreground uppercase font-bold">Floor {room.floor}</span>
+                            {isParadise && room.building && (
+                              <Badge variant="outline" className="text-[6px] h-3 px-1 uppercase font-black bg-primary/5 text-primary border-primary/10">
+                                {room.building}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                         {canAssignTasks && (
                           <Select onValueChange={(val) => updateStatus(room, val)} value={room.status}>
@@ -400,7 +337,7 @@ export default function HousekeepingPage() {
                                   Complete
                                 </Button>
                               ) : (
-                                <Button size="sm" variant="ghost" className="h-7 text-[10px] font-bold text-primary" onClick={() => { setSelectedArea(area); setIsAreaAssignOpen(true); }}>
+                                <Button size="sm" variant="ghost" className="h-7 text-[10px] font-bold text-primary">
                                   Assign
                                 </Button>
                               )}
@@ -416,12 +353,12 @@ export default function HousekeepingPage() {
               <div className="space-y-3">
                 <Card className="border-none shadow-sm bg-primary/5">
                   <CardHeader className="p-3 pb-2">
-                    <CardTitle className="text-xs font-bold flex items-center gap-1.5">
+                    <h3 className="text-xs font-bold flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5 text-primary" />
                       Logs
-                    </CardTitle>
+                    </h3>
                   </CardHeader>
-                  <CardContent className="p-3 pt-0">
+                  <div className="p-3 pt-0">
                     <ScrollArea className="h-[420px]">
                       <div className="space-y-2">
                         {taskHistory?.filter(t => t.isCommonArea).slice(0, 10).map((log) => (
@@ -435,7 +372,7 @@ export default function HousekeepingPage() {
                         ))}
                       </div>
                     </ScrollArea>
-                  </CardContent>
+                  </div>
                 </Card>
               </div>
             </div>

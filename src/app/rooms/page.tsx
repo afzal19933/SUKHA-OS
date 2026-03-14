@@ -13,18 +13,14 @@ import {
   DoorOpen, 
   Trash2, 
   Edit3, 
-  Loader2,
-  Tag,
-  Building2
+  Loader2
 } from "lucide-react";
 import { 
   Dialog, 
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
-  DialogTrigger,
-  DialogDescription,
-  DialogFooter
+  DialogTrigger 
 } from "@/components/ui/dialog";
 import { 
   Select, 
@@ -34,7 +30,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { useAuthStore } from "@/store/authStore";
-import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
+import { useCollection, useMemoFirebase, useFirestore, useDoc } from "@/firebase";
 import { collection, doc, query, orderBy } from "firebase/firestore";
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
@@ -55,7 +51,7 @@ export default function RoomsPage() {
 
   // Form states for adding
   const [newType, setNewType] = useState({ name: "", rate: "", occupancy: "2" });
-  const [newRoom, setNewRoom] = useState({ roomNumber: "", floor: "1", typeId: "", building: "Old Apartment" });
+  const [newRoom, setNewRoom] = useState({ roomNumber: "", floor: "1", typeId: "", building: "" });
 
   // Form states for editing
   const [editingRoom, setEditingRoom] = useState<any>(null);
@@ -72,8 +68,16 @@ export default function RoomsPage() {
     return query(collection(db, "hotel_properties", entityId, "rooms"), orderBy("roomNumber"));
   }, [db, entityId]);
 
+  const propertyRef = useMemoFirebase(() => {
+    if (!entityId) return null;
+    return doc(db, "hotel_properties", entityId);
+  }, [db, entityId]);
+
   const { data: roomTypes, isLoading: typesLoading } = useCollection(typesQuery);
   const { data: rooms, isLoading: roomsLoading } = useCollection(roomsQuery);
+  const { data: property } = useDoc(propertyRef);
+
+  const isParadise = property?.name?.toLowerCase().includes("paradise");
 
   const handleAddType = (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,7 +125,7 @@ export default function RoomsPage() {
       entityId,
       roomNumber: newRoom.roomNumber,
       floor: parseInt(newRoom.floor),
-      building: newRoom.building,
+      building: isParadise ? newRoom.building : "",
       roomTypeId: newRoom.typeId,
       status: "available",
       createdAt: new Date().toISOString(),
@@ -130,7 +134,7 @@ export default function RoomsPage() {
 
     toast({ title: "Physical Room Added" });
     setIsRoomOpen(false);
-    setNewRoom({ roomNumber: "", floor: "1", typeId: "", building: "Old Apartment" });
+    setNewRoom({ roomNumber: "", floor: "1", typeId: "", building: "" });
   };
 
   const handleUpdateRoom = (e: React.FormEvent) => {
@@ -141,7 +145,7 @@ export default function RoomsPage() {
     updateDocumentNonBlocking(docRef, {
       roomNumber: editingRoom.roomNumber,
       floor: parseInt(editingRoom.floor),
-      building: editingRoom.building,
+      building: isParadise ? editingRoom.building : "",
       roomTypeId: editingRoom.roomTypeId,
       updatedAt: new Date().toISOString(),
     });
@@ -162,7 +166,7 @@ export default function RoomsPage() {
       id: room.id,
       roomNumber: room.roomNumber,
       floor: room.floor.toString(),
-      building: room.building || "Old Apartment",
+      building: room.building || "",
       roomTypeId: room.roomTypeId
     });
     setIsEditRoomOpen(true);
@@ -208,16 +212,18 @@ export default function RoomsPage() {
                     </DialogHeader>
                     <form onSubmit={handleAddRoom} className="space-y-3 pt-2">
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Building</Label>
-                          <Select value={newRoom.building} onValueChange={v => setNewRoom({...newRoom, building: v})}>
-                            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {BUILDINGS.map(b => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1.5">
+                        {isParadise && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Building</Label>
+                            <Select value={newRoom.building} onValueChange={v => setNewRoom({...newRoom, building: v})}>
+                              <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
+                              <SelectContent>
+                                {BUILDINGS.map(b => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                        <div className="space-y-1.5 flex-1">
                           <Label className="text-xs">Room Number</Label>
                           <Input placeholder="101" value={newRoom.roomNumber} onChange={e => setNewRoom({...newRoom, roomNumber: e.target.value})} required className="h-9" />
                         </div>
@@ -260,7 +266,9 @@ export default function RoomsPage() {
                           <DoorOpen className="w-3.5 h-3.5 text-primary" />
                           <span className="font-bold text-sm">Room {room.roomNumber}</span>
                         </div>
-                        <span className="text-[8px] text-muted-foreground uppercase font-bold mt-0.5">{room.building || "Old Apartment"}</span>
+                        {isParadise && room.building && (
+                          <span className="text-[8px] text-muted-foreground uppercase font-bold mt-0.5">{room.building}</span>
+                        )}
                       </div>
                       {isAdmin && (
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -352,16 +360,18 @@ export default function RoomsPage() {
             {editingRoom && (
               <form onSubmit={handleUpdateRoom} className="space-y-3 pt-2">
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Building</Label>
-                    <Select value={editingRoom.building} onValueChange={v => setEditingRoom({...editingRoom, building: v})}>
-                      <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {BUILDINGS.map(b => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
+                  {isParadise && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Building</Label>
+                      <Select value={editingRoom.building} onValueChange={v => setEditingRoom({...editingRoom, building: v})}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {BUILDINGS.map(b => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <div className="space-y-1.5 flex-1">
                     <Label className="text-xs">Room Number</Label>
                     <Input value={editingRoom.roomNumber} onChange={e => setEditingRoom({...editingRoom, roomNumber: e.target.value})} required className="h-9" />
                   </div>
