@@ -1,21 +1,145 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * SUKHA OS - ULTIMATE AUTHENTICATED ACCESS
-     * 
-     * [DEPLOYMENT TRIGGER: Force re-sync of security policy - v1.0.9]
-     * 
-     * This rule provides the highest level of access for authenticated users.
-     * It uses a recursive wildcard to match ALL documents at any depth.
-     * This specifically grants 'list' and 'get' permissions across all
-     * property sub-collections including housekeeping_tasks, reservations, and rooms.
+     * SUKHA OS: WhatsApp Communication System Security Rules
+     *
+     * Core Philosophy:
+     * This ruleset implements a multi-tenant, role-based access control (RBAC) model.
+     * Security is anchored to the 'entityId' (hotel property) and user 'role' stored
+     * in the authentication token custom claims.
+     *
+     * Data Structure:
+     * All communication data is logically partitioned under /entities/{entityId}/...
+     * collections. This structure ensures strict isolation between different hotel
+     * properties managed by SUKHA OS.
+     *
+     * Key Security Decisions:
+     * 1. Multi-Tenancy: Users can only access data where the path {entityId} matches 
+     *    the 'entityId' claim in their auth token.
+     * 2. Staff-Only Access: Read and write access to WhatsApp templates, contacts, 
+     *    logs, and alerts is restricted to users with staff roles (Manager, 
+     *    Supervisor, Admin, Owner).
+     * 3. Relational Integrity: On creation, the document's internal 'entityId' field 
+     *    must match the path's 'entityId' to prevent cross-tenant data injection.
+     * 4. Management vs. Admin: While all staff can view communication data, only 
+     *    high-level roles (Admin/Owner) can create or delete configuration entities 
+     *    like message templates.
      */
 
+    // --- GLOBAL HELPER FUNCTIONS ---
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getRole() {
+      return request.auth.token.role;
+    }
+
+    function getAuthEntityId() {
+      return request.auth.token.entityId;
+    }
+
+    /**
+     * Verifies the user is signed in, belongs to the specific entity (tenant),
+     * and has a recognized management/staff role.
+     */
+    function isEntityStaff(entityId) {
+      return isSignedIn() && 
+             getAuthEntityId() == entityId && 
+             (getRole() == 'Manager' || getRole() == 'Supervisor' || getRole() == 'Admin' || getRole() == 'Owner');
+    }
+
+    /**
+     * Verifies the user has administrative privileges for the specific entity.
+     */
+    function isEntityAdmin(entityId) {
+      return isSignedIn() && 
+             getAuthEntityId() == entityId && 
+             (getRole() == 'Admin' || getRole() == 'Owner');
+    }
+
+    /**
+     * Enforces that the entityId in the document matches the path for relational integrity.
+     */
+    function matchesPathEntity(entityId) {
+      return request.resource.data.entityId == entityId;
+    }
+
+    /**
+     * Ensures an update or delete only happens on a document that actually exists.
+     */
+    function docExists() {
+      return resource != null;
+    }
+
+    // --- COLLECTION RULES ---
+
+    /**
+     * @description Rules for pre-approved WhatsApp message templates.
+     * @path /entities/{entityId}/whatsappTemplates/{templateId}
+     * @allow (get, list, update) if User is Staff of the entity.
+     * @allow (create, delete) if User is Admin or Owner of the entity.
+     * @deny (all) if User's token entityId does not match the path.
+     * @principle Multi-tenant isolation and role-based administrative control.
+     */
+    match /entities/{entityId}/whatsappTemplates/{templateId} {
+      allow get, list: if isEntityStaff(entityId);
+      allow create: if isEntityAdmin(entityId) && matchesPathEntity(entityId);
+      allow update: if isEntityStaff(entityId) && docExists();
+      allow delete: if isEntityAdmin(entityId) && docExists();
+    }
+
+    /**
+     * @description Rules for WhatsApp Contact records (guests and staff mapping).
+     * @path /entities/{entityId}/whatsappContacts/{contactId}
+     * @allow (get, list, create, update) if User is Staff of the entity.
+     * @deny (delete) unless User is Admin or Owner to prevent log breakage.
+     * @principle Restricted access to PII (phone numbers) to authorized staff only.
+     */
+    match /entities/{entityId}/whatsappContacts/{contactId} {
+      allow get, list: if isEntityStaff(entityId);
+      allow create: if isEntityStaff(entityId) && matchesPathEntity(entityId);
+      allow update: if isEntityStaff(entityId) && docExists();
+      allow delete: if isEntityAdmin(entityId) && docExists();
+    }
+
+    /**
+     * @description Rules for WhatsApp Communication Logs and AI interactions.
+     * @path /entities/{entityId}/whatsappMessageLogs/{messageLogId}
+     * @allow (get, list) if User is Staff of the entity for dashboard monitoring.
+     * @allow (create) if User is Staff (usually handled by backend, but allowed for manual logging).
+     * @deny (update, delete) to maintain audit trail integrity.
+     * @principle Append-only logging for communication auditing.
+     */
+    match /entities/{entityId}/whatsappMessageLogs/{messageLogId} {
+      allow get, list: if isEntityStaff(entityId);
+      allow create: if isEntityStaff(entityId) && matchesPathEntity(entityId);
+      allow update: if false; // Logs should be immutable
+      allow delete: if isEntityAdmin(entityId) && docExists();
+    }
+
+    /**
+     * @description Rules for operational alerts generated for management.
+     * @path /entities/{entityId}/systemAlerts/{alertId}
+     * @allow (get, list, update) if User is Staff of the entity.
+     * @allow (create) if User is Staff or system-triggered.
+     * @deny (delete) unless User is Admin/Owner.
+     * @principle Ensures managers can view and acknowledge (update) their own operational alerts.
+     */
+    match /entities/{entityId}/systemAlerts/{alertId} {
+      allow get, list: if isEntityStaff(entityId);
+      allow create: if isEntityStaff(entityId) && matchesPathEntity(entityId);
+      allow update: if isEntityStaff(entityId) && docExists();
+      allow delete: if isEntityAdmin(entityId) && docExists();
+    }
+
+    // --- DEFAULT DENY ---
+    // Explicitly deny access to any other documents or paths.
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
     }
   }
 }

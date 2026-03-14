@@ -1,141 +1,410 @@
-
 {
   "entities": {
-    "HotelProperty": {
-      "title": "HotelProperty",
+    "WhatsAppTemplate": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "WhatsAppTemplate",
       "type": "object",
-      "description": "Represents a single hotel property managed by SUKHA OS.",
+      "description": "Defines pre-approved WhatsApp message templates for automated messaging, used for various system events.",
       "properties": {
-        "id": { "type": "string" },
-        "entityId": { "type": "string" },
-        "name": { "type": "string" },
-        "address": { "type": "string" },
-        "phone": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
-        "gstin": { "type": "string" },
-        "pan": { "type": "string" },
-        "isActive": { "type": "boolean" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the WhatsAppTemplate entity."
+        },
+        "entityId": {
+          "type": "string",
+          "description": "Reference to the Entity (hotel property) this template belongs to. (Relationship: Entity 1:N WhatsAppTemplate)"
+        },
+        "name": {
+          "type": "string",
+          "description": "A unique, descriptive name for the template (e.g., 'BookingConfirmation', 'CheckinWelcome')."
+        },
+        "category": {
+          "type": "string",
+          "description": "The category of the message template, such as 'Guest', 'ManagementAlert', or 'Promotional'."
+        },
+        "templateId": {
+          "type": "string",
+          "description": "The official template ID registered with WhatsApp Cloud API, if applicable for pre-approved templates."
+        },
+        "body": {
+          "type": "string",
+          "description": "The template string containing placeholders for dynamic content (e.g., 'Welcome {{name}}. Your check-in is on {{checkin_date}}')."
+        },
+        "placeholders": {
+          "type": "array",
+          "description": "An array of strings representing the dynamic data placeholders expected in the 'body' (e.g., ['name', 'checkin_date']).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "triggerEvent": {
+          "type": "string",
+          "description": "The system event that automatically triggers this WhatsApp message template (e.g., 'booking_created', 'guest_checkin', 'maintenance_issue')."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates whether this template is currently active and can be used for sending messages."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the template's purpose and usage."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the template was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the template was last updated.",
+          "format": "date-time"
+        }
       },
-      "required": ["id", "entityId", "name", "isActive", "createdAt", "updatedAt"]
+      "required": [
+        "id",
+        "entityId",
+        "name",
+        "category",
+        "body",
+        "triggerEvent",
+        "isActive",
+        "description",
+        "createdAt",
+        "updatedAt"
+      ]
     },
-    "UserProfile": {
-      "title": "UserProfile",
+    "WhatsAppContact": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "WhatsAppContact",
       "type": "object",
-      "description": "Stores user-specific information and roles.",
+      "description": "Stores WhatsApp contact information for guests and users, linking to their respective profiles and roles.",
       "properties": {
-        "id": { "type": "string" },
-        "entityId": { "type": "string" },
-        "name": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
-        "role": { "type": "string" },
-        "isActive": { "type": "boolean" },
-        "permissions": { "type": "array", "items": { "type": "string" } },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the WhatsAppContact entity."
+        },
+        "entityId": {
+          "type": "string",
+          "description": "Reference to the Entity (hotel property) this contact belongs to. (Relationship: Entity 1:N WhatsAppContact)"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The WhatsApp phone number for this contact, including country code (e.g., '+919876543210')."
+        },
+        "contactType": {
+          "type": "string",
+          "description": "The type of contact, either 'Guest' or 'User' (staff/admin)."
+        },
+        "guestId": {
+          "type": "string",
+          "description": "Reference to the Guest entity if this contact is a guest. (Relationship: Guest 1:N WhatsAppContact)"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User entity if this contact is a staff member or admin. (Relationship: User 1:N WhatsAppContact)"
+        },
+        "role": {
+          "type": "string",
+          "description": "The recognized role of the contact (e.g., 'Guest', 'Manager', 'Admin', 'Owner'), used for role-based access control and message routing."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the WhatsApp contact."
+        },
+        "isVerified": {
+          "type": "boolean",
+          "description": "Indicates whether the WhatsApp number has been verified and opted-in for communication."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the contact was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the contact was last updated.",
+          "format": "date-time"
+        }
       },
-      "required": ["id", "entityId", "name", "email", "role", "isActive", "createdAt", "updatedAt"]
+      "required": [
+        "id",
+        "entityId",
+        "phoneNumber",
+        "contactType",
+        "role",
+        "name",
+        "isVerified",
+        "createdAt",
+        "updatedAt"
+      ]
     },
-    "Room": {
-      "title": "Room",
+    "WhatsAppMessageLog": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "WhatsAppMessageLog",
       "type": "object",
+      "description": "Logs all incoming and outgoing WhatsApp messages, their status, and AI interaction details.",
       "properties": {
-        "id": { "type": "string" },
-        "entityId": { "type": "string" },
-        "roomNumber": { "type": "string" },
-        "floor": { "type": "number" },
-        "building": { "type": "string", "enum": ["Old Apartment", "New Apartment"] },
-        "roomTypeId": { "type": "string" },
-        "status": { "type": "string" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the WhatsAppMessageLog entity."
+        },
+        "entityId": {
+          "type": "string",
+          "description": "Reference to the Entity (hotel property) this message log belongs to. (Relationship: Entity 1:N WhatsAppMessageLog)"
+        },
+        "whatsappMessageId": {
+          "type": "string",
+          "description": "The unique message ID provided by the WhatsApp Cloud API for this specific message."
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The WhatsApp phone number involved in this message."
+        },
+        "contactId": {
+          "type": "string",
+          "description": "Reference to the WhatsAppContact entity associated with this message. (Relationship: WhatsAppContact 1:N WhatsAppMessageLog)"
+        },
+        "direction": {
+          "type": "string",
+          "description": "The direction of the message: 'incoming' or 'outgoing'."
+        },
+        "messageBody": {
+          "type": "string",
+          "description": "The full text content of the WhatsApp message."
+        },
+        "sentAt": {
+          "type": "string",
+          "description": "Timestamp when the message was sent to or received by the WhatsApp Cloud API.",
+          "format": "date-time"
+        },
+        "receivedAt": {
+          "type": "string",
+          "description": "Timestamp when the message was processed by the Sukha OS backend.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the message (e.g., 'sent', 'delivered', 'read', 'failed', 'received', 'processed', 'replied')."
+        },
+        "errorMessage": {
+          "type": "string",
+          "description": "Details of any error if the message failed to send or process."
+        },
+        "aiIntent": {
+          "type": "string",
+          "description": "The intent identified by Gemini AI for incoming messages (e.g., 'TodayStatusQuery', 'MaintenanceIssueReport')."
+        },
+        "aiStructuredQuery": {
+          "type": "string",
+          "description": "The structured query generated by Gemini AI based on the user's intent (e.g., 'GET /reports/today_occupancy')."
+        },
+        "aiResponse": {
+          "type": "string",
+          "description": "The raw response text from Gemini AI, before being formatted for WhatsApp."
+        },
+        "responseBody": {
+          "type": "string",
+          "description": "The final formatted response message sent back by Sukha OS to the WhatsApp contact."
+        },
+        "isAiQuery": {
+          "type": "boolean",
+          "description": "Indicates whether this incoming message was processed as an AI-driven query."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the log entry was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the log entry was last updated.",
+          "format": "date-time"
+        }
       },
-      "required": ["id", "entityId", "roomNumber", "status"]
+      "required": [
+        "id",
+        "entityId",
+        "whatsappMessageId",
+        "phoneNumber",
+        "direction",
+        "messageBody",
+        "sentAt",
+        "receivedAt",
+        "status",
+        "isAiQuery",
+        "createdAt",
+        "updatedAt"
+      ]
     },
-    "Reservation": {
-      "title": "Reservation",
+    "SystemAlert": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SystemAlert",
       "type": "object",
+      "description": "Represents critical system alerts generated by Sukha OS, primarily for management notification via WhatsApp.",
       "properties": {
-        "id": { "type": "string" },
-        "guestName": { "type": "string" },
-        "roomNumber": { "type": "string" },
-        "building": { "type": "string" },
-        "stayType": { "type": "string", "enum": ["Daily", "Monthly", "Yearly"] },
-        "checkInDate": { "type": "string", "format": "date" },
-        "checkOutDate": { "type": "string", "format": "date" },
-        "status": { "type": "string" }
-      }
-    },
-    "LaundryItem": {
-      "title": "LaundryItem",
-      "type": "object",
-      "description": "Master list of laundry services and items.",
-      "properties": {
-        "itemName": { "type": "string" },
-        "itemType": { "type": "string", "enum": ["guest", "linen"] },
-        "hotelRate": { "type": "number", "description": "Rate charged to guests" },
-        "vendorRate": { "type": "number", "description": "Rate charged by Signature Laundry" },
-        "unit": { "type": "string" }
-      }
-    },
-    "LaundryOrder": {
-      "title": "LaundryOrder",
-      "type": "object",
-      "description": "Individual laundry orders for guests or linen batches.",
-      "properties": {
-        "roomId": { "type": "string" },
-        "roomNumber": { "type": "string" },
-        "guestName": { "type": "string" },
-        "reservationId": { "type": "string" },
-        "items": { "type": "array", "items": { "type": "object" } },
-        "status": { "type": "string", "enum": ["sent", "returned", "paid"] },
-        "hotelTotal": { "type": "number" },
-        "vendorTotal": { "type": "number" },
-        "createdAt": { "type": "string" }
-      }
-    },
-    "MaintenanceSchedule": {
-      "title": "MaintenanceSchedule",
-      "type": "object",
-      "description": "Recurring maintenance tasks for property assets.",
-      "properties": {
-        "id": { "type": "string" },
-        "itemName": { "type": "string" },
-        "frequency": { "type": "string", "enum": ["daily", "weekly", "monthly", "quarterly", "yearly"] },
-        "nextDue": { "type": "string", "format": "date" },
-        "lastDone": { "type": "string", "format": "date" },
-        "notes": { "type": "string" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the SystemAlert entity."
+        },
+        "entityId": {
+          "type": "string",
+          "description": "Reference to the Entity (hotel property) this alert originates from. (Relationship: Entity 1:N SystemAlert)"
+        },
+        "alertType": {
+          "type": "string",
+          "description": "The specific type of alert (e.g., 'RoomIssue', 'OverbookingWarning', 'HousekeepingDelay', 'PaymentPending')."
+        },
+        "title": {
+          "type": "string",
+          "description": "A concise title summarizing the alert."
+        },
+        "message": {
+          "type": "string",
+          "description": "The detailed message content of the alert, often formatted for WhatsApp."
+        },
+        "severity": {
+          "type": "string",
+          "description": "The severity level of the alert: 'Low', 'Medium', 'High', or 'Critical'."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the alert: 'pending', 'sent', 'acknowledged', 'resolved'."
+        },
+        "triggeredByEvent": {
+          "type": "string",
+          "description": "The internal system event that triggered the generation of this alert."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "A JSON string storing additional contextual information related to the alert (e.g., {'roomId': '203', 'issue': 'AC not working'})."
+        },
+        "recipientRoles": {
+          "type": "array",
+          "description": "An array of roles (e.g., 'Manager', 'Admin') designated to receive this alert.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sentAt": {
+          "type": "string",
+          "description": "Timestamp when the alert was successfully sent to recipients via WhatsApp.",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the alert was created in the system.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the alert was last updated.",
+          "format": "date-time"
+        }
       },
-      "required": ["id", "itemName", "frequency", "nextDue"]
+      "required": [
+        "id",
+        "entityId",
+        "alertType",
+        "title",
+        "message",
+        "severity",
+        "status",
+        "triggeredByEvent",
+        "recipientRoles",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "auth": {
-    "providers": ["password", "anonymous"]
+    "providers": [
+      "password",
+      "anonymous"
+    ]
   },
   "firestore": {
-    "/hotel_properties/{hotelPropertyId}": {
-      "schema": { "$ref": "#/backend/entities/HotelProperty" },
-      "description": "Top-level hotel property documents."
-    },
-    "/hotel_properties/{hotelPropertyId}/laundry_items/{itemId}": {
-      "schema": { "$ref": "#/backend/entities/LaundryItem" },
-      "description": "Master laundry items and rates."
-    },
-    "/hotel_properties/{hotelPropertyId}/guest_laundry_orders/{orderId}": {
-      "schema": { "$ref": "#/backend/entities/LaundryOrder" },
-      "description": "Guest specific laundry orders."
-    },
-    "/hotel_properties/{hotelPropertyId}/linen_laundry_batches/{batchId}": {
-      "schema": { "type": "object" },
-      "description": "Batches of hotel linen sent for cleaning."
-    },
-    "/hotel_properties/{hotelPropertyId}/maintenance_schedules/{scheduleId}": {
-      "schema": { "$ref": "#/backend/entities/MaintenanceSchedule" },
-      "description": "Routine maintenance schedules for assets."
-    },
-    "/hotel_properties/{hotelPropertyId}/reservations/{resId}": {
-      "schema": { "$ref": "#/backend/entities/Reservation" },
-      "description": "Guest reservations."
-    }
+    "structure": [
+      {
+        "path": "/entities/{entityId}/whatsappTemplates/{templateId}",
+        "definition": {
+          "entityName": "WhatsAppTemplate",
+          "schema": {
+            "$ref": "#/backend/entities/WhatsAppTemplate"
+          },
+          "description": "Stores pre-approved WhatsApp message templates specific to a hotel entity. Includes denormalized 'entityId' for authorization independence.",
+          "params": [
+            {
+              "name": "entityId",
+              "description": "The unique identifier of the hotel property (entity)."
+            },
+            {
+              "name": "templateId",
+              "description": "The unique identifier for the WhatsApp message template."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/entities/{entityId}/whatsappContacts/{contactId}",
+        "definition": {
+          "entityName": "WhatsAppContact",
+          "schema": {
+            "$ref": "#/backend/entities/WhatsAppContact"
+          },
+          "description": "Maintains a record of WhatsApp contacts (guests or staff) for a specific hotel entity. Includes denormalized 'entityId' and 'role' for authorization independence.",
+          "params": [
+            {
+              "name": "entityId",
+              "description": "The unique identifier of the hotel property (entity)."
+            },
+            {
+              "name": "contactId",
+              "description": "The unique identifier for the WhatsApp contact."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/entities/{entityId}/whatsappMessageLogs/{messageLogId}",
+        "definition": {
+          "entityName": "WhatsAppMessageLog",
+          "schema": {
+            "$ref": "#/backend/entities/WhatsAppMessageLog"
+          },
+          "description": "Logs all incoming and outgoing WhatsApp messages, including AI interaction details, specific to a hotel entity. Includes denormalized 'entityId' and implicitly denormalized sender/recipient 'role' for authorization independence.",
+          "params": [
+            {
+              "name": "entityId",
+              "description": "The unique identifier of the hotel property (entity)."
+            },
+            {
+              "name": "messageLogId",
+              "description": "The unique identifier for the WhatsApp message log entry."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/entities/{entityId}/systemAlerts/{alertId}",
+        "definition": {
+          "entityName": "SystemAlert",
+          "schema": {
+            "$ref": "#/backend/entities/SystemAlert"
+          },
+          "description": "Stores system-generated alerts for management, originating from a specific hotel entity. Includes denormalized 'entityId' and 'recipientRoles' for authorization independence.",
+          "params": [
+            {
+              "name": "entityId",
+              "description": "The unique identifier of the hotel property (entity)."
+            },
+            {
+              "name": "alertId",
+              "description": "The unique identifier for the system alert."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure for the WhatsApp Communication System is designed to prioritize Authorization Independence, Clarity of Intent, and efficient Query-as-Permission (QAP) rules, while adhering to the multi-tenancy requirements of SUKHA OS. The core strategy involves structuring all WhatsApp-related data as subcollections under the `/entities/{entityId}` path. This ensures that every document inherently belongs to a specific hotel property, aligning with the `entityId` custom claim used for multi-tenancy in SUKHA OS.\n\n**Authorization Independence (Denormalization):**\n\n1.  **`entityId` in Path and Document:** Every document in `whatsappTemplates`, `whatsappContacts`, `whatsappMessageLogs`, and `systemAlerts` collections will explicitly contain the `entityId` of the hotel property it belongs to. This denormalization is critical. Security rules can directly compare `request.auth.token.entityId` (from the authenticated user's custom claims) with `resource.data.entityId` or the `{entityId}` wildcard in the path, without needing any expensive `get()` operations on parent documents. This allows for atomic operations (e.g., creating a new template) without complex rule evaluations.\n\n2.  **`WhatsAppContact.role`:** The `WhatsAppContact` entity includes a `role` field ('Guest', 'Manager', 'Admin', 'Owner'). This is a crucial denormalization that directly stores the WhatsApp-specific authorization level of a contact. This role can be directly checked in security rules when processing incoming messages or determining access to contact-specific data, eliminating the need to traverse to a `users` or `guests` collection.\n\n3.  **Denormalized `senderRole` in `WhatsAppMessageLog` (Implicit):** To further enhance authorization independence for message logs, it is highly recommended to denormalize the `role` of the sender/recipient (from `WhatsAppContact`) directly into the `WhatsAppMessageLog` document, perhaps as a `senderRole` or `recipientRole` field. While not explicitly in the provided `WhatsAppMessageLog` schema, the user's `whatsapp_logs` table schema included `role`. By adding this to the log, rules can check `resource.data.senderRole` to restrict access to AI query logs (e.g., only 'Manager', 'Admin', 'Owner' roles can have `isAiQuery: true` logs) without requiring a `get()` to the `WhatsAppContact` document.\n\n**QAPs (Queries as Permissions) Support:**\n\nBy placing all WhatsApp-related data under `/entities/{entityId}`, the `entityId` acts as a natural and secure partitioning key. This design enables robust QAPs, as `list` operations can be performed securely and efficiently:\n\n*   **Tenant Isolation:** All `list` queries for any of these collections must include a `where('entityId', '==', request.auth.token.entityId)` clause. The security rules will enforce this, ensuring that a user can only query data belonging to their assigned hotel property. This prevents data leakage across different hotel entities.\n*   **Role-Based Access:** For collections like `whatsappTemplates` and `systemAlerts`, staff roles ('Manager', 'Admin', 'Owner') can be checked directly in rules against the `request.auth.token.role` (from custom claims) to allow `list` access to all documents within their `entityId`. For `whatsappMessageLogs`, further filtering by `direction`, `isAiQuery`, or the denormalized `senderRole` would enable granular QAPs, allowing managers to query all messages, but potentially restricting guests to only their own outgoing messages, for example.\n\nThis architecture minimizes rule complexity, maximizes debugging clarity, and ensures scalable multi-tenant authorization for the WhatsApp Communication System."
   }
 }
