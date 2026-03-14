@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -11,7 +12,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { doc, updateDoc, collection, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Building, Percent, Plus, Palette, Check } from "lucide-react";
+import { Loader2, Save, Building, Percent, Plus, Palette, Check, MessageSquare, Key } from "lucide-react";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { 
   Dialog, 
@@ -51,7 +52,7 @@ export default function SettingsPage() {
   const { data: property, isLoading: propLoading } = useDoc(propertyRef);
   const { data: gst, isLoading: gstLoading } = useDoc(gstRef);
 
-  const [propForm, setPropForm] = useState({ name: "", address: "", phone: "", email: "" });
+  const [propForm, setPropForm] = useState({ name: "", address: "", phone: "", email: "", whatsappNumber: "", whatsappBusinessId: "" });
   const [gstForm, setGstForm] = useState({ 
     gstin: "", 
     sacCode: "", 
@@ -72,7 +73,9 @@ export default function SettingsPage() {
         name: property.name || "",
         address: property.address || "",
         phone: property.phone || "",
-        email: property.email || ""
+        email: property.email || "",
+        whatsappNumber: property.whatsappNumber || "",
+        whatsappBusinessId: property.whatsappBusinessId || ""
       });
     }
     if (gst) {
@@ -93,7 +96,7 @@ export default function SettingsPage() {
     e.preventDefault();
     if (!propertyRef || !isAdmin) return;
     await updateDoc(propertyRef, { ...propForm, updatedAt: new Date().toISOString() });
-    toast({ title: "Property updated successfully" });
+    toast({ title: "Property settings updated" });
   };
 
   const handleGstRateChange = (type: 'room' | 'service', value: string) => {
@@ -239,6 +242,7 @@ export default function SettingsPage() {
           <TabsList className="bg-white border p-1 rounded-xl shadow-sm">
             <TabsTrigger value="profile">Property Profile</TabsTrigger>
             <TabsTrigger value="tax">Tax & Billing</TabsTrigger>
+            <TabsTrigger value="whatsapp">WhatsApp Gateway</TabsTrigger>
             <TabsTrigger value="appearance">Appearance</TabsTrigger>
           </TabsList>
 
@@ -268,7 +272,7 @@ export default function SettingsPage() {
                     <Input value={propForm.address} onChange={e => setPropForm({...propForm, address: e.target.value})} disabled={!isAdmin} />
                   </div>
                   <div className="space-y-2 w-full md:w-1/2">
-                    <Label>Phone Number</Label>
+                    <Label>Reception Phone</Label>
                     <Input value={propForm.phone} onChange={e => setPropForm({...propForm, phone: e.target.value})} disabled={!isAdmin} />
                   </div>
                   {isAdmin && (
@@ -380,6 +384,51 @@ export default function SettingsPage() {
                   {isAdmin && (
                     <Button type="submit" className="shadow-md">
                       <Save className="w-4 h-4 mr-2" /> Save Tax Config
+                    </Button>
+                  )}
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="whatsapp">
+            <Card className="border-none shadow-sm">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-primary" />
+                  <CardTitle className="text-xl">WhatsApp Gateway Config</CardTitle>
+                </div>
+                <CardDescription>Setup the official Meta Cloud API credentials for SUKHA OS.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleUpdateProperty} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label>Property WhatsApp Number (Sender)</Label>
+                      <Input placeholder="+91..." value={propForm.whatsappNumber} onChange={e => setPropForm({...propForm, whatsappNumber: e.target.value})} disabled={!isAdmin} />
+                      <p className="text-[10px] text-muted-foreground">The verified number registered in Meta Developer Portal.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>WhatsApp Business Account ID</Label>
+                      <Input placeholder="WABA ID" value={propForm.whatsappBusinessId} onChange={e => setPropForm({...propForm, whatsappBusinessId: e.target.value})} disabled={!isAdmin} />
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-secondary/30 rounded-xl space-y-4 border border-dashed border-primary/20">
+                    <div className="flex items-center gap-2">
+                      <Key className="w-4 h-4 text-primary" />
+                      <h4 className="text-xs font-bold uppercase tracking-widest">Authentication</h4>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">System Access Token</Label>
+                      <Input type="password" value="••••••••••••••••••••••••" disabled className="bg-white/50" />
+                      <p className="text-[9px] text-primary font-medium italic">Tokens are managed securely via Firebase Environment Variables in production.</p>
+                    </div>
+                  </div>
+
+                  {isAdmin && (
+                    <Button type="submit" className="shadow-md">
+                      <Save className="w-4 h-4 mr-2" /> Save Gateway Settings
                     </Button>
                   )}
                 </form>

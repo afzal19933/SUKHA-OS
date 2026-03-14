@@ -11,7 +11,9 @@
         "phone": { "type": "string" },
         "email": { "type": "string" },
         "isActive": { "type": "boolean" },
-        "gstin": { "type": "string" }
+        "gstin": { "type": "string" },
+        "whatsappNumber": { "type": "string", "description": "The official business number used to send messages." },
+        "whatsappBusinessId": { "type": "string" }
       }
     },
     "UserProfile": {
