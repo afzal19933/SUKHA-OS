@@ -22,8 +22,7 @@ import {
   ChevronDown,
   Clock,
   Check,
-  Monitor,
-  PlayCircle
+  Monitor
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -49,7 +48,7 @@ import {
 } from "@/components/ui/popover";
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from "@/firebase";
 import { signOut } from "firebase/auth";
-import { collection, query, orderBy, limit, doc } from "firebase/firestore";
+import { collection, query, orderBy, limit, doc, where, getDocs, writeBatch } from "firebase/firestore";
 import Link from "next/link";
 import { cn, formatAppTime } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -65,7 +64,6 @@ const NAV_ITEMS = [
   { name: "Laundry", href: "/laundry", icon: WashingMachine },
   { name: "Accounting", href: "/accounting", icon: Calculator },
   { name: "Team", href: "/team", icon: Users },
-  { name: "Simulation", href: "/admin/simulation", icon: PlayCircle, restricted: ["owner", "admin"] },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -77,6 +75,35 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Background Cleanup for Simulated Data (Runs once per admin login)
+  useEffect(() => {
+    if (firebaseUser && (role === 'owner' || role === 'admin') && entityId && _hasHydrated) {
+      const runCleanup = async () => {
+        const cleanupKey = `cleanup_sim_${entityId}`;
+        if (localStorage.getItem(cleanupKey)) return;
+
+        const targetCollections = ["reservations", "housekeeping_tasks", "invoices", "guest_laundry_orders"];
+        try {
+          for (const collName of targetCollections) {
+            const collRef = collection(db, "hotel_properties", entityId, collName);
+            const q = query(collRef, where("isSimulated", "==", true));
+            const snapshot = await getDocs(q);
+            
+            if (!snapshot.empty) {
+              const batch = writeBatch(db);
+              snapshot.docs.forEach(d => batch.delete(d.ref));
+              await batch.commit();
+            }
+          }
+          localStorage.setItem(cleanupKey, 'true');
+        } catch (e) {
+          console.error("Simulation cleanup failed", e);
+        }
+      };
+      runCleanup();
+    }
+  }, [firebaseUser, role, entityId, db, _hasHydrated]);
 
   const notificationsQuery = useMemoFirebase(() => {
     if (!firebaseUser) return null;
