@@ -13,8 +13,7 @@ import {
   Loader2,
   Database,
   Building2,
-  Trash2,
-  Undo2
+  Trash2
 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { useFirestore } from "@/firebase";
@@ -25,11 +24,11 @@ import { cn } from "@/lib/utils";
 
 /**
  * @fileOverview Operational Simulation Engine for SUKHA OS.
- * Generates 30 days of realistic historical data and provides a reset option.
+ * Generates 30 days of realistic historical data and provides a robust reset option.
  */
 
 export default function SimulationPage() {
-  const { entityId, role } = useAuthStore();
+  const { entityId, role, availableProperties } = useAuthStore();
   const db = useFirestore();
   const { toast } = useToast();
   const [isSimulating, setIsSimulating] = useState(false);
@@ -37,6 +36,7 @@ export default function SimulationPage() {
   const [progress, setProgress] = useState(0);
 
   const isAdmin = role === "owner" || role === "admin";
+  const currentPropertyName = availableProperties.find(p => p.id === entityId)?.name || "Current Property";
 
   const run30DaySimulation = async () => {
     if (!entityId || !isAdmin) return;
@@ -129,36 +129,49 @@ export default function SimulationPage() {
   };
 
   const resetSimulationData = async () => {
-    if (!entityId || !isAdmin) return;
-    if (!confirm("Are you sure? This will delete all data tagged as 'Simulated'.")) return;
+    if (!entityId || !isAdmin) {
+      toast({ variant: "destructive", title: "Action Forbidden", description: "You must be logged in as an Admin." });
+      return;
+    }
+
+    if (!confirm(`Wipe simulated data for ${currentPropertyName}? Live records will be preserved.`)) return;
     
     setIsResetting(true);
     try {
-      const batch = writeBatch(db);
       const collections = ["reservations", "housekeeping_tasks", "invoices"];
-      let deletedCount = 0;
+      let totalDeleted = 0;
 
       for (const coll of collections) {
         const q = query(
           collection(db, "hotel_properties", entityId, coll),
           where("isSimulated", "==", true)
         );
+        
         const snapshot = await getDocs(q);
-        snapshot.docs.forEach((doc) => {
-          batch.delete(doc.ref);
-          deletedCount++;
-        });
+        const docsToDelete = snapshot.docs;
+        
+        if (docsToDelete.length === 0) continue;
+
+        // Process in batches of 500 (Firestore limit)
+        for (let i = 0; i < docsToDelete.length; i += 500) {
+          const batch = writeBatch(db);
+          const chunk = docsToDelete.slice(i, i + 500);
+          chunk.forEach((d) => {
+            batch.delete(d.ref);
+            totalDeleted++;
+          });
+          await batch.commit();
+        }
       }
 
-      if (deletedCount > 0) {
-        await batch.commit();
-        toast({ title: "Reset Complete", description: `Removed ${deletedCount} simulated records.` });
+      if (totalDeleted > 0) {
+        toast({ title: "Reset Successful", description: `Cleaned up ${totalDeleted} simulated records.` });
       } else {
-        toast({ title: "Reset Skipped", description: "No simulated data found to remove." });
+        toast({ title: "No Data Found", description: "No documents marked as 'Simulated' were found." });
       }
     } catch (error) {
-      console.error(error);
-      toast({ variant: "destructive", title: "Reset Failed" });
+      console.error("Reset Error:", error);
+      toast({ variant: "destructive", title: "Reset Operation Failed", description: "Check console for details." });
     } finally {
       setIsResetting(false);
     }
@@ -198,7 +211,7 @@ export default function SimulationPage() {
               Operational Dataset
             </CardTitle>
             <CardDescription>
-              Populate or clear your current entity ({entityId?.substring(0,8)}...) dataset.
+              Populate or clear your current entity dataset.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-6">
@@ -208,10 +221,10 @@ export default function SimulationPage() {
                 <p className="text-lg font-bold">30 Days</p>
               </div>
               <div className="p-4 rounded-2xl border bg-secondary/10 space-y-1">
-                <p className="text-[10px] font-black uppercase text-muted-foreground">Target Entity</p>
-                <p className="text-lg font-bold flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-primary" />
-                  Current Active
+                <p className="text-[10px] font-black uppercase text-muted-foreground">Target Property</p>
+                <p className="text-sm font-bold flex items-center gap-2 truncate">
+                  <Building2 className="w-4 h-4 text-primary shrink-0" />
+                  {currentPropertyName}
                 </p>
               </div>
             </div>
@@ -237,7 +250,7 @@ export default function SimulationPage() {
                 <Button 
                   className="w-full h-12 text-lg font-black tracking-tight shadow-lg" 
                   onClick={run30DaySimulation}
-                  disabled={isResetting}
+                  disabled={isResetting || !entityId}
                 >
                   <RefreshCcw className={cn("w-5 h-5 mr-2", isSimulating && "animate-spin")} />
                   RUN 30-DAY SIMULATION
@@ -247,7 +260,7 @@ export default function SimulationPage() {
                   variant="outline"
                   className="w-full h-10 text-xs font-bold uppercase tracking-widest text-destructive hover:bg-destructive/5" 
                   onClick={resetSimulationData}
-                  disabled={isResetting}
+                  disabled={isResetting || isSimulating || !entityId}
                 >
                   {isResetting ? (
                     <>
@@ -271,8 +284,8 @@ export default function SimulationPage() {
           <div className="space-y-1">
             <p className="text-xs font-bold text-amber-900 uppercase">Data Control Notice</p>
             <p className="text-[11px] text-amber-800 leading-relaxed">
-              The 'Reset' option only removes documents created by this engine. Live reservations or 
-              manually created invoices will not be touched.
+              The 'Reset' option only removes documents created by this engine (`isSimulated: true`). 
+              Live reservations, manually created invoices, or inventory master lists will not be touched.
             </p>
           </div>
         </footer>
