@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { 
@@ -13,7 +14,8 @@ import {
   CreditCard,
   User,
   CalendarDays,
-  Tag
+  Tag,
+  Building2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
@@ -28,7 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn, formatAppDate, generateInvoiceNumber, numberToWords } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
-import { collection, doc, query, orderBy } from "firebase/firestore";
+import { collection, doc, query, orderBy, where } from "firebase/firestore";
 import { 
   Dialog, 
   DialogContent, 
@@ -62,6 +64,12 @@ const BOOKING_SOURCES = [
   "Corporate"
 ];
 
+const BUILDINGS = ["Old Apartment", "New Apartment"];
+const STAY_TYPES: Record<string, string[]> = {
+  "Old Apartment": ["Daily", "Monthly", "Yearly"],
+  "New Apartment": ["Daily"]
+};
+
 export default function ReservationsPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
   const { user } = useUser();
@@ -77,7 +85,9 @@ export default function ReservationsPage() {
   const [selectedRes, setSelectedRes] = useState<any>(null);
   const [newRes, setNewRes] = useState({ 
     guestName: "", 
+    building: "Old Apartment",
     roomNumber: "", 
+    stayType: "Daily",
     checkIn: "", 
     checkOut: "",
     guests: "1",
@@ -120,6 +130,15 @@ export default function ReservationsPage() {
   const { data: laundryOrders } = useCollection(laundryQuery);
   const { data: roomTypes } = useCollection(typesQuery);
 
+  const filteredRoomsForForm = useMemo(() => {
+    if (!rooms) return [];
+    return rooms.filter(r => r.building === newRes.building || !r.building);
+  }, [rooms, newRes.building]);
+
+  const availableStayTypes = useMemo(() => {
+    return STAY_TYPES[newRes.building] || ["Daily"];
+  }, [newRes.building]);
+
   const getLaundryBalance = (resId: string) => {
     if (!laundryOrders) return 0;
     return laundryOrders
@@ -135,7 +154,9 @@ export default function ReservationsPage() {
     const resData = {
       entityId,
       guestName: newRes.guestName,
+      building: newRes.building,
       roomNumber: newRes.roomNumber,
+      stayType: newRes.stayType,
       checkInDate: newRes.checkIn,
       checkOutDate: newRes.checkOut || null,
       status: "confirmed",
@@ -150,13 +171,13 @@ export default function ReservationsPage() {
 
     sendNotification(db, user.uid, entityId, {
       title: "New Reservation Confirmed",
-      message: `${newRes.guestName} booked for Room ${newRes.roomNumber} starting ${formatAppDate(newRes.checkIn)}`,
+      message: `${newRes.guestName} booked for ${newRes.building} Room ${newRes.roomNumber}`,
       type: "info"
     });
 
     toast({ title: "Reservation created", description: `Confirmed for ${newRes.guestName}` });
     setIsAddOpen(false);
-    setNewRes({ guestName: "", roomNumber: "", checkIn: "", checkOut: "", guests: "1", requests: "", bookingSource: "Direct" });
+    setNewRes({ guestName: "", building: "Old Apartment", roomNumber: "", stayType: "Daily", checkIn: "", checkOut: "", guests: "1", requests: "", bookingSource: "Direct" });
   };
 
   const generateInvoice = async (res: any) => {
@@ -167,13 +188,12 @@ export default function ReservationsPage() {
     const nights = Math.max(differenceInDays(departure, arrival), 1);
 
     const roomNumStr = res.roomNumber?.toString().trim();
-    const room = rooms?.find(r => r.roomNumber?.toString().trim() === roomNumStr);
+    const room = rooms?.find(r => r.roomNumber?.toString().trim() === roomNumStr && r.building === res.building);
     const roomType = roomTypes?.find(t => t.id === room?.roomTypeId);
     
     const baseRate = roomType?.baseRate || 0;
     const subtotal = baseRate * nights;
     
-    // Tax Calculation (Room Rent = 5% Total)
     const cgst = subtotal * 0.025;
     const sgst = subtotal * 0.025;
     const totalAmount = subtotal + cgst + sgst;
@@ -199,7 +219,7 @@ export default function ReservationsPage() {
       },
       items: [
         { 
-          name: `Room Stay (${nights} Nights)`, 
+          name: `${res.stayType} Stay (${nights} Units)`, 
           qty: nights, 
           price: baseRate, 
           gstRate: 5,
@@ -252,7 +272,7 @@ export default function ReservationsPage() {
     
     if (currentRes?.roomNumber && rooms) {
       const roomNumStr = currentRes.roomNumber.toString().trim();
-      const room = rooms.find(r => r.roomNumber?.toString().trim() === roomNumStr);
+      const room = rooms.find(r => r.roomNumber?.toString().trim() === roomNumStr && r.building === currentRes.building);
       if (room) {
         const roomRef = doc(db, "hotel_properties", entityId, "rooms", room.id);
         const newRoomStatus = status === 'checked_in' ? 'occupied' : status === 'checked_out' ? 'dirty' : room.status;
@@ -281,7 +301,7 @@ export default function ReservationsPage() {
                     <Plus className="w-3 h-3 mr-1.5" /> New Reservation
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[360px]">
+                <DialogContent className="sm:max-w-[400px]">
                   <DialogHeader>
                     <DialogTitle className="text-sm font-bold">Create Reservation</DialogTitle>
                     <DialogDescription className="text-[10px]">Secure a room for an upcoming guest stay.</DialogDescription>
@@ -299,13 +319,33 @@ export default function ReservationsPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
+                        <Label className="text-[9px] uppercase font-bold">Building</Label>
+                        <Select value={newRes.building} onValueChange={val => setNewRes({...newRes, building: val, roomNumber: "", stayType: "Daily"})}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {BUILDINGS.map(b => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] uppercase font-bold">Stay Type</Label>
+                        <Select value={newRes.stayType} onValueChange={val => setNewRes({...newRes, stayType: val})}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {availableStayTypes.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
                         <Label className="text-[9px] uppercase font-bold">Assign Room</Label>
-                        <Select onValueChange={val => setNewRes({...newRes, roomNumber: val})} required>
+                        <Select onValueChange={val => setNewRes({...newRes, roomNumber: val})} required value={newRes.roomNumber}>
                           <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
                           <SelectContent>
-                            {rooms?.sort((a,b) => a.roomNumber.localeCompare(b.roomNumber)).map(r => (
+                            {filteredRoomsForForm?.sort((a,b) => a.roomNumber.localeCompare(b.roomNumber)).map(r => (
                               <SelectItem key={r.id} value={r.roomNumber} className="text-xs">
-                                Room {r.roomNumber} ({r.status})
+                                {r.roomNumber} ({r.status})
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -365,9 +405,9 @@ export default function ReservationsPage() {
             <TableHeader className="bg-secondary/50">
               <TableRow>
                 <TableHead className="px-4 h-9 text-[10px] uppercase font-bold">Guest Info</TableHead>
-                <TableHead className="text-center h-9 text-[10px] uppercase font-bold">Room</TableHead>
+                <TableHead className="text-center h-9 text-[10px] uppercase font-bold">Building / Room</TableHead>
                 <TableHead className="text-center h-9 text-[10px] uppercase font-bold">Check-Out</TableHead>
-                <TableHead className="text-center h-9 text-[10px] uppercase font-bold">Financial Status</TableHead>
+                <TableHead className="text-center h-9 text-[10px] uppercase font-bold">Type</TableHead>
                 <TableHead className="text-right px-4 h-9 text-[10px] uppercase font-bold">Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -391,23 +431,16 @@ export default function ReservationsPage() {
                         <div className="text-[8px] text-muted-foreground uppercase mt-0.5 ml-5">{res.bookingSource}</div>
                       </TableCell>
                       <TableCell className="text-center">
-                        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10 text-[9px] font-bold px-2">ROOM {res.roomNumber}</Badge>
+                        <div className="flex flex-col items-center">
+                          <span className="text-[8px] uppercase font-bold text-muted-foreground">{res.building}</span>
+                          <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10 text-[9px] font-bold px-2 mt-0.5">R {res.roomNumber}</Badge>
+                        </div>
                       </TableCell>
                       <TableCell className="text-center text-[10px] font-medium">
                         {res.checkOutDate ? formatAppDate(res.checkOutDate) : "TBD"}
                       </TableCell>
                       <TableCell className="text-center">
-                        {hasAlert ? (
-                          <Badge variant="destructive" className="h-4 text-[7px] uppercase px-1.5 bg-rose-50 text-rose-600 border-rose-200 flex items-center gap-1 mx-auto">
-                            <AlertCircle className="w-2.5 h-2.5" /> Dues: ₹{laundryBalance}
-                          </Badge>
-                        ) : laundryBalance > 0 ? (
-                          <Badge variant="outline" className="h-4 text-[7px] uppercase px-1.5 bg-amber-50 text-amber-600 border-amber-200 mx-auto">
-                            Laundry: ₹{laundryBalance}
-                          </Badge>
-                        ) : (
-                          <span className="text-[10px] text-emerald-600 font-bold uppercase">Clear</span>
-                        )}
+                        <Badge variant="ghost" className="text-[8px] uppercase">{res.stayType || "Daily"}</Badge>
                       </TableCell>
                       <TableCell className="text-right px-4">
                         <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold text-primary" onClick={() => { setSelectedRes(res); setCheckInForm({ nationality: res.nationality || "Indian", idType: res.idType || "Aadhar", idNumber: res.idNumber || "", address: res.address || "", contact: res.contact || "", state: res.state || "Kerala" }); setIsDetailsOpen(true); }}>
@@ -424,7 +457,7 @@ export default function ReservationsPage() {
           </Table>
         </div>
 
-        {/* Folio Details / Check-in / Check-out Dialog */}
+        {/* Folio Details Dialog */}
         <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
           <DialogContent className="sm:max-w-[340px] p-0 overflow-hidden">
             <div className="bg-primary p-4 text-primary-foreground">
@@ -437,7 +470,10 @@ export default function ReservationsPage() {
               <div className="p-4 space-y-4">
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-xs font-bold">{selectedRes.guestName}</h3>
+                    <div className="flex flex-col">
+                      <h3 className="text-xs font-bold">{selectedRes.guestName}</h3>
+                      <span className="text-[8px] text-muted-foreground uppercase">{selectedRes.building} - {selectedRes.stayType} Stay</span>
+                    </div>
                     <Badge className="text-[8px] uppercase font-bold bg-primary/10 text-primary">{selectedRes.status}</Badge>
                   </div>
                   <div className="grid grid-cols-2 gap-4 text-[9px] uppercase font-bold text-muted-foreground border-t pt-2">

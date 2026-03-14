@@ -45,11 +45,26 @@
         "entityId": { "type": "string" },
         "roomNumber": { "type": "string" },
         "floor": { "type": "number" },
+        "building": { "type": "string", "enum": ["Old Apartment", "New Apartment"] },
         "roomTypeId": { "type": "string" },
         "status": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "entityId", "roomNumber", "status"]
+    },
+    "Reservation": {
+      "title": "Reservation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "guestName": { "type": "string" },
+        "roomNumber": { "type": "string" },
+        "building": { "type": "string" },
+        "stayType": { "type": "string", "enum": ["Daily", "Monthly", "Yearly"] },
+        "checkInDate": { "type": "string", "format": "date" },
+        "checkOutDate": { "type": "string", "format": "date" },
+        "status": { "type": "string" }
+      }
     },
     "LaundryItem": {
       "title": "LaundryItem",
@@ -117,6 +132,10 @@
     "/hotel_properties/{hotelPropertyId}/maintenance_schedules/{scheduleId}": {
       "schema": { "$ref": "#/backend/entities/MaintenanceSchedule" },
       "description": "Routine maintenance schedules for assets."
+    },
+    "/hotel_properties/{hotelPropertyId}/reservations/{resId}": {
+      "schema": { "$ref": "#/backend/entities/Reservation" },
+      "description": "Guest reservations."
     }
   }
 }

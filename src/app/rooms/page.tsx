@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -13,7 +14,8 @@ import {
   Trash2, 
   Edit3, 
   Loader2,
-  Tag
+  Tag,
+  Building2
 } from "lucide-react";
 import { 
   Dialog, 
@@ -37,6 +39,8 @@ import { collection, doc, query, orderBy } from "firebase/firestore";
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
 
+const BUILDINGS = ["Old Apartment", "New Apartment"];
+
 export default function RoomsPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
   const db = useFirestore();
@@ -51,7 +55,7 @@ export default function RoomsPage() {
 
   // Form states for adding
   const [newType, setNewType] = useState({ name: "", rate: "", occupancy: "2" });
-  const [newRoom, setNewRoom] = useState({ roomNumber: "", floor: "1", typeId: "" });
+  const [newRoom, setNewRoom] = useState({ roomNumber: "", floor: "1", typeId: "", building: "Old Apartment" });
 
   // Form states for editing
   const [editingRoom, setEditingRoom] = useState<any>(null);
@@ -117,6 +121,7 @@ export default function RoomsPage() {
       entityId,
       roomNumber: newRoom.roomNumber,
       floor: parseInt(newRoom.floor),
+      building: newRoom.building,
       roomTypeId: newRoom.typeId,
       status: "available",
       createdAt: new Date().toISOString(),
@@ -125,7 +130,7 @@ export default function RoomsPage() {
 
     toast({ title: "Physical Room Added" });
     setIsRoomOpen(false);
-    setNewRoom({ roomNumber: "", floor: "1", typeId: "" });
+    setNewRoom({ roomNumber: "", floor: "1", typeId: "", building: "Old Apartment" });
   };
 
   const handleUpdateRoom = (e: React.FormEvent) => {
@@ -136,6 +141,7 @@ export default function RoomsPage() {
     updateDocumentNonBlocking(docRef, {
       roomNumber: editingRoom.roomNumber,
       floor: parseInt(editingRoom.floor),
+      building: editingRoom.building,
       roomTypeId: editingRoom.roomTypeId,
       updatedAt: new Date().toISOString(),
     });
@@ -156,6 +162,7 @@ export default function RoomsPage() {
       id: room.id,
       roomNumber: room.roomNumber,
       floor: room.floor.toString(),
+      building: room.building || "Old Apartment",
       roomTypeId: room.roomTypeId
     });
     setIsEditRoomOpen(true);
@@ -200,26 +207,39 @@ export default function RoomsPage() {
                       <DialogTitle className="text-base">Add Physical Room</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleAddRoom} className="space-y-3 pt-2">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Room Number</Label>
-                        <Input placeholder="101" value={newRoom.roomNumber} onChange={e => setNewRoom({...newRoom, roomNumber: e.target.value})} required className="h-9" />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Building</Label>
+                          <Select value={newRoom.building} onValueChange={v => setNewRoom({...newRoom, building: v})}>
+                            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {BUILDINGS.map(b => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Room Number</Label>
+                          <Input placeholder="101" value={newRoom.roomNumber} onChange={e => setNewRoom({...newRoom, roomNumber: e.target.value})} required className="h-9" />
+                        </div>
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Floor</Label>
-                        <Input type="number" value={newRoom.floor} onChange={e => setNewRoom({...newRoom, floor: e.target.value})} required className="h-9" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Category</Label>
-                        <Select value={newRoom.typeId} onValueChange={v => setNewRoom({...newRoom, typeId: v})} required>
-                          <SelectTrigger className="h-9 text-xs">
-                            <SelectValue placeholder="Select type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {roomTypes?.map(t => (
-                              <SelectItem key={t.id} value={t.id} className="text-xs">{t.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Floor</Label>
+                          <Input type="number" value={newRoom.floor} onChange={e => setNewRoom({...newRoom, floor: e.target.value})} required className="h-9" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Category</Label>
+                          <Select value={newRoom.typeId} onValueChange={v => setNewRoom({...newRoom, typeId: v})} required>
+                            <SelectTrigger className="h-9 text-xs">
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {roomTypes?.map(t => (
+                                <SelectItem key={t.id} value={t.id} className="text-xs">{t.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                       <Button type="submit" className="w-full h-9 mt-2">Create Room</Button>
                     </form>
@@ -235,9 +255,12 @@ export default function RoomsPage() {
                 {rooms?.map(room => (
                   <Card key={room.id} className="border-none shadow-sm group hover:shadow-md transition-shadow">
                     <CardHeader className="p-3.5 pb-1 flex flex-row justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <DoorOpen className="w-3.5 h-3.5 text-primary" />
-                        <span className="font-bold text-sm">Room {room.roomNumber}</span>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <DoorOpen className="w-3.5 h-3.5 text-primary" />
+                          <span className="font-bold text-sm">Room {room.roomNumber}</span>
+                        </div>
+                        <span className="text-[8px] text-muted-foreground uppercase font-bold mt-0.5">{room.building || "Old Apartment"}</span>
                       </div>
                       {isAdmin && (
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -280,7 +303,7 @@ export default function RoomsPage() {
                         <Input placeholder="Deluxe King" value={newType.name} onChange={e => setNewType({...newType, name: e.target.value})} required className="h-9" />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Rate (Per Night)</Label>
+                        <Label className="text-xs">Rate (Per Unit)</Label>
                         <Input type="number" placeholder="1500" value={newType.rate} onChange={e => setNewType({...newType, rate: e.target.value})} required className="h-9" />
                       </div>
                       <div className="space-y-1.5">
@@ -321,6 +344,50 @@ export default function RoomsPage() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Edit Room Dialog */}
+        <Dialog open={isEditRoomOpen} onOpenChange={setIsEditRoomOpen}>
+          <DialogContent className="sm:max-w-[380px]">
+            <DialogHeader><DialogTitle className="text-base">Edit Room</DialogTitle></DialogHeader>
+            {editingRoom && (
+              <form onSubmit={handleUpdateRoom} className="space-y-3 pt-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Building</Label>
+                    <Select value={editingRoom.building} onValueChange={v => setEditingRoom({...editingRoom, building: v})}>
+                      <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {BUILDINGS.map(b => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Room Number</Label>
+                    <Input value={editingRoom.roomNumber} onChange={e => setEditingRoom({...editingRoom, roomNumber: e.target.value})} required className="h-9" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Floor</Label>
+                    <Input type="number" value={editingRoom.floor} onChange={e => setEditingRoom({...editingRoom, floor: e.target.value})} required className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Category</Label>
+                    <Select value={editingRoom.roomTypeId} onValueChange={v => setEditingRoom({...editingRoom, roomTypeId: v})} required>
+                      <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {roomTypes?.map(t => (
+                          <SelectItem key={t.id} value={t.id} className="text-xs">{t.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button type="submit" className="w-full h-9 mt-2">Update Room</Button>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
