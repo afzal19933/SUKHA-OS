@@ -13,17 +13,18 @@ import {
   Loader2,
   Database,
   Building2,
-  CalendarDays
+  Trash2,
+  Undo2
 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { useFirestore } from "@/firebase";
-import { collection, doc, writeBatch, query, getDocs } from "firebase/firestore";
+import { collection, doc, writeBatch, query, getDocs, where } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { subDays, addDays, format } from "date-fns";
 
 /**
  * @fileOverview Operational Simulation Engine for SUKHA OS.
- * Generates 30 days of realistic historical data.
+ * Generates 30 days of realistic historical data and provides a reset option.
  */
 
 export default function SimulationPage() {
@@ -31,6 +32,7 @@ export default function SimulationPage() {
   const db = useFirestore();
   const { toast } = useToast();
   const [isSimulating, setIsSimulating] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [progress, setProgress] = useState(0);
 
   const isAdmin = role === "owner" || role === "admin";
@@ -44,10 +46,7 @@ export default function SimulationPage() {
       const batch = writeBatch(db);
       const now = new Date();
       
-      // 1. Ensure Room Types & Rooms exist (Basic check)
-      // For simulation, we assume rooms are already created or we'd create them here.
-      
-      // 2. Generate 30 days of Reservations
+      // 1. Generate 30 days of Reservations
       for (let day = 0; day < 30; day++) {
         const currentDate = subDays(now, 30 - day);
         const dateStr = currentDate.toISOString().split('T')[0];
@@ -74,10 +73,11 @@ export default function SimulationPage() {
             bookingSource: isAyursiha ? "Ayursiha" : "Direct",
             createdAt: dateStr,
             updatedAt: dateStr,
+            isSimulated: true // Tag for reset logic
           });
         }
         
-        // 3. Generate Housekeeping Logs
+        // 2. Generate Housekeeping Logs
         const taskRef = doc(collection(db, "hotel_properties", entityId, "housekeeping_tasks"));
         batch.set(taskRef, {
           id: taskRef.id,
@@ -88,12 +88,13 @@ export default function SimulationPage() {
           assignedStaffName: "Simulated Staff",
           updatedAt: currentDate.toISOString(),
           createdAt: currentDate.toISOString(),
+          isSimulated: true // Tag for reset logic
         });
 
         setProgress(Math.round(((day + 1) / 30) * 100));
       }
 
-      // 4. Generate 3 Ayursiha Cycle Summary Reports (as Invoices)
+      // 3. Generate 3 Ayursiha Cycle Summary Reports (as Invoices)
       const cycles = [
         { name: "Cycle 1", start: 30, end: 20 },
         { name: "Cycle 2", start: 20, end: 10 },
@@ -111,7 +112,8 @@ export default function SimulationPage() {
           totalAmount: amount,
           status: cycle.name === "Cycle 3" ? "pending" : "paid",
           createdAt: subDays(now, cycle.end).toISOString(),
-          isCycleInvoice: true
+          isCycleInvoice: true,
+          isSimulated: true // Tag for reset logic
         });
       }
 
@@ -122,6 +124,42 @@ export default function SimulationPage() {
       toast({ variant: "destructive", title: "Simulation Failed" });
     } finally {
       setIsSimulating(false);
+    }
+  };
+
+  const resetSimulationData = async () => {
+    if (!entityId || !isAdmin) return;
+    if (!confirm("Are you sure? This will delete all data tagged as 'Simulated'.")) return;
+    
+    setIsResetting(true);
+    try {
+      const batch = writeBatch(db);
+      const collections = ["reservations", "housekeeping_tasks", "invoices"];
+      let deletedCount = 0;
+
+      for (const coll of collections) {
+        const q = query(
+          collection(db, "hotel_properties", entityId, coll),
+          where("isSimulated", "==", true)
+        );
+        const snapshot = await getDocs(q);
+        snapshot.docs.forEach((doc) => {
+          batch.delete(doc.ref);
+          deletedCount++;
+        });
+      }
+
+      if (deletedCount > 0) {
+        await batch.commit();
+        toast({ title: "Reset Complete", description: `Removed ${deletedCount} simulated records.` });
+      } else {
+        toast({ title: "Reset Skipped", description: "No simulated data found to remove." });
+      }
+    } catch (error) {
+      console.error(error);
+      toast({ variant: "destructive", title: "Reset Failed" });
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -148,7 +186,7 @@ export default function SimulationPage() {
             <h1 className="text-3xl font-black tracking-tighter">SIMULATION ENGINE</h1>
           </div>
           <p className="text-sm text-muted-foreground font-medium">
-            Generate 30 days of realistic operational data to test dashboards, accounting, and occupancy reports.
+            Generate or reset 30 days of operational data to test property performance.
           </p>
         </header>
 
@@ -156,10 +194,10 @@ export default function SimulationPage() {
           <CardHeader className="bg-secondary/30 pb-6">
             <CardTitle className="text-lg flex items-center gap-2">
               <Database className="w-5 h-5 text-primary" />
-              Dataset Configuration
+              Operational Dataset
             </CardTitle>
             <CardDescription>
-              This will populate your current entity ({entityId?.substring(0,8)}...) with historical records.
+              Populate or clear your current entity ({entityId?.substring(0,8)}...) dataset.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-6">
@@ -172,23 +210,8 @@ export default function SimulationPage() {
                 <p className="text-[10px] font-black uppercase text-muted-foreground">Target Entity</p>
                 <p className="text-lg font-bold flex items-center gap-2">
                   <Building2 className="w-4 h-4 text-primary" />
-                  Live Context
+                  Current Active
                 </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 text-sm font-medium">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                Randomized guest behaviors & durations
-              </div>
-              <div className="flex items-center gap-3 text-sm font-medium">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                Ayursiha 10-day cycle invoice generation
-              </div>
-              <div className="flex items-center gap-3 text-sm font-medium">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                Housekeeping & Maintenance task history
               </div>
             </div>
 
@@ -209,13 +232,35 @@ export default function SimulationPage() {
                 </p>
               </div>
             ) : (
-              <Button 
-                className="w-full h-12 text-lg font-black tracking-tight shadow-lg" 
-                onClick={run30DaySimulation}
-              >
-                <RefreshCcw className="w-5 h-5 mr-2" />
-                RUN 30-DAY SIMULATION
-              </Button>
+              <div className="flex flex-col gap-3">
+                <Button 
+                  className="w-full h-12 text-lg font-black tracking-tight shadow-lg" 
+                  onClick={run30DaySimulation}
+                  disabled={isResetting}
+                >
+                  <RefreshCcw className={cn("w-5 h-5 mr-2", isSimulating && "animate-spin")} />
+                  RUN 30-DAY SIMULATION
+                </Button>
+                
+                <Button 
+                  variant="outline"
+                  className="w-full h-10 text-xs font-bold uppercase tracking-widest text-destructive hover:bg-destructive/5" 
+                  onClick={resetSimulationData}
+                  disabled={isResetting}
+                >
+                  {isResetting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      WIPING SIMULATED DATA...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      RESET SIMULATION DATA
+                    </>
+                  )}
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -223,10 +268,10 @@ export default function SimulationPage() {
         <footer className="p-6 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-4">
           <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p className="text-xs font-bold text-amber-900 uppercase">Warning: Data Persistence</p>
+            <p className="text-xs font-bold text-amber-900 uppercase">Data Control Notice</p>
             <p className="text-[11px] text-amber-800 leading-relaxed">
-              Running this simulation will add real documents to your database. This is intended for 
-              demonstration and module testing. Existing records will not be deleted.
+              The 'Reset' option only removes documents created by this engine. Live reservations or 
+              manually created invoices will not be touched.
             </p>
           </div>
         </footer>
