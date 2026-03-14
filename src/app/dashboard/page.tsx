@@ -24,19 +24,10 @@ import {
   CalendarDays,
   Plus,
   Receipt,
-  Tag
+  Tag,
+  IndianRupee,
+  FileText
 } from "lucide-react";
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  AreaChart,
-  Area
-} from "recharts";
 import { cn, formatAppDate, generateInvoiceNumber, numberToWords } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc } from "@/firebase";
@@ -48,7 +39,6 @@ import {
   DialogHeader, 
   DialogTitle, 
   DialogDescription,
-  DialogFooter
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -57,15 +47,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 const BOOKING_SOURCES = ["Direct", "Walkin", "MMT", "Agoda", "Airbnb", "Ayursiha", "Travel Agent", "Corporate"];
 
 export default function DashboardPage() {
-  const { entityId, role } = useAuthStore();
+  const { entityId } = useAuthStore();
   const db = useFirestore();
   const { toast } = useToast();
-  const { user } = useUser();
 
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
   
@@ -79,7 +67,14 @@ export default function DashboardPage() {
     guestName: "", 
     checkIn: new Date().toISOString().split('T')[0], 
     checkOut: "",
-    bookingSource: "Direct"
+    bookingSource: "Direct",
+    negotiatedRate: "",
+    contact: "",
+    address: "",
+    nationality: "Indian",
+    idType: "Aadhar",
+    idNumber: "",
+    state: "Kerala"
   });
 
   // Core Data Fetching
@@ -160,6 +155,11 @@ export default function DashboardPage() {
   const handleQuickBook = (room: any) => {
     setSelectedRoom(room);
     setSelectedMetric(null);
+    const roomType = roomTypes?.find(t => t.id === room.roomTypeId);
+    setNewRes(prev => ({
+      ...prev,
+      negotiatedRate: roomType?.baseRate?.toString() || ""
+    }));
     setIsQuickResOpen(true);
   };
 
@@ -179,7 +179,7 @@ export default function DashboardPage() {
 
   const processQuickReservation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId || !selectedRoom || !newRes.guestName) return;
+    if (!entityId || !selectedRoom || !newRes.guestName || !newRes.negotiatedRate) return;
     setIsProcessing(true);
 
     try {
@@ -191,9 +191,15 @@ export default function DashboardPage() {
         stayType: "Daily",
         checkInDate: newRes.checkIn,
         checkOutDate: newRes.checkOut || null,
-        status: "checked_in", // Quick book assumes immediate check-in
-        numberOfGuests: 1,
+        status: "checked_in",
         bookingSource: newRes.bookingSource,
+        negotiatedRate: parseFloat(newRes.negotiatedRate),
+        contact: newRes.contact,
+        address: newRes.address,
+        nationality: newRes.nationality,
+        idType: newRes.idType,
+        idNumber: newRes.idNumber,
+        state: newRes.state,
         actualCheckInTime: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -204,11 +210,23 @@ export default function DashboardPage() {
       const roomRef = doc(db, "hotel_properties", entityId, "rooms", selectedRoom.id);
       await updateDoc(roomRef, { status: 'occupied', updatedAt: new Date().toISOString() });
 
-      toast({ title: "Guest Checked-In", description: `${newRes.guestName} assigned to Room ${selectedRoom.roomNumber}` });
+      toast({ title: "Check-In Complete", description: `${newRes.guestName} is now in Room ${selectedRoom.roomNumber}` });
       setIsQuickResOpen(false);
-      setNewRes({ guestName: "", checkIn: new Date().toISOString().split('T')[0], checkOut: "", bookingSource: "Direct" });
+      setNewRes({ 
+        guestName: "", 
+        checkIn: new Date().toISOString().split('T')[0], 
+        checkOut: "", 
+        bookingSource: "Direct",
+        negotiatedRate: "",
+        contact: "",
+        address: "",
+        nationality: "Indian",
+        idType: "Aadhar",
+        idNumber: "",
+        state: "Kerala"
+      });
     } catch (err) {
-      toast({ variant: "destructive", title: "Reservation Failed" });
+      toast({ variant: "destructive", title: "Registration Failed" });
     } finally {
       setIsProcessing(false);
     }
@@ -219,19 +237,16 @@ export default function DashboardPage() {
     setIsProcessing(true);
 
     try {
-      // 1. Calculate Billing
       const arrival = parseISO(selectedResForCheckout.checkInDate);
       const departure = new Date();
       const nights = Math.max(differenceInDays(departure, arrival), 1);
       
-      const roomType = roomTypes?.find(t => t.id === selectedRoom.roomTypeId);
-      const baseRate = roomType?.baseRate || 0;
-      const subtotal = baseRate * nights;
+      const rate = selectedResForCheckout.negotiatedRate || roomTypes?.find(t => t.id === selectedRoom.roomTypeId)?.baseRate || 0;
+      const subtotal = rate * nights;
       const cgst = subtotal * 0.025;
       const sgst = subtotal * 0.025;
       const totalAmount = subtotal + cgst + sgst;
 
-      // 2. Generate Invoice
       const invoiceNumber = generateInvoiceNumber();
       const invoiceData = {
         entityId,
@@ -250,7 +265,7 @@ export default function DashboardPage() {
           roomNumber: selectedResForCheckout.roomNumber,
           placeOfSupply: "Kerala"
         },
-        items: [{ name: `Stay (${nights} Nights)`, qty: nights, price: baseRate, gstRate: 5, amount: subtotal }],
+        items: [{ name: `Stay (${nights} Nights)`, qty: nights, price: rate, gstRate: 5, amount: subtotal }],
         subtotal, cgst, sgst, totalAmount,
         totalInWords: numberToWords(Math.round(totalAmount)),
         status: "paid",
@@ -260,7 +275,6 @@ export default function DashboardPage() {
 
       await addDoc(collection(db, "hotel_properties", entityId, "invoices"), invoiceData);
 
-      // 3. Update Reservation
       await updateDoc(doc(db, "hotel_properties", entityId, "reservations", selectedResForCheckout.id), {
         status: 'checked_out',
         actualCheckOutTime: new Date().toISOString(),
@@ -268,7 +282,6 @@ export default function DashboardPage() {
         updatedAt: new Date().toISOString()
       });
 
-      // 4. Update Room Status
       await updateDoc(doc(db, "hotel_properties", entityId, "rooms", selectedRoom.id), {
         status: 'dirty',
         updatedAt: new Date().toISOString()
@@ -490,34 +503,73 @@ export default function DashboardPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Quick Booking Dialog */}
+        {/* Quick Booking Dialog - Enhanced to match full check-in */}
         <Dialog open={isQuickResOpen} onOpenChange={setIsQuickResOpen}>
-          <DialogContent className="sm:max-w-[360px] p-0 overflow-hidden">
-            <div className="bg-primary p-4 text-primary-foreground">
-              <DialogTitle className="text-sm font-bold flex items-center gap-2"><CalendarDays className="w-4 h-4" /> Quick Check-In</DialogTitle>
-              <DialogDescription className="text-[10px] text-primary-foreground/80">Room {selectedRoom?.roomNumber} | {selectedRoom?.building}</DialogDescription>
+          <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden">
+            <div className="bg-primary p-5 text-primary-foreground">
+              <DialogTitle className="text-lg font-bold flex items-center gap-2"><CalendarDays className="w-5 h-5" /> Professional Check-In</DialogTitle>
+              <DialogDescription className="text-xs text-primary-foreground/80">Room {selectedRoom?.roomNumber} | {selectedRoom?.building || "Main Property"}</DialogDescription>
             </div>
-            <form onSubmit={processQuickReservation} className="p-4 space-y-3">
-              <div className="space-y-1">
-                <Label className="text-[9px] uppercase font-bold">Guest Name</Label>
-                <Input placeholder="Enter guest name" value={newRes.guestName} onChange={e => setNewRes({...newRes, guestName: e.target.value})} required className="h-8 text-xs" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-[9px] uppercase font-bold">Check-Out Date</Label>
-                  <Input type="date" value={newRes.checkOut} onChange={e => setNewRes({...newRes, checkOut: e.target.value})} className="h-8 text-xs" />
+            <form onSubmit={processQuickReservation} className="p-6 space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold flex items-center gap-1.5"><User className="w-3 h-3" /> Guest Name</Label>
+                  <Input placeholder="John Doe" value={newRes.guestName} onChange={e => setNewRes({...newRes, guestName: e.target.value})} required className="h-9 text-xs" />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-[9px] uppercase font-bold">Source</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold flex items-center gap-1.5"><IndianRupee className="w-3 h-3" /> Agreed Room Rent</Label>
+                  <Input type="number" placeholder="Enter Daily Rate" value={newRes.negotiatedRate} onChange={e => setNewRes({...newRes, negotiatedRate: e.target.value})} required className="h-9 text-xs border-primary/30 focus:border-primary" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold">Contact Number</Label>
+                  <Input placeholder="+91..." value={newRes.contact} onChange={e => setNewRes({...newRes, contact: e.target.value})} required className="h-9 text-xs" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold">Booking Source</Label>
                   <Select value={newRes.bookingSource} onValueChange={v => setNewRes({...newRes, bookingSource: v})}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>{BOOKING_SOURCES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
               </div>
-              <Button type="submit" className="w-full h-9 font-bold text-[11px]" disabled={isProcessing}>
-                {isProcessing ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Plus className="w-3 h-3 mr-2" />}
-                Confirm Check-In
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase font-bold">Permanent Address</Label>
+                <Input placeholder="Full Address" value={newRes.address} onChange={e => setNewRes({...newRes, address: e.target.value})} required className="h-9 text-xs" />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold">Nationality</Label>
+                  <Input value={newRes.nationality} onChange={e => setNewRes({...newRes, nationality: e.target.value})} className="h-9 text-xs" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold">ID Type</Label>
+                  <Input value={newRes.idType} onChange={e => setNewRes({...newRes, idType: e.target.value})} className="h-9 text-xs" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold">ID Number</Label>
+                  <Input value={newRes.idNumber} onChange={e => setNewRes({...newRes, idNumber: e.target.value})} required className="h-9 text-xs" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold">Check-In Date</Label>
+                  <Input type="date" value={newRes.checkIn} onChange={e => setNewRes({...newRes, checkIn: e.target.value})} className="h-9 text-xs" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold">Estimated Check-Out</Label>
+                  <Input type="date" value={newRes.checkOut} onChange={e => setNewRes({...newRes, checkOut: e.target.value})} className="h-9 text-xs" />
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full h-11 font-bold text-xs uppercase tracking-widest shadow-lg" disabled={isProcessing}>
+                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+                Confirm Registration & Check-In
               </Button>
             </form>
           </DialogContent>
@@ -546,11 +598,11 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="p-3 bg-secondary/30 rounded-lg text-center border">
-                  <p className="text-[9px] font-bold text-muted-foreground uppercase">Estimated Settlement</p>
-                  <p className="text-lg font-black text-primary">₹{(roomTypes?.find(t => t.id === selectedRoom?.roomTypeId)?.baseRate || 0).toLocaleString()}+</p>
+                  <p className="text-[9px] font-bold text-muted-foreground uppercase">Rate / Night</p>
+                  <p className="text-lg font-black text-primary">₹{(selectedResForCheckout.negotiatedRate || roomTypes?.find(t => t.id === selectedRoom?.roomTypeId)?.baseRate || 0).toLocaleString()}</p>
                 </div>
                 <Button variant="destructive" className="w-full h-10 font-bold text-[11px]" onClick={processQuickCheckout} disabled={isProcessing}>
-                  {isProcessing ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Receipt className="w-3 h-3 mr-2" />}
+                  {isProcessing ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <FileText className="w-3 h-3 mr-2" />}
                   GENERATE GST INVOICE & CHECK-OUT
                 </Button>
               </div>
