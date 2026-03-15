@@ -24,7 +24,9 @@ import {
   ArrowUpRight,
   TrendingUp,
   Receipt,
-  AlertCircle
+  AlertCircle,
+  Building2,
+  Users
 } from "lucide-react";
 import { 
   Table, 
@@ -76,7 +78,7 @@ export default function LaundryPage() {
   const [newItem, setNewItem] = useState({ name: "", type: "guest", hotelRate: "", vendorRate: "" });
   const [newOrder, setNewOrder] = useState({ roomId: "", roomNumber: "", guestName: "", reservationId: "", items: [] as any[] });
   const [newLinenBatch, setNewLinenBatch] = useState({ items: [] as any[] });
-  const [newVendorPayment, setNewVendorPayment] = useState({ amount: "", method: "UPI", reference: "", notes: "" });
+  const [newVendorPayment, setNewVendorPayment] = useState({ amount: "", method: "UPI", reference: "", notes: "", category: "hotel" });
 
   // Data Fetching
   const itemsQuery = useMemoFirebase(() => {
@@ -121,18 +123,34 @@ export default function LaundryPage() {
   const occupiedRooms = useMemo(() => rooms?.filter(r => r.status.includes('occupied')) || [], [rooms]);
 
   const accountingStats = useMemo(() => {
-    const guestVendorTotal = guestOrders?.reduce((acc, order) => acc + (order.vendorTotal || 0), 0) || 0;
-    
-    const linenVendorTotal = linenBatches?.reduce((acc, batch) => {
+    // 1. Guest Laundry Breakdown
+    const guestLiability = guestOrders?.reduce((acc, order) => acc + (order.vendorTotal || 0), 0) || 0;
+    const guestPayments = vendorPayments?.filter(p => p.category === 'guest').reduce((acc, p) => acc + (p.amount || 0), 0) || 0;
+    const guestOutstanding = guestLiability - guestPayments;
+
+    // 2. Hotel/Apartment Laundry Breakdown
+    const hotelLiability = linenBatches?.reduce((acc, batch) => {
       const batchCost = batch.items?.reduce((sum: number, item: any) => sum + (item.vendorRate * item.quantity), 0) || 0;
       return acc + batchCost;
     }, 0) || 0;
+    const hotelPayments = vendorPayments?.filter(p => p.category === 'hotel').reduce((acc, p) => acc + (p.amount || 0), 0) || 0;
+    const hotelOutstanding = hotelLiability - hotelPayments;
 
-    const totalLiability = guestVendorTotal + linenVendorTotal;
-    const totalPayments = vendorPayments?.reduce((acc, p) => acc + (p.amount || 0), 0) || 0;
-    const outstanding = totalLiability - totalPayments;
+    const totalLiability = guestLiability + hotelLiability;
+    const totalPayments = guestPayments + hotelPayments;
+    const totalOutstanding = totalLiability - totalPayments;
 
-    return { totalLiability, totalPayments, outstanding };
+    return { 
+      totalLiability, 
+      totalPayments, 
+      totalOutstanding,
+      guestLiability,
+      guestPayments,
+      guestOutstanding,
+      hotelLiability,
+      hotelPayments,
+      hotelOutstanding
+    };
   }, [guestOrders, linenBatches, vendorPayments]);
 
   const handleMarkAsPaid = (orderId: string) => {
@@ -189,13 +207,14 @@ export default function LaundryPage() {
       paymentMethod: newVendorPayment.method,
       reference: newVendorPayment.reference,
       notes: newVendorPayment.notes,
+      category: newVendorPayment.category, // guest or hotel
       paymentDate: new Date().toISOString().split('T')[0],
       createdAt: new Date().toISOString()
     });
 
-    toast({ title: "Vendor Payment Recorded", description: "Updated Signature Laundry account." });
+    toast({ title: "Vendor Payment Recorded", description: `Updated ${newVendorPayment.category} laundry account.` });
     setIsPaymentOpen(false);
-    setNewVendorPayment({ amount: "", method: "UPI", reference: "", notes: "" });
+    setNewVendorPayment({ amount: "", method: "UPI", reference: "", notes: "", category: "hotel" });
   };
 
   const processReconciliation = async (file: File) => {
@@ -381,7 +400,7 @@ export default function LaundryPage() {
                     <TrendingUp className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Vendor Liability</p>
+                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Total Property Liability</p>
                     <h3 className="text-lg font-black">₹{accountingStats.totalLiability.toLocaleString()}</h3>
                   </div>
                 </CardContent>
@@ -393,18 +412,71 @@ export default function LaundryPage() {
                   </div>
                   <div>
                     <p className="text-[9px] font-black text-emerald-600/70 uppercase tracking-widest">Total Payments</p>
-                    <h3 className="text-lg font-black text-emerald-700">₹{accountingStats.totalPayments.toLocaleString()}</h3>
+                    <h3 className="text-lg font-black">₹{accountingStats.totalPayments.toLocaleString()}</h3>
                   </div>
                 </CardContent>
               </Card>
-              <Card className={cn("border-none shadow-sm", accountingStats.outstanding > 0 ? "bg-rose-50" : "bg-emerald-50")}>
+              <Card className={cn("border-none shadow-sm", accountingStats.totalOutstanding > 0 ? "bg-rose-50" : "bg-emerald-50")}>
                 <CardContent className="p-4 flex items-center gap-4">
-                  <div className={cn("p-3 rounded-2xl", accountingStats.outstanding > 0 ? "bg-rose-100 text-rose-600" : "bg-emerald-100 text-emerald-600")}>
+                  <div className={cn("p-3 rounded-2xl", accountingStats.totalOutstanding > 0 ? "bg-rose-100 text-rose-600" : "bg-emerald-100 text-emerald-600")}>
                     <AlertCircle className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className={cn("text-[9px] font-black uppercase tracking-widest", accountingStats.outstanding > 0 ? "text-rose-600/70" : "text-emerald-600/70")}>Outstanding Dues</p>
-                    <h3 className={cn("text-lg font-black", accountingStats.outstanding > 0 ? "text-rose-700" : "text-emerald-700")}>₹{accountingStats.outstanding.toLocaleString()}</h3>
+                    <p className={cn("text-[9px] font-black uppercase tracking-widest", accountingStats.totalOutstanding > 0 ? "text-rose-600/70" : "text-emerald-600/70")}>Total Outstanding</p>
+                    <h3 className={cn("text-lg font-black", accountingStats.totalOutstanding > 0 ? "text-rose-700" : "text-emerald-700")}>₹{accountingStats.totalOutstanding.toLocaleString()}</h3>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Category Breakdown */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="border shadow-sm bg-white rounded-2xl">
+                <CardHeader className="bg-secondary/20 p-4 rounded-t-2xl border-b">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-primary" />
+                    <CardTitle className="text-xs font-black uppercase tracking-widest">Guest Laundry Account</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Billed</p>
+                      <p className="text-lg font-black">₹{accountingStats.guestLiability.toLocaleString()}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Paid</p>
+                      <p className="text-lg font-black text-emerald-600">₹{accountingStats.guestPayments.toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className="pt-4 border-t">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Guest Dues Outstanding</p>
+                    <p className="text-xl font-black text-rose-600">₹{accountingStats.guestOutstanding.toLocaleString()}</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border shadow-sm bg-white rounded-2xl">
+                <CardHeader className="bg-secondary/20 p-4 rounded-t-2xl border-b">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-primary" />
+                    <CardTitle className="text-xs font-black uppercase tracking-widest">Hotel/Apartment Account</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Billed (Linen)</p>
+                      <p className="text-lg font-black">₹{accountingStats.hotelLiability.toLocaleString()}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Paid</p>
+                      <p className="text-lg font-black text-emerald-600">₹{accountingStats.hotelPayments.toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className="pt-4 border-t">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Operational Outstanding</p>
+                    <p className="text-xl font-black text-rose-600">₹{accountingStats.hotelOutstanding.toLocaleString()}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -424,6 +496,7 @@ export default function LaundryPage() {
                 <TableHeader className="bg-secondary/50">
                   <TableRow>
                     <TableHead className="h-10 text-[9px] uppercase font-black pl-6">Date</TableHead>
+                    <TableHead className="h-10 text-[9px] uppercase font-black">Category</TableHead>
                     <TableHead className="h-10 text-[9px] uppercase font-black">Method</TableHead>
                     <TableHead className="h-10 text-[9px] uppercase font-black">Reference</TableHead>
                     <TableHead className="h-10 text-[9px] uppercase font-black text-right pr-6">Amount Paid</TableHead>
@@ -434,13 +507,21 @@ export default function LaundryPage() {
                     vendorPayments.map(payment => (
                       <TableRow key={payment.id} className="hover:bg-primary/5">
                         <TableCell className="pl-6 text-[10px] font-bold">{formatAppDate(payment.paymentDate)}</TableCell>
-                        <TableCell><Badge variant="outline" className="text-[8px] uppercase font-black">{payment.paymentMethod}</Badge></TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={cn(
+                            "text-[8px] uppercase font-black px-2 h-5 rounded-lg",
+                            payment.category === 'guest' ? "bg-indigo-50 text-indigo-600 border-indigo-100" : "bg-amber-50 text-amber-600 border-amber-100"
+                          )}>
+                            {payment.category === 'guest' ? 'Guest' : 'Hotel/Linen'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell><Badge variant="outline" className="text-[8px] uppercase font-black px-2 h-5">{payment.paymentMethod}</Badge></TableCell>
                         <TableCell className="text-[9px] text-muted-foreground font-mono">{payment.reference || "N/A"}</TableCell>
                         <TableCell className="text-right pr-6 text-[11px] font-black text-emerald-600">₹{payment.amount.toLocaleString()}</TableCell>
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={4} className="text-center py-12 text-[10px] text-muted-foreground uppercase font-black">No payments recorded</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-12 text-[10px] text-muted-foreground uppercase font-black">No payments recorded</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -627,9 +708,19 @@ export default function LaundryPage() {
               <DialogTitle className="text-sm font-black uppercase flex items-center gap-2">
                 <ArrowUpRight className="w-5 h-5" /> Record Vendor Payment
               </DialogTitle>
-              <DialogDescription className="text-[10px] text-emerald-50 font-bold uppercase mt-1">Payment made to Signature Laundry Services</DialogDescription>
+              <DialogDescription className="text-[10px] text-emerald-50 font-bold uppercase mt-1">Allocate funds to specific laundry account</DialogDescription>
             </div>
             <form onSubmit={handleRecordPayment} className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black uppercase text-muted-foreground">Target Account</Label>
+                <Select value={newVendorPayment.category} onValueChange={v => setNewVendorPayment({...newVendorPayment, category: v})}>
+                  <SelectTrigger className="h-11 rounded-2xl bg-secondary/30 border-none text-xs font-bold"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="guest" className="text-xs font-bold">Guest Laundry Account</SelectItem>
+                    <SelectItem value="hotel" className="text-xs font-bold">Hotel/Apartment Account</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-1.5">
                 <Label className="text-[9px] font-black uppercase text-muted-foreground">Amount (₹)</Label>
                 <Input type="number" value={newVendorPayment.amount} onChange={e => setNewVendorPayment({...newVendorPayment, amount: e.target.value})} required className="h-11 rounded-2xl bg-secondary/30 border-none font-bold" placeholder="0.00" />
