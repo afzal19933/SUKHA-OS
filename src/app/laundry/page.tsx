@@ -124,6 +124,7 @@ export default function LaundryPage() {
 
   const accountingStats = useMemo(() => {
     // 1. Guest Laundry Breakdown
+    // Note: guestLiability is what we owe Signature (vendorTotal)
     const guestLiability = guestOrders?.reduce((acc, order) => acc + (order.vendorTotal || 0), 0) || 0;
     const guestPayments = vendorPayments?.filter(p => p.category === 'guest').reduce((acc, p) => acc + (p.amount || 0), 0) || 0;
     const guestOutstanding = guestLiability - guestPayments;
