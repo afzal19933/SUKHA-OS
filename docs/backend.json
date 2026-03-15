@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "HotelProperty": {
@@ -86,6 +85,19 @@
         "severity": { "type": "string" },
         "status": { "type": "string" }
       }
+    },
+    "LaundryVendorPayment": {
+      "title": "LaundryVendorPayment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentDate": { "type": "string", "format": "date" },
+        "paymentMethod": { "type": "string" },
+        "reference": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "auth": {
@@ -116,6 +128,10 @@
       "/hotel_properties/{entityId}/system_alerts/{alertId}": {
         "schema": "SystemAlert",
         "description": "Critical operational alerts sent via WhatsApp."
+      },
+      "/hotel_properties/{entityId}/laundry_vendor_payments/{paymentId}": {
+        "schema": "LaundryVendorPayment",
+        "description": "Payments made to the laundry vendor (Signature Laundry)."
       }
     }
   }

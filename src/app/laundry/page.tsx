@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -21,7 +20,11 @@ import {
   Camera,
   WashingMachine,
   CreditCard,
-  Truck
+  Truck,
+  ArrowUpRight,
+  TrendingUp,
+  Receipt,
+  AlertCircle
 } from "lucide-react";
 import { 
   Table, 
@@ -66,12 +69,14 @@ export default function LaundryPage() {
   const [isOrderOpen, setIsOrderOpen] = useState(false);
   const [isLinenOpen, setIsLinenOpen] = useState(false);
   const [isReconcileOpen, setIsReconcileOpen] = useState(false);
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
   const [auditResult, setAuditResult] = useState<ReconcileLaundryOutput | null>(null);
 
   const [newItem, setNewItem] = useState({ name: "", type: "guest", hotelRate: "", vendorRate: "" });
   const [newOrder, setNewOrder] = useState({ roomId: "", roomNumber: "", guestName: "", reservationId: "", items: [] as any[] });
   const [newLinenBatch, setNewLinenBatch] = useState({ items: [] as any[] });
+  const [newVendorPayment, setNewVendorPayment] = useState({ amount: "", method: "UPI", reference: "", notes: "" });
 
   // Data Fetching
   const itemsQuery = useMemoFirebase(() => {
@@ -89,6 +94,11 @@ export default function LaundryPage() {
     return query(collection(db, "hotel_properties", entityId, "linen_laundry_batches"), orderBy("createdAt", "desc"));
   }, [db, entityId]);
 
+  const paymentsQuery = useMemoFirebase(() => {
+    if (!entityId) return null;
+    return query(collection(db, "hotel_properties", entityId, "laundry_vendor_payments"), orderBy("paymentDate", "desc"));
+  }, [db, entityId]);
+
   const roomsQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return collection(db, "hotel_properties", entityId, "rooms");
@@ -102,12 +112,28 @@ export default function LaundryPage() {
   const { data: allItems } = useCollection(itemsQuery);
   const { data: guestOrders, isLoading: ordersLoading } = useCollection(guestOrdersQuery);
   const { data: linenBatches } = useCollection(linenBatchesQuery);
+  const { data: vendorPayments } = useCollection(paymentsQuery);
   const { data: rooms } = useCollection(roomsQuery);
   const { data: reservations } = useCollection(resQuery);
 
   const guestItems = useMemo(() => allItems?.filter(i => i.itemType === 'guest') || [], [allItems]);
   const linenItems = useMemo(() => allItems?.filter(i => i.itemType === 'linen') || [], [allItems]);
   const occupiedRooms = useMemo(() => rooms?.filter(r => r.status.includes('occupied')) || [], [rooms]);
+
+  const accountingStats = useMemo(() => {
+    const guestVendorTotal = guestOrders?.reduce((acc, order) => acc + (order.vendorTotal || 0), 0) || 0;
+    
+    const linenVendorTotal = linenBatches?.reduce((acc, batch) => {
+      const batchCost = batch.items?.reduce((sum: number, item: any) => sum + (item.vendorRate * item.quantity), 0) || 0;
+      return acc + batchCost;
+    }, 0) || 0;
+
+    const totalLiability = guestVendorTotal + linenVendorTotal;
+    const totalPayments = vendorPayments?.reduce((acc, p) => acc + (p.amount || 0), 0) || 0;
+    const outstanding = totalLiability - totalPayments;
+
+    return { totalLiability, totalPayments, outstanding };
+  }, [guestOrders, linenBatches, vendorPayments]);
 
   const handleMarkAsPaid = (orderId: string) => {
     if (!entityId) return;
@@ -152,6 +178,24 @@ export default function LaundryPage() {
     toast({ title: "Linen Dispatch Logged", description: `${newLinenBatch.items.length} items sent to Signature Laundry.` });
     setIsLinenOpen(false);
     setNewLinenBatch({ items: [] });
+  };
+
+  const handleRecordPayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!entityId || !newVendorPayment.amount) return;
+
+    addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "laundry_vendor_payments"), {
+      amount: parseFloat(newVendorPayment.amount),
+      paymentMethod: newVendorPayment.method,
+      reference: newVendorPayment.reference,
+      notes: newVendorPayment.notes,
+      paymentDate: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString()
+    });
+
+    toast({ title: "Vendor Payment Recorded", description: "Updated Signature Laundry account." });
+    setIsPaymentOpen(false);
+    setNewVendorPayment({ amount: "", method: "UPI", reference: "", notes: "" });
   };
 
   const processReconciliation = async (file: File) => {
@@ -235,6 +279,7 @@ export default function LaundryPage() {
           <TabsList className="bg-white border p-1 rounded-xl h-9">
             <TabsTrigger value="guest-orders" className="rounded-lg h-7 text-[10px] px-4">Guest Orders</TabsTrigger>
             <TabsTrigger value="linen-batches" className="rounded-lg h-7 text-[10px] px-4">Linen Batches</TabsTrigger>
+            <TabsTrigger value="accounts" className="rounded-lg h-7 text-[10px] px-4">Laundry Accounts</TabsTrigger>
             <TabsTrigger value="rates" className="rounded-lg h-7 text-[10px] px-4">Rate Card</TabsTrigger>
           </TabsList>
 
@@ -325,6 +370,80 @@ export default function LaundryPage() {
                   </CardContent>
                 </Card>
               ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="accounts" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="border-none shadow-sm bg-primary/5">
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="p-3 bg-primary/10 rounded-2xl text-primary">
+                    <TrendingUp className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Vendor Liability</p>
+                    <h3 className="text-lg font-black">₹{accountingStats.totalLiability.toLocaleString()}</h3>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-none shadow-sm bg-emerald-50">
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="p-3 bg-emerald-100 rounded-2xl text-emerald-600">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-emerald-600/70 uppercase tracking-widest">Total Payments</p>
+                    <h3 className="text-lg font-black text-emerald-700">₹{accountingStats.totalPayments.toLocaleString()}</h3>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className={cn("border-none shadow-sm", accountingStats.outstanding > 0 ? "bg-rose-50" : "bg-emerald-50")}>
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className={cn("p-3 rounded-2xl", accountingStats.outstanding > 0 ? "bg-rose-100 text-rose-600" : "bg-emerald-100 text-emerald-600")}>
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className={cn("text-[9px] font-black uppercase tracking-widest", accountingStats.outstanding > 0 ? "text-rose-600/70" : "text-emerald-600/70")}>Outstanding Dues</p>
+                    <h3 className={cn("text-lg font-black", accountingStats.outstanding > 0 ? "text-rose-700" : "text-emerald-700")}>₹{accountingStats.outstanding.toLocaleString()}</h3>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <h2 className="text-xs font-black uppercase text-muted-foreground">Signature Payment Registry</h2>
+              {isAdmin && (
+                <Button size="sm" className="h-8 text-[10px] font-bold" onClick={() => setIsPaymentOpen(true)}>
+                  <ArrowUpRight className="w-3 h-3 mr-1.5" /> Record Payment
+                </Button>
+              )}
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+              <Table>
+                <TableHeader className="bg-secondary/50">
+                  <TableRow>
+                    <TableHead className="h-10 text-[9px] uppercase font-black pl-6">Date</TableHead>
+                    <TableHead className="h-10 text-[9px] uppercase font-black">Method</TableHead>
+                    <TableHead className="h-10 text-[9px] uppercase font-black">Reference</TableHead>
+                    <TableHead className="h-10 text-[9px] uppercase font-black text-right pr-6">Amount Paid</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {vendorPayments?.length ? (
+                    vendorPayments.map(payment => (
+                      <TableRow key={payment.id} className="hover:bg-primary/5">
+                        <TableCell className="pl-6 text-[10px] font-bold">{formatAppDate(payment.paymentDate)}</TableCell>
+                        <TableCell><Badge variant="outline" className="text-[8px] uppercase font-black">{payment.paymentMethod}</Badge></TableCell>
+                        <TableCell className="text-[9px] text-muted-foreground font-mono">{payment.reference || "N/A"}</TableCell>
+                        <TableCell className="text-right pr-6 text-[11px] font-black text-emerald-600">₹{payment.amount.toLocaleString()}</TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow><TableCell colSpan={4} className="text-center py-12 text-[10px] text-muted-foreground uppercase font-black">No payments recorded</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </div>
           </TabsContent>
 
@@ -496,6 +615,46 @@ export default function LaundryPage() {
 
               <Button type="submit" className="w-full h-9 font-bold text-[10px] shadow-lg" disabled={newLinenBatch.items.length === 0}>
                 Confirm Dispatch to Vendor
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Record Vendor Payment Dialog */}
+        <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
+          <DialogContent className="sm:max-w-[360px] p-0 overflow-hidden rounded-3xl">
+            <div className="bg-emerald-600 p-6 text-white">
+              <DialogTitle className="text-sm font-black uppercase flex items-center gap-2">
+                <ArrowUpRight className="w-5 h-5" /> Record Vendor Payment
+              </DialogTitle>
+              <DialogDescription className="text-[10px] text-emerald-50 font-bold uppercase mt-1">Payment made to Signature Laundry Services</DialogDescription>
+            </div>
+            <form onSubmit={handleRecordPayment} className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black uppercase text-muted-foreground">Amount (₹)</Label>
+                <Input type="number" value={newVendorPayment.amount} onChange={e => setNewVendorPayment({...newVendorPayment, amount: e.target.value})} required className="h-11 rounded-2xl bg-secondary/30 border-none font-bold" placeholder="0.00" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Method</Label>
+                  <Select value={newVendorPayment.method} onValueChange={v => setNewVendorPayment({...newVendorPayment, method: v})}>
+                    <SelectTrigger className="h-11 rounded-2xl bg-secondary/30 border-none text-xs font-bold"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["UPI", "Bank Transfer", "Cash", "Cheque"].map(m => <SelectItem key={m} value={m} className="text-xs font-bold">{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Reference #</Label>
+                  <Input value={newVendorPayment.reference} onChange={e => setNewVendorPayment({...newVendorPayment, reference: e.target.value})} className="h-11 rounded-2xl bg-secondary/30 border-none text-xs" placeholder="Txn ID" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black uppercase text-muted-foreground">Notes</Label>
+                <Input value={newVendorPayment.notes} onChange={e => setNewVendorPayment({...newVendorPayment, notes: e.target.value})} className="h-11 rounded-2xl bg-secondary/30 border-none text-xs" placeholder="Optional details..." />
+              </div>
+              <Button type="submit" className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-[10px] rounded-2xl shadow-xl shadow-emerald-100 mt-2">
+                Commit Payment to Registry
               </Button>
             </form>
           </DialogContent>
