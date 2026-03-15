@@ -4,42 +4,27 @@ import { useState, useMemo, Suspense } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Users,
   Bed,
-  TrendingUp,
-  CalendarCheck2,
-  ArrowUpRight,
-  Loader2,
   ShieldCheck,
   AlertTriangle,
   Brush,
-  BarChart3,
   LayoutGrid,
   Activity,
-  MapPin,
-  User,
-  Info,
-  CalendarDays,
-  Receipt,
-  Tag,
   IndianRupee,
-  FileText,
   Plus,
-  DoorOpen,
   CheckCircle2,
-  Clock,
-  MoreVertical,
-  MessageSquare
+  MessageSquare,
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 
-import { cn, formatAppDate, formatAppTime } from "@/lib/utils";
+import { cn, formatAppTime } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
 import { collection, query, where, orderBy, limit } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 /* ------------------------------ */
 /* Dashboard Content Component    */
@@ -54,10 +39,8 @@ const STATUS_CONFIG: any = {
   maintenance: { icon: AlertCircle, color: "text-rose-500", bg: "bg-rose-50", label: "Maint" },
 };
 
-import { AlertCircle } from "lucide-react";
-
 function DashboardContent() {
-  const { entityId, role } = useAuthStore();
+  const { entityId } = useAuthStore();
   const db = useFirestore();
   const router = useRouter();
 
@@ -150,10 +133,10 @@ function DashboardContent() {
 
       {/* MAIN KPI GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPI-Card label="Rooms Occupied" value={stats.occupied} sub={`${Math.round((stats.occupied/stats.total)*100)}% Occupancy`} icon={Bed} color="text-blue-600" bg="bg-blue-50" />
-        <KPI-Card label="Vacant Ready" value={stats.vacantReady} sub="Immediate Availability" icon={ShieldCheck} color="text-emerald-600" bg="bg-emerald-50" />
-        <KPI-Card label="Today's Revenue" value={`₹${stats.revenue.toLocaleString()}`} sub="Current Settlements" icon={IndianRupee} color="text-primary" bg="bg-primary/5" />
-        <KPI-Card label="Dirty Units" value={stats.dirty} sub="Housekeeping Required" icon={AlertTriangle} color="text-orange-600" bg="bg-orange-50" />
+        <KPICard label="Rooms Occupied" value={stats.occupied} sub={`${stats.total ? Math.round((stats.occupied/stats.total)*100) : 0}% Occupancy`} icon={Bed} color="text-blue-600" bg="bg-blue-50" />
+        <KPICard label="Vacant Ready" value={stats.vacantReady} sub="Immediate Availability" icon={ShieldCheck} color="text-emerald-600" bg="bg-emerald-50" />
+        <KPICard label="Today's Revenue" value={`₹${stats.revenue.toLocaleString()}`} sub="Current Settlements" icon={IndianRupee} color="text-primary" bg="bg-primary/5" />
+        <KPICard label="Dirty Units" value={stats.dirty} sub="Housekeeping Required" icon={AlertTriangle} color="text-orange-600" bg="bg-orange-50" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -242,7 +225,7 @@ function DashboardContent() {
                 <p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Guest Check-ins</p>
                 <div className="flex items-end gap-2">
                   <span className="text-xl font-black text-blue-600">{checkedInReservations?.length || 0}</span>
-                  <Users className="w-4 h-4 text-blue-600 mb-1" />
+                  <Bed className="w-4 h-4 text-blue-600 mb-1" />
                 </div>
               </div>
             </div>
@@ -254,7 +237,7 @@ function DashboardContent() {
   );
 }
 
-function KPI-Card({ label, value, sub, icon: Icon, color, bg }: any) {
+function KPICard({ label, value, sub, icon: Icon, color, bg }: any) {
   return (
     <Card className="border-none shadow-sm overflow-hidden bg-white rounded-[2rem]">
       <CardContent className="p-6 flex items-center gap-5">
