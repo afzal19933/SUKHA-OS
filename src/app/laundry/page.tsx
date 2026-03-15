@@ -26,7 +26,9 @@ import {
   Receipt,
   AlertCircle,
   Building2,
-  Users
+  Users,
+  Wallet,
+  ArrowDownToLine
 } from "lucide-react";
 import { 
   Table, 
@@ -121,6 +123,43 @@ export default function LaundryPage() {
   const guestItems = useMemo(() => allItems?.filter(i => i.itemType === 'guest') || [], [allItems]);
   const linenItems = useMemo(() => allItems?.filter(i => i.itemType === 'linen') || [], [allItems]);
   const occupiedRooms = useMemo(() => rooms?.filter(r => r.status.includes('occupied')) || [], [rooms]);
+
+  // Outstanding Dues Logic (Guest Folio)
+  const guestDuesSummary = useMemo(() => {
+    if (!guestOrders) return [];
+    
+    const summaryMap: Record<string, any> = {};
+    
+    guestOrders.forEach(order => {
+      const key = `${order.roomId}_${order.guestName}`;
+      if (!summaryMap[key]) {
+        summaryMap[key] = {
+          roomId: order.roomId,
+          roomNumber: order.roomNumber,
+          guestName: order.guestName,
+          totalBilled: 0,
+          totalPaid: 0,
+          outstanding: 0,
+          orderCount: 0
+        };
+      }
+      
+      summaryMap[key].totalBilled += (order.hotelTotal || 0);
+      if (order.status === 'paid') {
+        summaryMap[key].totalPaid += (order.hotelTotal || 0);
+      }
+      summaryMap[key].orderCount++;
+    });
+
+    return Object.values(summaryMap).map(s => ({
+      ...s,
+      outstanding: s.totalBilled - s.totalPaid
+    })).sort((a, b) => a.roomNumber.localeCompare(b.roomNumber));
+  }, [guestOrders]);
+
+  const totalGuestOutstanding = useMemo(() => {
+    return guestDuesSummary.reduce((acc, curr) => acc + curr.outstanding, 0);
+  }, [guestDuesSummary]);
 
   const accountingStats = useMemo(() => {
     // 1. Guest Laundry Breakdown
@@ -297,16 +336,17 @@ export default function LaundryPage() {
 
         <Tabs defaultValue="guest-orders" className="space-y-4">
           <TabsList className="bg-white border p-1 rounded-xl h-9">
-            <TabsTrigger value="guest-orders" className="rounded-lg h-7 text-[10px] px-4">Guest Orders</TabsTrigger>
+            <TabsTrigger value="guest-orders" className="rounded-lg h-7 text-[10px] px-4">Active Orders</TabsTrigger>
+            <TabsTrigger value="guest-dues" className="rounded-lg h-7 text-[10px] px-4">Guest Dues Tracker</TabsTrigger>
             <TabsTrigger value="linen-batches" className="rounded-lg h-7 text-[10px] px-4">Linen Batches</TabsTrigger>
-            <TabsTrigger value="accounts" className="rounded-lg h-7 text-[10px] px-4">Laundry Accounts</TabsTrigger>
+            <TabsTrigger value="accounts" className="rounded-lg h-7 text-[10px] px-4">Vendor Accounts</TabsTrigger>
             <TabsTrigger value="rates" className="rounded-lg h-7 text-[10px] px-4">Rate Card</TabsTrigger>
           </TabsList>
 
           <TabsContent value="guest-orders" className="space-y-3">
             <div className="flex justify-between items-center">
               <h2 className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-1.5">
-                <Package className="w-3 h-3" /> Active Dues Tracking
+                <Package className="w-3 h-3" /> Recent Transactions
               </h2>
               {canManageOrders && (
                 <Button size="sm" className="h-7 text-[10px] font-bold" onClick={() => setIsOrderOpen(true)}>
@@ -321,8 +361,8 @@ export default function LaundryPage() {
                   <TableRow>
                     <TableHead className="h-8 text-[9px] uppercase font-bold pl-4">Room</TableHead>
                     <TableHead className="h-8 text-[9px] uppercase font-bold">Items</TableHead>
-                    <TableHead className="h-8 text-[9px] uppercase font-bold">Total ₹</TableHead>
-                    <TableHead className="h-8 text-[9px] uppercase font-bold text-center">Payment</TableHead>
+                    <TableHead className="h-8 text-[9px] uppercase font-bold">Billed ₹</TableHead>
+                    <TableHead className="h-8 text-[9px] uppercase font-bold text-center">Status</TableHead>
                     <TableHead className="h-8 text-[9px] uppercase font-bold text-right pr-4">Action</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -343,7 +383,7 @@ export default function LaundryPage() {
                         </TableCell>
                         <TableCell className="text-[10px] font-bold text-primary">₹{order.hotelTotal}</TableCell>
                         <TableCell className="text-center">
-                          <Badge variant="outline" className={cn("text-[7px] uppercase", order.status === "paid" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
+                          <Badge variant="outline" className={cn("text-[7px] uppercase", order.status === "paid" ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-amber-50 text-amber-600 border-amber-100")}>
                             {order.status}
                           </Badge>
                         </TableCell>
@@ -357,7 +397,76 @@ export default function LaundryPage() {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={5} className="text-center py-10 text-[10px] text-muted-foreground uppercase font-bold">Clean record</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-10 text-[10px] text-muted-foreground uppercase font-bold">No active orders</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="guest-dues" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="border-none shadow-sm bg-indigo-50">
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="p-3 bg-indigo-100 rounded-2xl text-indigo-600">
+                    <Wallet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-indigo-600/70 uppercase tracking-widest">Net Guest Receivables</p>
+                    <h3 className="text-lg font-black text-indigo-700">₹{totalGuestOutstanding.toLocaleString()}</h3>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+              <Table>
+                <TableHeader className="bg-secondary/50">
+                  <TableRow>
+                    <TableHead className="h-10 text-[9px] uppercase font-black pl-6">Room & Guest</TableHead>
+                    <TableHead className="h-10 text-[9px] uppercase font-black text-center">Orders</TableHead>
+                    <TableHead className="h-10 text-[9px] uppercase font-black text-right">Total Billed</TableHead>
+                    <TableHead className="h-10 text-[9px] uppercase font-black text-right">Amount Paid</TableHead>
+                    <TableHead className="h-10 text-[9px] uppercase font-black text-right pr-6">Outstanding</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {guestDuesSummary.length > 0 ? (
+                    guestDuesSummary.map((summary, idx) => (
+                      <TableRow key={idx} className="hover:bg-primary/5 transition-colors">
+                        <TableCell className="pl-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center font-black text-[10px] text-primary">
+                              {summary.roomNumber}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[11px] font-black uppercase tracking-tight">{summary.guestName}</span>
+                              <span className="text-[8px] text-muted-foreground uppercase font-bold">Room Account</span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center font-bold text-[10px] text-muted-foreground">{summary.orderCount} services</TableCell>
+                        <TableCell className="text-right font-bold text-[11px]">₹{summary.totalBilled.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-bold text-[11px] text-emerald-600">₹{summary.totalPaid.toLocaleString()}</TableCell>
+                        <TableCell className="text-right pr-6">
+                          <Badge className={cn(
+                            "text-[10px] font-black px-2.5 h-6",
+                            summary.outstanding > 0 ? "bg-rose-500 shadow-md shadow-rose-100" : "bg-emerald-500"
+                          )}>
+                            ₹{summary.outstanding.toLocaleString()}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-20">
+                        <div className="flex flex-col items-center gap-2 opacity-30">
+                          <ArrowDownToLine className="w-8 h-8" />
+                          <p className="text-[10px] font-black uppercase">All guest folios are clear</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -401,7 +510,7 @@ export default function LaundryPage() {
                     <TrendingUp className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Total Property Liability</p>
+                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Total Vendor Liability</p>
                     <h3 className="text-lg font-black">₹{accountingStats.totalLiability.toLocaleString()}</h3>
                   </div>
                 </CardContent>
@@ -412,7 +521,7 @@ export default function LaundryPage() {
                     <CheckCircle2 className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="text-[9px] font-black text-emerald-600/70 uppercase tracking-widest">Total Payments</p>
+                    <p className="text-[9px] font-black text-emerald-600/70 uppercase tracking-widest">Total Payments to Vendor</p>
                     <h3 className="text-lg font-black">₹{accountingStats.totalPayments.toLocaleString()}</h3>
                   </div>
                 </CardContent>
@@ -423,7 +532,7 @@ export default function LaundryPage() {
                     <AlertCircle className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className={cn("text-[9px] font-black uppercase tracking-widest", accountingStats.totalOutstanding > 0 ? "text-rose-600/70" : "text-emerald-600/70")}>Total Outstanding</p>
+                    <p className={cn("text-[9px] font-black uppercase tracking-widest", accountingStats.totalOutstanding > 0 ? "text-rose-600/70" : "text-emerald-600/70")}>Vendor Outstanding Balance</p>
                     <h3 className={cn("text-lg font-black", accountingStats.totalOutstanding > 0 ? "text-rose-700" : "text-emerald-700")}>₹{accountingStats.totalOutstanding.toLocaleString()}</h3>
                   </div>
                 </CardContent>
@@ -436,7 +545,7 @@ export default function LaundryPage() {
                 <CardHeader className="bg-secondary/20 p-4 rounded-t-2xl border-b">
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 text-primary" />
-                    <CardTitle className="text-xs font-black uppercase tracking-widest">Guest Laundry Account</CardTitle>
+                    <CardTitle className="text-xs font-black uppercase tracking-widest">Signature: Guest Segment</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent className="p-6 space-y-4">
@@ -451,7 +560,7 @@ export default function LaundryPage() {
                     </div>
                   </div>
                   <div className="pt-4 border-t">
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Guest Dues Outstanding</p>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Guest Dues Outstanding (to Signature)</p>
                     <p className="text-xl font-black text-rose-600">₹{accountingStats.guestOutstanding.toLocaleString()}</p>
                   </div>
                 </CardContent>
@@ -461,7 +570,7 @@ export default function LaundryPage() {
                 <CardHeader className="bg-secondary/20 p-4 rounded-t-2xl border-b">
                   <div className="flex items-center gap-2">
                     <Building2 className="w-4 h-4 text-primary" />
-                    <CardTitle className="text-xs font-black uppercase tracking-widest">Hotel/Apartment Account</CardTitle>
+                    <CardTitle className="text-xs font-black uppercase tracking-widest">Signature: Hotel Segment</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent className="p-6 space-y-4">
