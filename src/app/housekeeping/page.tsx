@@ -20,7 +20,9 @@ import {
   FilterX,
   Building2,
   Calendar,
-  ClipboardList
+  ClipboardList,
+  XCircle,
+  MessageSquare
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, formatAppDate, formatAppTime } from "@/lib/utils";
@@ -33,6 +35,15 @@ import {
   SelectItem, 
   SelectTrigger, 
 } from "@/components/ui/select";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription,
+  DialogFooter
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -58,6 +69,15 @@ const COMMON_AREAS = [
   "Solar Panel", "Housekeeping Room"
 ];
 
+const SKIP_REASONS = [
+  "Guest not available",
+  "Guest requested postponement",
+  "Staff shortage",
+  "Do Not Disturb (DND) active",
+  "Access denied by guest",
+  "Late checkout pending"
+];
+
 export default function HousekeepingPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
   const { user } = useUser();
@@ -65,6 +85,9 @@ export default function HousekeepingPage() {
   const { toast } = useToast();
   
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [skipDialogOpen, setSkipDialogOpen] = useState(false);
+  const [roomToSkip, setRoomToSkip] = useState<any>(null);
+  const [selectedSkipReason, setSelectedSkipReason] = useState("");
 
   const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
   const canAssignTasks = ["owner", "admin", "manager", "supervisor", "staff", "frontdesk"].includes(currentUserRole || "");
@@ -86,7 +109,7 @@ export default function HousekeepingPage() {
     if (!entityId) return null;
     return query(
       collection(db, "hotel_properties", entityId, "housekeeping_tasks"),
-      where("status", "==", "completed"),
+      where("status", "in", ["completed", "skipped"]),
       orderBy("updatedAt", "desc"),
       limit(50)
     );
@@ -141,6 +164,12 @@ export default function HousekeepingPage() {
   const updateStatus = (room: any, status: string) => {
     if (!entityId || !canAssignTasks) return;
     
+    if (status === "skipped") {
+      setRoomToSkip(room);
+      setSkipDialogOpen(true);
+      return;
+    }
+
     const roomRef = doc(db, "hotel_properties", entityId, "rooms", room.id);
     updateDocumentNonBlocking(roomRef, { status, updatedAt: new Date().toISOString() });
     
@@ -178,6 +207,30 @@ export default function HousekeepingPage() {
     toast({ title: "Status updated" });
   };
 
+  const handleSkipConfirm = () => {
+    if (!entityId || !roomToSkip || !selectedSkipReason) return;
+
+    // Log the skip event
+    addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "housekeeping_tasks"), {
+      entityId,
+      roomId: roomToSkip.id,
+      roomNumber: roomToSkip.roomNumber,
+      isCommonArea: false,
+      taskType: "cleaning_exception",
+      status: "skipped",
+      notes: selectedSkipReason,
+      completedBy: user?.displayName || "Staff",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+
+    // Close and reset
+    setSkipDialogOpen(false);
+    setRoomToSkip(null);
+    setSelectedSkipReason("");
+    toast({ title: "Cleaning Skip Recorded", description: `Room ${roomToSkip.roomNumber} marked as skipped.` });
+  };
+
   const completeAreaTask = (areaName: string) => {
     if (!entityId || !canAssignTasks) return;
     const task = activeTasks?.find(t => t.roomId === areaName && t.isCommonArea);
@@ -193,7 +246,7 @@ export default function HousekeepingPage() {
   };
 
   const roomCleaningLogs = useMemo(() => {
-    return taskHistory?.filter(t => !t.isCommonArea && t.taskType === 'cleaning') || [];
+    return taskHistory?.filter(t => !t.isCommonArea && (t.taskType === 'cleaning' || t.taskType === 'cleaning_exception')) || [];
   }, [taskHistory]);
 
   const StatCard = ({ id, label, value, icon: Icon, colorClass, active }: any) => (
@@ -261,6 +314,7 @@ export default function HousekeepingPage() {
                     {filteredRooms.map((room) => {
                       const config = STATUS_CONFIG[room.status] || STATUS_CONFIG.available;
                       const activeTask = activeTasks?.find(t => t.roomId === room.id);
+                      const isOccupied = room.status.includes('occupied');
                       
                       return (
                         <Card key={room.id} className="border-none shadow-sm hover:shadow-md transition-all group overflow-hidden bg-white">
@@ -289,6 +343,7 @@ export default function HousekeepingPage() {
                                   <SelectItem value="occupied">Occupied Clean</SelectItem>
                                   <SelectItem value="occupied_dirty">Occupied Dirty</SelectItem>
                                   <SelectItem value="occupied_cleaning">Start Cleaning Occupied</SelectItem>
+                                  {isOccupied && <SelectItem value="skipped" className="text-rose-600 font-bold">Skip Today's Cleaning</SelectItem>}
                                   <SelectItem value="maintenance">Maintenance</SelectItem>
                                 </SelectContent>
                               </Select>
@@ -332,31 +387,49 @@ export default function HousekeepingPage() {
                 )}
               </div>
 
-              {/* Side Log for Room Cleaning */}
+              {/* Side Log for Room Cleaning & Exceptions */}
               <div className="space-y-4">
                 <Card className="border-none shadow-sm bg-primary/5 h-[calc(100vh-20rem)] flex flex-col overflow-hidden">
                   <CardHeader className="p-4 pb-2 border-b border-primary/10">
                     <h3 className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                      <ClipboardList className="w-4 h-4" /> Room Cleaning Log
+                      <ClipboardList className="w-4 h-4" /> Operational Log
                     </h3>
                   </CardHeader>
                   <ScrollArea className="flex-1">
                     <div className="p-3 space-y-2">
-                      {roomCleaningLogs.length > 0 ? roomCleaningLogs.map((log) => (
-                        <div key={log.id} className="p-3 bg-white rounded-xl border border-primary/10 shadow-sm space-y-1 group hover:border-primary/30 transition-colors">
-                          <div className="flex justify-between items-start">
-                            <span className="text-[11px] font-black text-primary">Room {log.roomNumber || "N/A"}</span>
-                            <Badge variant="outline" className="text-[7px] h-3.5 px-1 uppercase bg-emerald-50 text-emerald-600 border-emerald-100">Verified Clean</Badge>
+                      {roomCleaningLogs.length > 0 ? roomCleaningLogs.map((log) => {
+                        const isSkip = log.status === 'skipped';
+                        return (
+                          <div key={log.id} className={cn(
+                            "p-3 rounded-xl border shadow-sm space-y-1 group transition-colors",
+                            isSkip ? "bg-rose-50 border-rose-100 hover:border-rose-300" : "bg-white border-primary/10 hover:border-primary/30"
+                          )}>
+                            <div className="flex justify-between items-start">
+                              <span className={cn("text-[11px] font-black", isSkip ? "text-rose-700" : "text-primary")}>
+                                Room {log.roomNumber || "N/A"}
+                              </span>
+                              <Badge variant="outline" className={cn(
+                                "text-[7px] h-3.5 px-1 uppercase",
+                                isSkip ? "bg-rose-100 text-rose-700 border-rose-200" : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                              )}>
+                                {isSkip ? "Skipped" : "Verified Clean"}
+                              </Badge>
+                            </div>
+                            {isSkip && (
+                              <p className="text-[9px] font-black text-rose-600 flex items-center gap-1">
+                                <AlertTriangle className="w-2.5 h-2.5" /> {log.notes}
+                              </p>
+                            )}
+                            <p className="text-[9px] font-bold text-muted-foreground flex items-center gap-1">
+                              <UserCheck className="w-2.5 h-2.5" /> {log.assignedStaffName || log.completedBy || "System"}
+                            </p>
+                            <div className="flex justify-between items-center pt-1 mt-1 border-t border-secondary/50">
+                              <span className="text-[8px] font-bold text-muted-foreground uppercase">{formatAppDate(log.updatedAt)}</span>
+                              <span className="text-[8px] font-bold text-muted-foreground">{formatAppTime(log.updatedAt)}</span>
+                            </div>
                           </div>
-                          <p className="text-[9px] font-bold text-muted-foreground flex items-center gap-1">
-                            <UserCheck className="w-2.5 h-2.5" /> {log.assignedStaffName || log.completedBy || "System"}
-                          </p>
-                          <div className="flex justify-between items-center pt-1 mt-1 border-t border-secondary">
-                            <span className="text-[8px] font-bold text-muted-foreground uppercase">{formatAppDate(log.updatedAt)}</span>
-                            <span className="text-[8px] font-bold text-muted-foreground">{formatAppTime(log.updatedAt)}</span>
-                          </div>
-                        </div>
-                      )) : (
+                        );
+                      }) : (
                         <div className="text-center py-20 opacity-30 flex flex-col items-center">
                           <History className="w-8 h-8 mb-2" />
                           <p className="text-[9px] font-black uppercase">No recent activity</p>
@@ -451,6 +524,48 @@ export default function HousekeepingPage() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Skip Cleaning Reason Dialog */}
+        <Dialog open={skipDialogOpen} onOpenChange={setSkipDialogOpen}>
+          <DialogContent className="sm:max-w-[400px] rounded-[2rem]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-rose-600">
+                <XCircle className="w-5 h-5" /> Cleaning Exception
+              </DialogTitle>
+              <DialogDescription className="text-xs font-bold uppercase">
+                Record the reason for skipping cleaning for Room {roomToSkip?.roomNumber}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">Select Reason</Label>
+                <Select value={selectedSkipReason} onValueChange={setSelectedSkipReason}>
+                  <SelectTrigger className="h-11 rounded-2xl bg-secondary/30 border-none text-xs font-bold">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-primary" />
+                      <span>{selectedSkipReason || "Choose a reason..."}</span>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-none shadow-2xl">
+                    {SKIP_REASONS.map(reason => (
+                      <SelectItem key={reason} value={reason} className="text-xs font-bold py-3">{reason}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="ghost" onClick={() => setSkipDialogOpen(false)} className="rounded-xl text-[10px] font-black uppercase">Cancel</Button>
+              <Button 
+                onClick={handleSkipConfirm} 
+                disabled={!selectedSkipReason}
+                className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-lg shadow-rose-200 text-[10px] font-black uppercase tracking-widest px-6"
+              >
+                Log Exception
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
