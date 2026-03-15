@@ -20,7 +20,8 @@ import {
   History,
   Camera,
   WashingMachine,
-  CreditCard
+  CreditCard,
+  Truck
 } from "lucide-react";
 import { 
   Table, 
@@ -137,20 +138,34 @@ export default function LaundryPage() {
     setNewOrder({ roomId: "", roomNumber: "", guestName: "", reservationId: "", items: [] });
   };
 
+  const handleCreateLinenBatch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!entityId || newLinenBatch.items.length === 0) return;
+
+    addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "linen_laundry_batches"), {
+      items: newLinenBatch.items,
+      status: "sent",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+
+    toast({ title: "Linen Dispatch Logged", description: `${newLinenBatch.items.length} items sent to Signature Laundry.` });
+    setIsLinenOpen(false);
+    setNewLinenBatch({ items: [] });
+  };
+
   const processReconciliation = async (file: File) => {
     if (!entityId) return;
     setIsReconciling(true);
     setAuditResult(null);
 
     try {
-      // 1. Convert file to Data URI
       const reader = new FileReader();
       const dataUri = await new Promise<string>((resolve) => {
         reader.onload = () => resolve(reader.result as string);
         reader.readAsDataURL(file);
       });
 
-      // 2. Prepare internal records (simulated for period)
       const recordedBatches = linenBatches?.map(b => ({
         date: b.createdAt.split('T')[0],
         items: b.items.map((i: any) => ({
@@ -160,7 +175,6 @@ export default function LaundryPage() {
         }))
       })) || [];
 
-      // 3. Call AI Flow
       const result = await reconcileLaundryInvoice({
         invoicePhotoUri: dataUri,
         recordedBatches: recordedBatches as any
@@ -178,6 +192,23 @@ export default function LaundryPage() {
     } finally {
       setIsReconciling(false);
     }
+  };
+
+  const handleAddItemToType = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!entityId || !isAdmin) return;
+
+    addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "laundry_items"), {
+      itemName: newItem.name,
+      itemType: newItem.type,
+      hotelRate: parseFloat(newItem.hotelRate) || 0,
+      vendorRate: parseFloat(newItem.vendorRate) || 0,
+      createdAt: new Date().toISOString()
+    });
+
+    toast({ title: "Rate Added" });
+    setIsItemOpen(false);
+    setNewItem({ name: "", type: "guest", hotelRate: "", vendorRate: "" });
   };
 
   return (
@@ -268,6 +299,35 @@ export default function LaundryPage() {
             </div>
           </TabsContent>
 
+          <TabsContent value="linen-batches" className="space-y-4">
+             <div className="flex justify-between items-center">
+              <h2 className="text-xs font-bold uppercase text-muted-foreground">Linen Flow History</h2>
+              <Button size="sm" className="h-7 text-[10px] font-bold" onClick={() => setIsLinenOpen(true)}>
+                <Plus className="w-2.5 h-2.5 mr-1" /> Log Linen Dispatch
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {linenBatches?.map(batch => (
+                <Card key={batch.id} className="border-none shadow-sm bg-white overflow-hidden">
+                  <CardHeader className="p-3 pb-1 flex flex-row justify-between items-center">
+                    <CardTitle className="text-[9px] font-bold">{formatAppDate(batch.createdAt)}</CardTitle>
+                    <Badge variant="secondary" className="text-[7px] h-3.5 px-1 uppercase">{batch.status}</Badge>
+                  </CardHeader>
+                  <CardContent className="p-3 pt-1.5 space-y-2">
+                    <div className="bg-secondary/30 p-2 rounded-lg space-y-0.5">
+                      {batch.items.map((i: any) => (
+                        <div key={i.itemId} className="flex justify-between text-[8px]">
+                          <span>{i.itemName}</span>
+                          <span className="font-bold">x{i.quantity}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
           <TabsContent value="rates" className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xs font-bold uppercase text-muted-foreground">Price Management</h2>
@@ -304,35 +364,6 @@ export default function LaundryPage() {
                   </Table>
                 </CardContent>
               </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="linen-batches" className="space-y-4">
-             <div className="flex justify-between items-center">
-              <h2 className="text-xs font-bold uppercase text-muted-foreground">Linen Flow History</h2>
-              <Button size="sm" className="h-7 text-[10px] font-bold" onClick={() => setIsLinenOpen(true)}>
-                <Plus className="w-2.5 h-2.5 mr-1" /> Log Linen Dispatch
-              </Button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {linenBatches?.map(batch => (
-                <Card key={batch.id} className="border-none shadow-sm bg-white overflow-hidden">
-                  <CardHeader className="p-3 pb-1 flex flex-row justify-between items-center">
-                    <CardTitle className="text-[9px] font-bold">{formatAppDate(batch.createdAt)}</CardTitle>
-                    <Badge variant="secondary" className="text-[7px] h-3.5 px-1 uppercase">{batch.status}</Badge>
-                  </CardHeader>
-                  <CardContent className="p-3 pt-1.5 space-y-2">
-                    <div className="bg-secondary/30 p-2 rounded-lg space-y-0.5">
-                      {batch.items.map((i: any) => (
-                        <div key={i.itemId} className="flex justify-between text-[8px]">
-                          <span>{i.itemName}</span>
-                          <span className="font-bold">x{i.quantity}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
             </div>
           </TabsContent>
         </Tabs>
@@ -405,6 +436,103 @@ export default function LaundryPage() {
               )}
 
               <Button type="submit" className="w-full h-8 font-bold text-[10px]">Log Order to Folio</Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* New Linen Batch Dialog */}
+        <Dialog open={isLinenOpen} onOpenChange={setIsLinenOpen}>
+          <DialogContent className="sm:max-w-[340px] p-0 overflow-hidden">
+            <div className="bg-primary p-4 text-primary-foreground">
+              <DialogTitle className="text-sm font-bold flex items-center gap-2">
+                <Truck className="w-4 h-4" /> Linen Dispatch Log
+              </DialogTitle>
+              <DialogDescription className="text-[10px] text-primary-foreground/80">Log property items sent for Signature cleaning</DialogDescription>
+            </div>
+            <form onSubmit={handleCreateLinenBatch} className="p-4 space-y-3">
+              <div className="space-y-1">
+                <Label className="text-[9px] uppercase font-bold">Linen Categories</Label>
+                <ScrollArea className="h-32 border rounded-lg bg-secondary/10 p-1">
+                  {linenItems.length > 0 ? linenItems.map(item => (
+                    <div key={item.id} className="flex items-center justify-between p-1.5 mb-1 bg-white border rounded shadow-sm">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] font-bold truncate">{item.itemName}</p>
+                        <p className="text-[7px] text-muted-foreground">₹{item.vendorRate}/pc</p>
+                      </div>
+                      <Button type="button" size="icon" variant="secondary" className="h-5 w-5 ml-1" onClick={() => {
+                        const existing = newLinenBatch.items.find(i => i.itemId === item.id);
+                        if (existing) {
+                          setNewLinenBatch({...newLinenBatch, items: newLinenBatch.items.map(i => i.itemId === item.id ? {...i, quantity: i.quantity + 1} : i)});
+                        } else {
+                          setNewLinenBatch({...newLinenBatch, items: [...newLinenBatch.items, { ...item, itemId: item.id, quantity: 1 }]});
+                        }
+                      }}><Plus className="w-2.5 h-2.5" /></Button>
+                    </div>
+                  )) : (
+                    <div className="text-center py-8 text-[8px] text-muted-foreground uppercase font-bold">No linen items defined</div>
+                  )}
+                </ScrollArea>
+              </div>
+
+              {newLinenBatch.items.length > 0 && (
+                <div className="space-y-1">
+                  <Label className="text-[9px] uppercase font-bold">Dispatch Basket</Label>
+                  <ScrollArea className="h-32 border rounded-lg p-1">
+                    {newLinenBatch.items.map(i => (
+                      <div key={i.itemId} className="flex items-center justify-between text-[10px] p-1 border-b">
+                        <span className="truncate flex-1 text-[9px] font-medium">{i.itemName}</span>
+                        <div className="flex items-center gap-1">
+                          <Input type="number" className="h-5 w-8 p-0 text-center text-[9px]" value={i.quantity} onChange={(e) => {
+                            const val = Math.max(1, parseInt(e.target.value) || 1);
+                            setNewLinenBatch({...newLinenBatch, items: newLinenBatch.items.map(item => item.itemId === i.itemId ? {...item, quantity: val} : item)});
+                          }} />
+                          <Button type="button" size="icon" variant="ghost" className="h-5 w-5 text-destructive" onClick={() => setNewLinenBatch({...newLinenBatch, items: newLinenBatch.items.filter(item => item.itemId !== i.itemId)})}><Trash2 className="w-2.5 h-2.5" /></Button>
+                        </div>
+                      </div>
+                    ))}
+                  </ScrollArea>
+                </div>
+              )}
+
+              <Button type="submit" className="w-full h-9 font-bold text-[10px] shadow-lg" disabled={newLinenBatch.items.length === 0}>
+                Confirm Dispatch to Vendor
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* New Rate Item Dialog */}
+        <Dialog open={isItemOpen} onOpenChange={setIsItemOpen}>
+          <DialogContent className="sm:max-w-[340px]">
+            <DialogHeader><DialogTitle className="text-sm">Add Laundry Service</DialogTitle></DialogHeader>
+            <form onSubmit={handleAddItemToType} className="space-y-3 pt-2">
+              <div className="space-y-1">
+                <Label className="text-[9px] uppercase font-bold">Item Name</Label>
+                <Input placeholder="e.g. Bedsheet Double" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required className="h-8 text-xs" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[9px] uppercase font-bold">Type</Label>
+                <Select value={newItem.type} onValueChange={v => setNewItem({...newItem, type: v})}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="guest" className="text-xs">Guest Personal</SelectItem>
+                    <SelectItem value="linen" className="text-xs">Property Linen</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[9px] uppercase font-bold">Vendor Rate ₹</Label>
+                  <Input type="number" value={newItem.vendorRate} onChange={e => setNewItem({...newItem, vendorRate: e.target.value})} required className="h-8 text-xs" />
+                </div>
+                {newItem.type === 'guest' && (
+                  <div className="space-y-1">
+                    <Label className="text-[9px] uppercase font-bold">Hotel Rate ₹</Label>
+                    <Input type="number" value={newItem.hotelRate} onChange={e => setNewItem({...newItem, hotelRate: e.target.value})} required className="h-8 text-xs" />
+                  </div>
+                )}
+              </div>
+              <Button type="submit" className="w-full h-8 text-[10px] font-bold mt-2">Save Service Rate</Button>
             </form>
           </DialogContent>
         </Dialog>
