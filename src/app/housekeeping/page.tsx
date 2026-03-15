@@ -22,7 +22,9 @@ import {
   Calendar,
   ClipboardList,
   XCircle,
-  MessageSquare
+  MessageSquare,
+  Users,
+  Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, formatAppDate, formatAppTime } from "@/lib/utils";
@@ -48,6 +50,7 @@ import { useToast } from "@/hooks/use-toast";
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const STATUS_CONFIG: any = {
   available: { icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-50", label: "Vacant Ready" },
@@ -87,12 +90,18 @@ export default function HousekeepingPage() {
   
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [skipDialogOpen, setSkipDialogOpen] = useState(false);
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
   const [roomToSkip, setRoomToSkip] = useState<any>(null);
   const [selectedSkipReason, setSelectedSkipReason] = useState("");
+
+  // Bulk Assign States
+  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
+  const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([]);
 
   const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
   const canAssignTasks = ["owner", "admin", "manager", "supervisor", "staff", "frontdesk"].includes(currentUserRole || "");
 
+  // Data Queries
   const roomsQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return collection(db, "hotel_properties", entityId, "rooms");
@@ -116,6 +125,11 @@ export default function HousekeepingPage() {
     );
   }, [db, entityId]);
 
+  const teamQuery = useMemoFirebase(() => {
+    if (!entityId) return null;
+    return query(collection(db, "user_profiles"), where("entityId", "==", entityId));
+  }, [db, entityId]);
+
   const propertyRef = useMemoFirebase(() => {
     if (!entityId) return null;
     return doc(db, "hotel_properties", entityId);
@@ -124,6 +138,7 @@ export default function HousekeepingPage() {
   const { data: rooms, isLoading } = useCollection(roomsQuery);
   const { data: activeTasks } = useCollection(tasksQuery);
   const { data: taskHistory } = useCollection(historyQuery);
+  const { data: teamMembers } = useCollection(teamQuery);
   const { data: property } = useDoc(propertyRef);
 
   const isParadise = property?.name?.toLowerCase().includes("paradise");
@@ -134,7 +149,6 @@ export default function HousekeepingPage() {
     const today = new Date().toISOString().split('T')[0];
     
     rooms.forEach((room: any) => {
-      // Auto-mark occupied as dirty if not updated today
       if (room.status === 'occupied' && room.updatedAt) {
         const lastUpdate = new Date(room.updatedAt).toISOString().split('T')[0];
         if (lastUpdate < today) {
@@ -159,8 +173,9 @@ export default function HousekeepingPage() {
 
   const filteredRooms = useMemo(() => {
     if (!rooms) return [];
-    if (!activeFilter) return [...rooms].sort((a,b) => a.roomNumber.localeCompare(b.roomNumber));
-    return rooms.filter(r => r.status === activeFilter).sort((a,b) => a.roomNumber.localeCompare(b.roomNumber));
+    const sorted = [...rooms].sort((a,b) => a.roomNumber.localeCompare(b.roomNumber));
+    if (!activeFilter) return sorted;
+    return sorted.filter(r => r.status === activeFilter);
   }, [rooms, activeFilter]);
 
   const updateStatus = (room: any, status: string) => {
@@ -175,7 +190,6 @@ export default function HousekeepingPage() {
     const roomRef = doc(db, "hotel_properties", entityId, "rooms", room.id);
     updateDocumentNonBlocking(roomRef, { status, updatedAt: new Date().toISOString() });
     
-    // Automation: Log task completion
     if (status === "available" || status === "occupied") {
       const task = activeTasks?.find(t => t.roomId === room.id);
       if (task) {
@@ -188,7 +202,6 @@ export default function HousekeepingPage() {
       }
     }
 
-    // Automation: Start cleaning task tracking
     if (status === "cleaning" || status === "occupied_cleaning") {
       const existingTask = activeTasks?.find(t => t.roomId === room.id);
       if (!existingTask) {
@@ -212,14 +225,12 @@ export default function HousekeepingPage() {
   const handleSkipConfirm = () => {
     if (!entityId || !roomToSkip || !selectedSkipReason) return;
 
-    // 1. Update room status to 'skipped'
     const roomRef = doc(db, "hotel_properties", entityId, "rooms", roomToSkip.id);
     updateDocumentNonBlocking(roomRef, { 
       status: 'skipped', 
       updatedAt: new Date().toISOString() 
     });
 
-    // 2. Log the skip event
     addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "housekeeping_tasks"), {
       entityId,
       roomId: roomToSkip.id,
@@ -233,11 +244,55 @@ export default function HousekeepingPage() {
       updatedAt: new Date().toISOString()
     });
 
-    // Close and reset
     setSkipDialogOpen(false);
     setRoomToSkip(null);
     setSelectedSkipReason("");
-    toast({ title: "Cleaning Skip Recorded", description: `Room ${roomToSkip.roomNumber} marked as skipped.` });
+    toast({ title: "Cleaning Skip Recorded" });
+  };
+
+  const handleBulkAssign = async () => {
+    if (!entityId || selectedStaffIds.length === 0 || selectedRoomIds.length === 0) {
+      toast({ variant: "destructive", title: "Missing Selections", description: "Please select both staff and rooms." });
+      return;
+    }
+
+    const teamNames = teamMembers
+      ?.filter(m => selectedStaffIds.includes(m.id))
+      .map(m => m.name)
+      .join(", ");
+
+    for (const roomId of selectedRoomIds) {
+      const room = rooms?.find(r => r.id === roomId);
+      if (!room) continue;
+
+      // 1. Determine new cleaning status
+      const newStatus = room.status.includes('occupied') ? 'occupied_cleaning' : 'cleaning';
+      
+      // 2. Update room status
+      const roomRef = doc(db, "hotel_properties", entityId, "rooms", roomId);
+      updateDocumentNonBlocking(roomRef, { 
+        status: newStatus, 
+        updatedAt: new Date().toISOString() 
+      });
+
+      // 3. Create task
+      addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "housekeeping_tasks"), {
+        entityId,
+        roomId: room.id,
+        roomNumber: room.roomNumber,
+        isCommonArea: false,
+        taskType: "cleaning",
+        status: "in_progress",
+        assignedStaffName: teamNames,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    toast({ title: "Team Assigned", description: `${selectedRoomIds.length} rooms assigned to ${teamNames}.` });
+    setBulkAssignOpen(false);
+    setSelectedStaffIds([]);
+    setSelectedRoomIds([]);
   };
 
   const completeAreaTask = (areaName: string) => {
@@ -280,8 +335,16 @@ export default function HousekeepingPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-bold tracking-tight">Housekeeping Control</h1>
-            <p className="text-xs text-muted-foreground mt-0.5 uppercase font-bold tracking-widest">Real-time Facility Management</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5 uppercase font-bold tracking-widest">Real-time Facility Management</p>
           </div>
+          {canAssignTasks && (
+            <Button 
+              className="h-10 px-6 font-black uppercase text-[10px] tracking-widest shadow-xl rounded-xl"
+              onClick={() => setBulkAssignOpen(true)}
+            >
+              <Users className="w-4 h-4 mr-2" /> Bulk Assign Tasks
+            </Button>
+          )}
         </div>
 
         <Tabs defaultValue="rooms" className="space-y-4">
@@ -397,7 +460,7 @@ export default function HousekeepingPage() {
                 )}
               </div>
 
-              {/* Side Log for Room Cleaning & Exceptions */}
+              {/* Side Log */}
               <div className="space-y-4">
                 <Card className="border-none shadow-sm bg-primary/5 h-[calc(100vh-20rem)] flex flex-col overflow-hidden">
                   <CardHeader className="p-4 pb-2 border-b border-primary/10">
@@ -534,6 +597,73 @@ export default function HousekeepingPage() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Bulk Assign Dialog */}
+        <Dialog open={bulkAssignOpen} onOpenChange={setBulkAssignOpen}>
+          <DialogContent className="sm:max-w-[500px] rounded-[2.5rem] p-0 overflow-hidden">
+            <div className="bg-primary p-8 text-white space-y-2">
+              <DialogTitle className="flex items-center gap-3 text-xl font-black uppercase">
+                <Users className="w-6 h-6" /> Team Allocation
+              </DialogTitle>
+              <DialogDescription className="text-[10px] text-white/70 font-bold uppercase tracking-widest">
+                Team up staff and assign rooms in bulk.
+              </DialogDescription>
+            </div>
+            <div className="p-8 space-y-6">
+              <div className="space-y-3">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">1. Assemble Team</Label>
+                <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-1">
+                  {teamMembers?.map((member) => (
+                    <div key={member.id} className="flex items-center space-x-2 p-2 rounded-xl bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                      <Checkbox 
+                        id={`staff-${member.id}`} 
+                        checked={selectedStaffIds.includes(member.id)}
+                        onCheckedChange={(checked) => {
+                          setSelectedStaffIds(prev => checked ? [...prev, member.id] : prev.filter(id => id !== member.id));
+                        }}
+                      />
+                      <label htmlFor={`staff-${member.id}`} className="text-[11px] font-bold cursor-pointer truncate">{member.name}</label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">2. Select Units ({selectedRoomIds.length})</Label>
+                <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1">
+                  {rooms?.sort((a,b) => a.roomNumber.localeCompare(b.roomNumber)).map((room) => {
+                    const isDirty = room.status.includes('dirty');
+                    return (
+                      <div 
+                        key={room.id} 
+                        className={cn(
+                          "relative flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all cursor-pointer",
+                          selectedRoomIds.includes(room.id) 
+                            ? "bg-primary border-primary text-white shadow-lg" 
+                            : isDirty ? "bg-orange-50 border-orange-100 text-orange-700" : "bg-white border-secondary text-muted-foreground"
+                        )}
+                        onClick={() => {
+                          setSelectedRoomIds(prev => selectedRoomIds.includes(room.id) ? prev.filter(id => id !== room.id) : [...prev, room.id]);
+                        }}
+                      >
+                        <span className="text-xs font-black">{room.roomNumber}</span>
+                        {selectedRoomIds.includes(room.id) && <Plus className="w-2.5 h-2.5 absolute top-1 right-1" />}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <Button 
+                onClick={handleBulkAssign} 
+                className="w-full h-14 font-black uppercase tracking-[0.2em] shadow-2xl rounded-2xl"
+                disabled={selectedStaffIds.length === 0 || selectedRoomIds.length === 0}
+              >
+                Confirm Bulk Assignment
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Skip Cleaning Reason Dialog */}
         <Dialog open={skipDialogOpen} onOpenChange={setSkipDialogOpen}>
