@@ -22,7 +22,9 @@ import {
   Loader2,
   Save,
   Percent,
-  BarChart3
+  BarChart3,
+  WashingMachine,
+  Wallet
 } from "lucide-react";
 import { 
   Table, 
@@ -60,6 +62,7 @@ import {
 const SIDEBAR_ITEMS = [
   { id: 'overview', label: 'Financial Overview', icon: LayoutDashboard },
   { id: 'invoices', label: 'Revenue & Invoices', icon: Receipt },
+  { id: 'laundry_revenue', label: 'Laundry Revenue', icon: WashingMachine },
   { id: 'ayurcycles', label: 'Ayursiha Cycles', icon: Hospital },
   { id: 'expenses', label: 'Operating Expenses', icon: CreditCard },
   { id: 'reports', label: 'Analytics Reports', icon: BarChart3 },
@@ -83,6 +86,11 @@ export default function AccountingPage() {
     return query(collection(db, "hotel_properties", entityId, "invoices"), orderBy("createdAt", "desc"));
   }, [db, entityId]);
 
+  const laundryQuery = useMemoFirebase(() => {
+    if (!entityId) return null;
+    return query(collection(db, "hotel_properties", entityId, "guest_laundry_orders"), orderBy("createdAt", "desc"));
+  }, [db, entityId]);
+
   const expenseQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return query(collection(db, "hotel_properties", entityId, "expenses"), orderBy("date", "desc"));
@@ -99,6 +107,7 @@ export default function AccountingPage() {
   }, [db, entityId]);
 
   const { data: invoices, isLoading: invLoading } = useCollection(invoiceQuery);
+  const { data: laundryOrders, isLoading: laundryLoading } = useCollection(laundryQuery);
   const { data: expenses, isLoading: expLoading } = useCollection(expenseQuery);
   const { data: property } = useDoc(propertyRef);
   const { data: gst } = useDoc(gstRef);
@@ -129,7 +138,11 @@ export default function AccountingPage() {
     }
   }, [gst]);
 
-  const totalRevenue = invoices?.reduce((acc, inv) => acc + (inv.totalAmount || 0), 0) || 0;
+  // Combined Revenue Calculations
+  const invoiceRevenue = invoices?.reduce((acc, inv) => acc + (inv.totalAmount || 0), 0) || 0;
+  const laundryRevenue = laundryOrders?.reduce((acc, order) => acc + (order.hotelTotal || 0), 0) || 0;
+  const totalRevenue = invoiceRevenue + laundryRevenue;
+  
   const totalExpenses = expenses?.reduce((acc, exp) => acc + (exp.amount || 0), 0) || 0;
   const netProfit = totalRevenue - totalExpenses;
 
@@ -151,8 +164,12 @@ export default function AccountingPage() {
       const source = inv.bookingSource || 'Unknown';
       sources[source] = (sources[source] || 0) + (inv.totalAmount || 0);
     });
+    // Add laundry as a source
+    if (laundryRevenue > 0) {
+      sources['Laundry'] = laundryRevenue;
+    }
     return Object.entries(sources).map(([name, value]) => ({ name, value }));
-  }, [invoices]);
+  }, [invoices, laundryRevenue]);
 
   const handleUpdateGst = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -216,7 +233,7 @@ export default function AccountingPage() {
           <div className="p-4 bg-secondary/30 border-t">
             <div className="p-3 bg-white rounded-2xl border flex items-center gap-2">
               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              <span className="text-[9px] font-black uppercase text-muted-foreground">GST Sync Active</span>
+              <span className="text-[9px] font-black uppercase text-muted-foreground">Live Audit Active</span>
             </div>
           </div>
         </aside>
@@ -229,25 +246,25 @@ export default function AccountingPage() {
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <div className="space-y-1">
                     <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Financial Overview</h1>
-                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Real-time property health</p>
+                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Real-time property health (Invoices + Laundry)</p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 space-y-2">
+                    <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 space-y-2 shadow-sm">
                       <TrendingUp className="w-6 h-6 text-emerald-600" />
                       <div>
                         <p className="text-[10px] font-black uppercase text-emerald-600/70">Gross Revenue</p>
                         <h3 className="text-2xl font-black text-emerald-700">₹{totalRevenue.toLocaleString()}</h3>
                       </div>
                     </div>
-                    <div className="p-6 bg-rose-50 rounded-3xl border border-rose-100 space-y-2">
+                    <div className="p-6 bg-rose-50 rounded-3xl border border-rose-100 space-y-2 shadow-sm">
                       <TrendingDown className="w-6 h-6 text-rose-600" />
                       <div>
                         <p className="text-[10px] font-black uppercase text-rose-600/70">Total Expenses</p>
                         <h3 className="text-2xl font-black text-rose-700">₹{totalExpenses.toLocaleString()}</h3>
                       </div>
                     </div>
-                    <div className="p-6 bg-primary/5 rounded-3xl border border-primary/10 space-y-2">
+                    <div className="p-6 bg-primary/5 rounded-3xl border border-primary/10 space-y-2 shadow-sm">
                       <LayoutDashboard className="w-6 h-6 text-primary" />
                       <div>
                         <p className="text-[10px] font-black uppercase text-primary/70">Net Operating Profit</p>
@@ -256,10 +273,32 @@ export default function AccountingPage() {
                     </div>
                   </div>
 
-                  <div className="p-8 bg-secondary/20 rounded-[2.5rem] border border-dashed border-muted-foreground/20 text-center">
-                    <PieChart className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />
-                    <h4 className="text-sm font-black uppercase text-muted-foreground">Revenue Analytics coming soon</h4>
-                    <p className="text-[10px] text-muted-foreground font-medium mt-1">Deep drill-down by booking source and room category</p>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="p-6 bg-white rounded-3xl border shadow-sm space-y-4">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Revenue Mix</h3>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[11px] font-bold">GST Invoices</span>
+                          <span className="text-[11px] font-black">₹{invoiceRevenue.toLocaleString()}</span>
+                        </div>
+                        <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-primary" 
+                            style={{ width: `${(invoiceRevenue / (totalRevenue || 1)) * 100}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between items-center pt-2">
+                          <span className="text-[11px] font-bold">Guest Laundry</span>
+                          <span className="text-[11px] font-black text-emerald-600">₹{laundryRevenue.toLocaleString()}</span>
+                        </div>
+                        <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-emerald-500" 
+                            style={{ width: `${(laundryRevenue / (totalRevenue || 1)) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -307,6 +346,85 @@ export default function AccountingPage() {
                           ))
                         ) : (
                           <TableRow><TableCell colSpan={5} className="text-center py-20 text-[10px] text-muted-foreground uppercase font-black">No revenue records found</TableCell></TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {activeView === 'laundry_revenue' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+                  <div className="space-y-1">
+                    <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Laundry Revenue Hub</h1>
+                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Detail tracking of guest service income</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div className="p-6 bg-indigo-50 rounded-3xl border border-indigo-100 flex items-center gap-4">
+                      <div className="p-3 bg-indigo-100 rounded-2xl text-indigo-600">
+                        <WashingMachine className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase text-indigo-600/70">Total Laundry Billed</p>
+                        <h3 className="text-xl font-black text-indigo-700">₹{laundryRevenue.toLocaleString()}</h3>
+                      </div>
+                    </div>
+                    <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 flex items-center gap-4">
+                      <div className="p-3 bg-emerald-100 rounded-2xl text-emerald-600">
+                        <Wallet className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase text-emerald-600/70">Collected Revenue</p>
+                        <h3 className="text-xl font-black text-emerald-700">
+                          ₹{laundryOrders?.filter(o => o.status === 'paid').reduce((acc, o) => acc + (o.hotelTotal || 0), 0).toLocaleString()}
+                        </h3>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border overflow-hidden">
+                    <Table>
+                      <TableHeader className="bg-secondary/50">
+                        <TableRow>
+                          <TableHead className="text-[10px] font-black uppercase pl-6 h-12">Date</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12">Room & Guest</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12">Items</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12">Total ₹</TableHead>
+                          <TableHead className="text-right text-[10px] font-black uppercase pr-6 h-12">Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {laundryLoading ? (
+                          <TableRow><TableCell colSpan={5} className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                        ) : laundryOrders?.length ? (
+                          laundryOrders.map((order) => (
+                            <TableRow key={order.id} className="hover:bg-primary/5 transition-colors">
+                              <TableCell className="pl-6 text-[11px] font-bold">{formatAppDate(order.createdAt)}</TableCell>
+                              <TableCell>
+                                <div className="flex flex-col">
+                                  <span className="text-[11px] font-black uppercase">Room {order.roomNumber}</span>
+                                  <span className="text-[9px] text-muted-foreground font-bold">{order.guestName}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-[10px] font-medium max-w-[200px] truncate">
+                                  {order.items?.map((i: any) => `${i.quantity}x ${i.itemName}`).join(", ")}
+                                </div>
+                              </TableCell>
+                              <TableCell className="font-black text-[11px] text-primary">₹{order.hotelTotal?.toLocaleString()}</TableCell>
+                              <TableCell className="text-right pr-6">
+                                <Badge className={cn(
+                                  "text-[9px] uppercase font-black px-2 h-5",
+                                  order.status === "paid" ? "bg-emerald-500" : "bg-amber-500"
+                                )}>
+                                  {order.status}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow><TableCell colSpan={5} className="text-center py-20 text-[10px] text-muted-foreground uppercase font-black">No laundry records found</TableCell></TableRow>
                         )}
                       </TableBody>
                     </Table>
@@ -395,7 +513,9 @@ export default function AccountingPage() {
                               <TableCell className="pl-6 text-[11px] font-bold">{exp.description}</TableCell>
                               <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase px-2 h-5 bg-secondary/50">{exp.category}</Badge></TableCell>
                               <TableCell className="text-[11px] font-bold text-muted-foreground">{formatAppDate(exp.date)}</TableCell>
-                              <TableCell className="text-[11px] font-black text-rose-600 text-right pr-6">₹{exp.amount?.toLocaleString()}</TableCell>
+                              <TableCell className="text-right pr-6">
+                                <span className="text-[11px] font-black text-rose-600">₹{exp.amount?.toLocaleString()}</span>
+                              </TableCell>
                             </TableRow>
                           ))
                         ) : (
@@ -416,7 +536,7 @@ export default function AccountingPage() {
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="p-6 bg-white rounded-3xl border shadow-sm space-y-4">
-                      <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Revenue vs Expenses Summary</h3>
+                      <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Gross Revenue vs Expenses</h3>
                       <div className="h-[250px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={chartData}>
@@ -434,7 +554,7 @@ export default function AccountingPage() {
                     </div>
 
                     <div className="p-6 bg-white rounded-3xl border shadow-sm space-y-4">
-                      <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Revenue by Booking Source</h3>
+                      <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Revenue by Stream</h3>
                       <div className="h-[250px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <RePieChart>
