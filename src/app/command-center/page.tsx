@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
@@ -30,6 +30,13 @@ import { startOfDay, endOfDay, subDays } from "date-fns";
  * EntityCommandPanel - Renders a side-by-side operational overview for a property.
  */
 function EntityCommandPanel({ entity, db }: { entity: any; db: any }) {
+  const [today, setToday] = useState<string>("");
+
+  useEffect(() => {
+    // Set date after hydration to avoid SSR mismatch
+    setToday(new Date().toISOString().split('T')[0]);
+  }, []);
+
   // Real-time Data Listeners for the specific entity
   const roomsRef = useMemoFirebase(() => collection(db, "hotel_properties", entity.id, "rooms"), [entity.id]);
   const tasksRef = useMemoFirebase(() => collection(db, "hotel_properties", entity.id, "housekeeping_tasks"), [entity.id]);
@@ -45,8 +52,8 @@ function EntityCommandPanel({ entity, db }: { entity: any; db: any }) {
 
   // Stats Aggregation
   const stats = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
-    const monthStart = today.substring(0, 7);
+    const referenceDate = today || new Date().toISOString().split('T')[0];
+    const monthStart = referenceDate.substring(0, 7);
 
     // Occupancy
     const totalRooms = rooms?.length || 0;
@@ -62,15 +69,15 @@ function EntityCommandPanel({ entity, db }: { entity: any; db: any }) {
     // Maintenance
     const maintRooms = rooms?.filter(r => r.status === 'maintenance').length || 0;
     const openMaint = tasks?.filter(t => t.taskType === 'repair' && t.status !== 'completed').length || 0;
-    const completedMaintToday = tasks?.filter(t => t.taskType === 'repair' && t.status === 'completed' && t.updatedAt?.startsWith(today)).length || 0;
+    const completedMaintToday = tasks?.filter(t => t.taskType === 'repair' && t.status === 'completed' && t.updatedAt?.startsWith(referenceDate)).length || 0;
 
     // Laundry
-    const laundrySentToday = laundry?.filter(l => l.createdAt?.startsWith(today)).length || 0;
-    const laundryReturnedToday = laundry?.filter(l => l.status === 'returned' && l.updatedAt?.startsWith(today)).length || 0;
+    const laundrySentToday = laundry?.filter(l => l.createdAt?.startsWith(referenceDate)).length || 0;
+    const laundryReturnedToday = laundry?.filter(l => l.status === 'returned' && l.updatedAt?.startsWith(referenceDate)).length || 0;
     const laundryPending = laundry?.filter(l => l.status === 'sent').length || 0;
 
     // Revenue
-    const todayRev = invoices?.filter(i => i.createdAt?.startsWith(today)).reduce((acc, i) => acc + (i.totalAmount || 0), 0) || 0;
+    const todayRev = invoices?.filter(i => i.createdAt?.startsWith(referenceDate)).reduce((acc, i) => acc + (i.totalAmount || 0), 0) || 0;
     const monthRev = invoices?.filter(i => i.createdAt?.startsWith(monthStart)).reduce((acc, i) => acc + (i.totalAmount || 0), 0) || 0;
 
     // Ayursiha Specifics
@@ -104,7 +111,7 @@ function EntityCommandPanel({ entity, db }: { entity: any; db: any }) {
       ayurRooms, ayurCycleRev,
       alerts
     };
-  }, [rooms, tasks, laundry, invoices, reservations]);
+  }, [rooms, tasks, laundry, invoices, reservations, today]);
 
   return (
     <div className="space-y-4">
@@ -262,7 +269,7 @@ export default function CommandCenterPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-6xl mx-auto space-y-8">
+      <div className="max-w-6xl mx-auto space-y-8" suppressHydrationWarning>
         <header className="flex justify-between items-end border-b pb-6">
           <div>
             <div className="flex items-center gap-2 mb-1">
