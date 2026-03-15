@@ -39,11 +39,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const STATUS_CONFIG: any = {
   available: { icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-50", label: "Vacant Ready" },
-  cleaning: { icon: Brush, color: "text-primary", bg: "bg-primary/5", label: "Cleaning (Vac)" },
+  cleaning: { icon: Brush, color: "text-primary", bg: "bg-primary/5", label: "Cleaning Vacant" },
   occupied: { icon: CheckCircle2, color: "text-blue-500", bg: "bg-blue-50", label: "Occupied Clean" },
   dirty: { icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-50", label: "Vacant Dirty" },
   occupied_dirty: { icon: AlertCircle, color: "text-amber-500", bg: "bg-amber-50", label: "Occupied Dirty" },
-  occupied_cleaning: { icon: Brush, color: "text-indigo-500", bg: "bg-indigo-50", label: "Cleaning (Occ)" },
+  occupied_cleaning: { icon: Brush, color: "text-indigo-500", bg: "bg-indigo-50", label: "Cleaning Occupied" },
   maintenance: { icon: AlertCircle, color: "text-rose-500", bg: "bg-rose-50", label: "Maintenance" },
 };
 
@@ -209,13 +209,13 @@ export default function HousekeepingPage() {
                   <span className="text-[8.5px] uppercase font-bold text-muted-foreground">Total</span>
                 </CardContent>
               </Card>
-              <StatCard id="available" label="Ready" value={stats.available} icon={ShieldCheck} colorClass="text-emerald-500" active={activeFilter === 'available'} />
-              <StatCard id="dirty" label="Dirty" value={stats.dirty} icon={AlertTriangle} colorClass="text-orange-500" active={activeFilter === 'dirty'} />
-              <StatCard id="cleaning" label="Cleaning" value={stats.cleaning} icon={Brush} colorClass="text-primary" active={activeFilter === 'cleaning'} />
-              <StatCard id="occupied" label="Occ Clean" value={stats.occupied} icon={CheckCircle2} colorClass="text-blue-500" active={activeFilter === 'occupied'} />
-              <StatCard id="occupied_dirty" label="Occ Dirty" value={stats.occupied_dirty} icon={AlertCircle} colorClass="text-amber-500" active={activeFilter === 'occupied_dirty'} />
-              <StatCard id="occupied_cleaning" label="Occ Clean-in" value={stats.occupied_cleaning} icon={Brush} colorClass="text-indigo-500" active={activeFilter === 'occupied_cleaning'} />
-              <StatCard id="maintenance" label="Maint" value={stats.maintenance} icon={AlertCircle} colorClass="text-rose-500" active={activeFilter === 'maintenance'} />
+              <StatCard id="available" label="Vacant Ready" value={stats.available} icon={ShieldCheck} colorClass="text-emerald-500" active={activeFilter === 'available'} />
+              <StatCard id="dirty" label="Vacant Dirty" value={stats.dirty} icon={AlertTriangle} colorClass="text-orange-500" active={activeFilter === 'dirty'} />
+              <StatCard id="cleaning" label="Cleaning Vacant" value={stats.cleaning} icon={Brush} colorClass="text-primary" active={activeFilter === 'cleaning'} />
+              <StatCard id="occupied" label="Occupied Clean" value={stats.occupied} icon={CheckCircle2} colorClass="text-blue-500" active={activeFilter === 'occupied'} />
+              <StatCard id="occupied_dirty" label="Occupied Dirty" value={stats.occupied_dirty} icon={AlertCircle} colorClass="text-amber-500" active={activeFilter === 'occupied_dirty'} />
+              <StatCard id="occupied_cleaning" label="Cleaning Occupied" value={stats.occupied_cleaning} icon={Brush} colorClass="text-indigo-500" active={activeFilter === 'occupied_cleaning'} />
+              <StatCard id="maintenance" label="Maintenance" value={stats.maintenance} icon={AlertCircle} colorClass="text-rose-500" active={activeFilter === 'maintenance'} />
             </div>
 
             {isLoading ? (
@@ -249,10 +249,10 @@ export default function HousekeepingPage() {
                             <SelectContent>
                               <SelectItem value="available">Vacant Ready</SelectItem>
                               <SelectItem value="dirty">Vacant Dirty</SelectItem>
-                              <SelectItem value="cleaning">Start Cleaning (Vac)</SelectItem>
+                              <SelectItem value="cleaning">Start Cleaning Vacant</SelectItem>
                               <SelectItem value="occupied">Occupied Clean</SelectItem>
                               <SelectItem value="occupied_dirty">Occupied Dirty</SelectItem>
-                              <SelectItem value="occupied_cleaning">Start Cleaning (Occ)</SelectItem>
+                              <SelectItem value="occupied_cleaning">Start Cleaning Occupied</SelectItem>
                               <SelectItem value="maintenance">Maintenance</SelectItem>
                             </SelectContent>
                           </Select>

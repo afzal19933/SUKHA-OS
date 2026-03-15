@@ -22,7 +22,7 @@ import { cn, formatAppTime } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
 import { collection, query, where, orderBy, limit } from "firebase/firestore";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -31,18 +31,19 @@ import { Button } from "@/components/ui/button";
 /* ------------------------------ */
 
 const STATUS_CONFIG: any = {
-  available: { icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-50", label: "Ready" },
-  cleaning: { icon: Brush, color: "text-primary", bg: "bg-primary/5", label: "Cleaning" },
-  occupied: { icon: CheckCircle2, color: "text-blue-500", bg: "bg-blue-50", label: "Occupied" },
-  dirty: { icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-50", label: "Dirty" },
-  occupied_dirty: { icon: AlertCircle, color: "text-amber-500", bg: "bg-amber-50", label: "Occ Dirty" },
-  maintenance: { icon: AlertCircle, color: "text-rose-500", bg: "bg-rose-50", label: "Maint" },
+  available: { icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-50", label: "Vacant Ready" },
+  cleaning: { icon: Brush, color: "text-primary", bg: "bg-primary/5", label: "Cleaning Vacant" },
+  occupied: { icon: CheckCircle2, color: "text-blue-500", bg: "bg-blue-50", label: "Occupied Clean" },
+  dirty: { icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-50", label: "Vacant Dirty" },
+  occupied_dirty: { icon: AlertCircle, color: "text-amber-500", bg: "bg-amber-50", label: "Occupied Dirty" },
+  maintenance: { icon: AlertCircle, color: "text-rose-500", bg: "bg-rose-50", label: "Maintenance" },
 };
 
 function DashboardContent() {
   const { entityId } = useAuthStore();
   const db = useFirestore();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   /* ------------------------------ */
   /* Firestore Queries              */
