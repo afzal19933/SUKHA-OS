@@ -33,7 +33,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { doc, setDoc, updateDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { cn, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useDoc } from "@/firebase";
@@ -54,7 +54,6 @@ import {
   ResponsiveContainer,
   PieChart as RePieChart,
   Pie,
-  Cell,
   Cell as ReCell
 } from "recharts";
 
@@ -139,7 +138,6 @@ export default function AccountingPage() {
   }, [invoices]);
 
   const chartData = useMemo(() => {
-    // Group last 6 months data for simple bar chart
     return [
       { name: 'Revenue', amount: totalRevenue },
       { name: 'Expenses', amount: totalExpenses },

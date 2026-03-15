@@ -14,15 +14,16 @@ export async function GET(req: NextRequest) {
   const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  if (mode && token) {
-    if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
-      console.log('WEBHOOK_VERIFIED');
-      return new NextResponse(challenge, { status: 200 });
-    } else {
-      return new NextResponse(null, { status: 403 });
-    }
+  if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+    console.log('WEBHOOK_VERIFIED');
+    // Return the challenge as a plain text response for Meta's verification
+    return new Response(challenge, {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain' },
+    });
   }
-  return new NextResponse(null, { status: 400 });
+  
+  return new Response('Verification failed', { status: 403 });
 }
 
 export async function POST(req: NextRequest) {
@@ -35,7 +36,8 @@ export async function POST(req: NextRequest) {
       const from = messageObj.from; // Sender phone number
       const text = messageObj.text?.body; // Message text
 
-      if (!text) {
+      // Ignore non-text messages for now
+      if (!text || typeof text !== 'string') {
         return NextResponse.json({ status: 'ignored' });
       }
 

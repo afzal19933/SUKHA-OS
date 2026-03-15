@@ -4,14 +4,14 @@
  * Handles outbound communication with Meta Graph API.
  */
 
-const WHATSAPP_VERSION = 'v21.0';
+const WHATSAPP_VERSION = 'v25.0';
 
 export async function sendRealWhatsAppMessage(to: string, text: string) {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
 
   if (!phoneNumberId || !accessToken) {
-    console.error("WhatsApp API credentials missing in environment variables.");
+    console.error("WhatsApp API credentials missing in environment variables (PHONE_NUMBER_ID or ACCESS_TOKEN).");
     return;
   }
 
@@ -38,11 +38,11 @@ export async function sendRealWhatsAppMessage(to: string, text: string) {
 
     const result = await response.json();
     if (!response.ok) {
-      console.error("WhatsApp API Error:", result);
+      console.error("WhatsApp API Error Response:", JSON.stringify(result, null, 2));
     }
     return result;
   } catch (error) {
-    console.error("Failed to send WhatsApp message:", error);
+    console.error("Failed to execute WhatsApp API request:", error);
     throw error;
   }
 }
