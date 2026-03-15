@@ -24,7 +24,9 @@ import {
   Percent,
   BarChart3,
   WashingMachine,
-  Wallet
+  Wallet,
+  CalendarDays,
+  FilterX
 } from "lucide-react";
 import { 
   Table, 
@@ -58,6 +60,13 @@ import {
   Pie,
   Cell as ReCell
 } from "recharts";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
 
 const SIDEBAR_ITEMS = [
   { id: 'overview', label: 'Financial Overview', icon: LayoutDashboard },
@@ -77,6 +86,11 @@ export default function AccountingPage() {
   const { toast } = useToast();
   const [activeView, setActiveView] = useState('overview');
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+
+  // Laundry Filtering State
+  const [laundryDateFilter, setLaundryDateFilter] = useState('all');
+  const [laundryCustomStart, setLaundryCustomStart] = useState('');
+  const [laundryCustomEnd, setLaundryCustomEnd] = useState('');
 
   const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
 
@@ -138,7 +152,40 @@ export default function AccountingPage() {
     }
   }, [gst]);
 
-  // Combined Revenue Calculations
+  // Filtered Laundry Calculations
+  const filteredLaundryOrders = useMemo(() => {
+    if (!laundryOrders) return [];
+    const now = new Date();
+    
+    return laundryOrders.filter(order => {
+      const orderDate = new Date(order.createdAt);
+      
+      if (laundryDateFilter === 'this_month') {
+        return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear();
+      }
+      
+      if (laundryDateFilter === 'last_month') {
+        const lastMonth = new Date();
+        lastMonth.setMonth(now.getMonth() - 1);
+        return orderDate.getMonth() === lastMonth.getMonth() && orderDate.getFullYear() === lastMonth.getFullYear();
+      }
+      
+      if (laundryDateFilter === 'custom') {
+        if (!laundryCustomStart || !laundryCustomEnd) return true;
+        const start = new Date(laundryCustomStart);
+        const end = new Date(laundryCustomEnd);
+        end.setHours(23, 59, 59, 999);
+        return orderDate >= start && orderDate <= end;
+      }
+      
+      return true; // 'all'
+    });
+  }, [laundryOrders, laundryDateFilter, laundryCustomStart, laundryCustomEnd]);
+
+  const filteredLaundryRevenueTotal = filteredLaundryOrders.reduce((acc, order) => acc + (order.hotelTotal || 0), 0);
+  const filteredLaundryCollected = filteredLaundryOrders.filter(o => o.status === 'paid').reduce((acc, o) => acc + (o.hotelTotal || 0), 0);
+
+  // Combined Revenue Calculations (Full History)
   const invoiceRevenue = invoices?.reduce((acc, inv) => acc + (inv.totalAmount || 0), 0) || 0;
   const laundryRevenue = laundryOrders?.reduce((acc, order) => acc + (order.hotelTotal || 0), 0) || 0;
   const totalRevenue = invoiceRevenue + laundryRevenue;
@@ -355,9 +402,47 @@ export default function AccountingPage() {
 
               {activeView === 'laundry_revenue' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                  <div className="space-y-1">
-                    <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Laundry Revenue Hub</h1>
-                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Detail tracking of guest service income</p>
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Laundry Revenue Hub</h1>
+                      <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Detail tracking of guest service income</p>
+                    </div>
+
+                    {/* Filter Bar */}
+                    <div className="bg-secondary/30 p-2 rounded-2xl flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-2 px-3 border-r border-border/50">
+                        <CalendarDays className="w-3.5 h-3.5 text-primary" />
+                        <span className="text-[9px] font-black uppercase text-muted-foreground">Period</span>
+                      </div>
+                      <Select value={laundryDateFilter} onValueChange={setLaundryDateFilter}>
+                        <SelectTrigger className="h-8 w-32 text-[10px] font-bold border-none bg-white rounded-xl shadow-sm focus:ring-0">
+                          <SelectValue placeholder="All Time" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl border-none shadow-2xl">
+                          <SelectItem value="all" className="text-[10px] font-bold">Full History</SelectItem>
+                          <SelectItem value="this_month" className="text-[10px] font-bold">This Month</SelectItem>
+                          <SelectItem value="last_month" className="text-[10px] font-bold">Last Month</SelectItem>
+                          <SelectItem value="custom" className="text-[10px] font-bold">Custom Range</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {laundryDateFilter === 'custom' && (
+                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
+                          <Input type="date" className="h-8 w-28 text-[9px] font-bold bg-white border-none rounded-xl" value={laundryCustomStart} onChange={e => setLaundryCustomStart(e.target.value)} />
+                          <span className="text-[9px] font-black text-muted-foreground">TO</span>
+                          <Input type="date" className="h-8 w-28 text-[9px] font-bold bg-white border-none rounded-xl" value={laundryCustomEnd} onChange={e => setLaundryCustomEnd(e.target.value)} />
+                        </div>
+                      )}
+
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-rose-500 hover:bg-rose-50 rounded-xl"
+                        onClick={() => { setLaundryDateFilter('all'); setLaundryCustomStart(''); setLaundryCustomEnd(''); }}
+                      >
+                        <FilterX className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -366,8 +451,8 @@ export default function AccountingPage() {
                         <WashingMachine className="w-6 h-6" />
                       </div>
                       <div>
-                        <p className="text-[10px] font-black uppercase text-indigo-600/70">Total Laundry Billed</p>
-                        <h3 className="text-xl font-black text-indigo-700">₹{laundryRevenue.toLocaleString()}</h3>
+                        <p className="text-[10px] font-black uppercase text-indigo-600/70">Filtered Laundry Billed</p>
+                        <h3 className="text-xl font-black text-indigo-700">₹{filteredLaundryRevenueTotal.toLocaleString()}</h3>
                       </div>
                     </div>
                     <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 flex items-center gap-4">
@@ -375,9 +460,9 @@ export default function AccountingPage() {
                         <Wallet className="w-6 h-6" />
                       </div>
                       <div>
-                        <p className="text-[10px] font-black uppercase text-emerald-600/70">Collected Revenue</p>
+                        <p className="text-[10px] font-black uppercase text-emerald-600/70">Filtered Collected Revenue</p>
                         <h3 className="text-xl font-black text-emerald-700">
-                          ₹{laundryOrders?.filter(o => o.status === 'paid').reduce((acc, o) => acc + (o.hotelTotal || 0), 0).toLocaleString()}
+                          ₹{filteredLaundryCollected.toLocaleString()}
                         </h3>
                       </div>
                     </div>
@@ -397,8 +482,8 @@ export default function AccountingPage() {
                       <TableBody>
                         {laundryLoading ? (
                           <TableRow><TableCell colSpan={5} className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
-                        ) : laundryOrders?.length ? (
-                          laundryOrders.map((order) => (
+                        ) : filteredLaundryOrders?.length ? (
+                          filteredLaundryOrders.map((order) => (
                             <TableRow key={order.id} className="hover:bg-primary/5 transition-colors">
                               <TableCell className="pl-6 text-[11px] font-bold">{formatAppDate(order.createdAt)}</TableCell>
                               <TableCell>
@@ -424,7 +509,7 @@ export default function AccountingPage() {
                             </TableRow>
                           ))
                         ) : (
-                          <TableRow><TableCell colSpan={5} className="text-center py-20 text-[10px] text-muted-foreground uppercase font-black">No laundry records found</TableCell></TableRow>
+                          <TableRow><TableCell colSpan={5} className="text-center py-20 text-[10px] text-muted-foreground uppercase font-black">No laundry records found for this period</TableCell></TableRow>
                         )}
                       </TableBody>
                     </Table>
