@@ -57,6 +57,7 @@ const STATUS_CONFIG: any = {
   occupied_dirty: { icon: AlertCircle, color: "text-amber-500", bg: "bg-amber-50", label: "Occupied Dirty" },
   occupied_cleaning: { icon: Brush, color: "text-indigo-500", bg: "bg-indigo-50", label: "Cleaning Occupied" },
   maintenance: { icon: AlertCircle, color: "text-rose-500", bg: "bg-rose-50", label: "Maintenance" },
+  skipped: { icon: XCircle, color: "text-rose-600", bg: "bg-rose-50", label: "Cleaning Skipped" },
 };
 
 const COMMON_AREAS = [
@@ -133,6 +134,7 @@ export default function HousekeepingPage() {
     const today = new Date().toISOString().split('T')[0];
     
     rooms.forEach((room: any) => {
+      // Auto-mark occupied as dirty if not updated today
       if (room.status === 'occupied' && room.updatedAt) {
         const lastUpdate = new Date(room.updatedAt).toISOString().split('T')[0];
         if (lastUpdate < today) {
@@ -147,12 +149,12 @@ export default function HousekeepingPage() {
   }, [rooms, entityId, db, canAssignTasks]);
 
   const stats = useMemo(() => {
-    if (!rooms) return { total: 0, available: 0, cleaning: 0, occupied: 0, dirty: 0, maintenance: 0, occupied_dirty: 0, occupied_cleaning: 0 };
+    if (!rooms) return { total: 0, available: 0, cleaning: 0, occupied: 0, dirty: 0, maintenance: 0, occupied_dirty: 0, occupied_cleaning: 0, skipped: 0 };
     return rooms.reduce((acc: any, room: any) => {
       acc.total++;
       acc[room.status] = (acc[room.status] || 0) + 1;
       return acc;
-    }, { total: 0, available: 0, cleaning: 0, occupied: 0, dirty: 0, maintenance: 0, occupied_dirty: 0, occupied_cleaning: 0 });
+    }, { total: 0, available: 0, cleaning: 0, occupied: 0, dirty: 0, maintenance: 0, occupied_dirty: 0, occupied_cleaning: 0, skipped: 0 });
   }, [rooms]);
 
   const filteredRooms = useMemo(() => {
@@ -164,7 +166,7 @@ export default function HousekeepingPage() {
   const updateStatus = (room: any, status: string) => {
     if (!entityId || !canAssignTasks) return;
     
-    if (status === "skipped") {
+    if (status === "skipped_trigger") {
       setRoomToSkip(room);
       setSkipDialogOpen(true);
       return;
@@ -210,7 +212,14 @@ export default function HousekeepingPage() {
   const handleSkipConfirm = () => {
     if (!entityId || !roomToSkip || !selectedSkipReason) return;
 
-    // Log the skip event
+    // 1. Update room status to 'skipped'
+    const roomRef = doc(db, "hotel_properties", entityId, "rooms", roomToSkip.id);
+    updateDocumentNonBlocking(roomRef, { 
+      status: 'skipped', 
+      updatedAt: new Date().toISOString() 
+    });
+
+    // 2. Log the skip event
     addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "housekeeping_tasks"), {
       entityId,
       roomId: roomToSkip.id,
@@ -282,7 +291,7 @@ export default function HousekeepingPage() {
           </TabsList>
 
           <TabsContent value="rooms" className="space-y-4">
-            <div className="grid grid-cols-4 md:grid-cols-4 lg:grid-cols-8 gap-1.5">
+            <div className="grid grid-cols-4 md:grid-cols-4 lg:grid-cols-9 gap-1.5">
               <Card 
                 className={cn(
                   "border-none shadow-sm cursor-pointer",
@@ -302,6 +311,7 @@ export default function HousekeepingPage() {
               <StatCard id="occupied" label="Occupied Clean" value={stats.occupied} icon={CheckCircle2} colorClass="text-blue-500" active={activeFilter === 'occupied'} />
               <StatCard id="occupied_dirty" label="Occupied Dirty" value={stats.occupied_dirty} icon={AlertCircle} colorClass="text-amber-500" active={activeFilter === 'occupied_dirty'} />
               <StatCard id="occupied_cleaning" label="Cleaning Occupied" value={stats.occupied_cleaning} icon={Brush} colorClass="text-indigo-500" active={activeFilter === 'occupied_cleaning'} />
+              <StatCard id="skipped" label="Cleaning Skipped" value={stats.skipped} icon={XCircle} colorClass="text-rose-600" active={activeFilter === 'skipped'} />
               <StatCard id="maintenance" label="Maintenance" value={stats.maintenance} icon={AlertCircle} colorClass="text-rose-500" active={activeFilter === 'maintenance'} />
             </div>
 
@@ -314,7 +324,7 @@ export default function HousekeepingPage() {
                     {filteredRooms.map((room) => {
                       const config = STATUS_CONFIG[room.status] || STATUS_CONFIG.available;
                       const activeTask = activeTasks?.find(t => t.roomId === room.id);
-                      const isOccupied = room.status.includes('occupied');
+                      const isOccupied = room.status.includes('occupied') || room.status === 'skipped';
                       
                       return (
                         <Card key={room.id} className="border-none shadow-sm hover:shadow-md transition-all group overflow-hidden bg-white">
@@ -343,7 +353,7 @@ export default function HousekeepingPage() {
                                   <SelectItem value="occupied">Occupied Clean</SelectItem>
                                   <SelectItem value="occupied_dirty">Occupied Dirty</SelectItem>
                                   <SelectItem value="occupied_cleaning">Start Cleaning Occupied</SelectItem>
-                                  {isOccupied && <SelectItem value="skipped" className="text-rose-600 font-bold">Skip Today's Cleaning</SelectItem>}
+                                  {isOccupied && <SelectItem value="skipped_trigger" className="text-rose-600 font-bold">Skip Today's Cleaning</SelectItem>}
                                   <SelectItem value="maintenance">Maintenance</SelectItem>
                                 </SelectContent>
                               </Select>
