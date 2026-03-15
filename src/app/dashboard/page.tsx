@@ -114,19 +114,19 @@ function DashboardContent() {
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
         <div>
           <h1 className="text-3xl font-black tracking-tighter text-primary uppercase">Executive Dashboard</h1>
-          <p className="text-muted-foreground text-[10px] mt-1 uppercase font-black tracking-[0.2em]">Real-time Operational Intelligence</p>
+          <p className="text-muted-foreground text-[11px] mt-1 uppercase font-black tracking-[0.2em]">Real-time Operational Intelligence</p>
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Button onClick={() => router.push('/reservations')} className="h-11 px-6 font-black uppercase text-[10px] tracking-widest shadow-xl rounded-xl">
+          <Button onClick={() => router.push('/reservations')} className="h-11 px-6 font-black uppercase text-[11px] tracking-widest shadow-xl rounded-xl">
             <Plus className="w-4 h-4 mr-2" /> New Reservation
           </Button>
-          <Button variant="outline" onClick={() => router.push('/housekeeping')} className="h-11 px-6 font-black uppercase text-[10px] tracking-widest rounded-xl bg-white">
+          <Button variant="outline" onClick={() => router.push('/housekeeping')} className="h-11 px-6 font-black uppercase text-[11px] tracking-widest rounded-xl bg-white">
             <Brush className="w-4 h-4 mr-2" /> Cleaning Board
           </Button>
           <div className="flex items-center gap-2 px-4 h-11 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 shadow-sm">
             <Activity className="w-4 h-4 animate-pulse" />
-            <span className="text-[10px] font-black uppercase">System Live</span>
+            <span className="text-[11px] font-black uppercase">System Live</span>
           </div>
         </div>
       </div>
@@ -144,10 +144,10 @@ function DashboardContent() {
         {/* ROOM STATUS BOARD */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+            <h3 className="text-[11px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
               <LayoutGrid className="w-4 h-4" /> Room Status Board
             </h3>
-            <Badge variant="outline" className="text-[9px] font-black uppercase bg-white">{stats.total} Total Units</Badge>
+            <Badge variant="outline" className="text-[10px] font-black uppercase bg-white">{stats.total} Total Units</Badge>
           </div>
           
           <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm">
@@ -167,9 +167,9 @@ function DashboardContent() {
                       "bg-orange-50 border-orange-100"
                     )}>
                       <span className={cn("text-lg font-black", config.color)}>{room.roomNumber}</span>
-                      <config.icon className={cn("w-3.5 h-3.5 mt-1", config.color)} />
+                      <config.icon className={cn("w-4 h-4 mt-1", config.color)} />
                     </div>
-                    <p className="text-[8px] font-black uppercase text-center text-muted-foreground truncate px-1">
+                    <p className="text-[9px] font-black uppercase text-center text-muted-foreground truncate px-1">
                       {config.label}
                     </p>
                   </div>
@@ -182,47 +182,47 @@ function DashboardContent() {
         {/* SIDEBAR: ACTIVITY & ALERTS */}
         <div className="space-y-6">
           <section className="space-y-4">
-            <h3 className="text-xs font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+            <h3 className="text-[11px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
               <MessageSquare className="w-4 h-4" /> WhatsApp Activity
             </h3>
             <div className="bg-white rounded-[2rem] border shadow-sm overflow-hidden divide-y">
               {recentLogs?.map((log) => (
                 <div key={log.id} className="p-4 hover:bg-secondary/10 transition-colors">
                   <div className="flex justify-between items-start mb-1">
-                    <span className="text-[10px] font-black text-primary uppercase">{log.direction}</span>
-                    <span className="text-[8px] font-bold text-muted-foreground">{formatAppTime(log.createdAt)}</span>
+                    <span className="text-[11px] font-black text-primary uppercase">{log.direction}</span>
+                    <span className="text-[9px] font-bold text-muted-foreground">{formatAppTime(log.createdAt)}</span>
                   </div>
-                  <p className="text-[11px] font-medium leading-relaxed line-clamp-2 text-slate-700 italic">
+                  <p className="text-[12px] font-medium leading-relaxed line-clamp-2 text-slate-700 italic">
                     "{log.message}"
                   </p>
-                  <p className="text-[9px] font-bold text-muted-foreground mt-1.5 uppercase tracking-tighter">
+                  <p className="text-[10px] font-bold text-muted-foreground mt-1.5 uppercase tracking-tighter">
                     {log.phoneNumber} • {log.role}
                   </p>
                 </div>
               ))}
               {(!recentLogs || recentLogs.length === 0) && (
-                <div className="p-10 text-center text-[10px] text-muted-foreground font-black uppercase">No recent traffic</div>
+                <div className="p-10 text-center text-[11px] text-muted-foreground font-black uppercase">No recent traffic</div>
               )}
             </div>
-            <Button variant="ghost" className="w-full text-[9px] font-black uppercase text-primary hover:bg-primary/5" onClick={() => router.push('/communications')}>
+            <Button variant="ghost" className="w-full text-[10px] font-black uppercase text-primary hover:bg-primary/5" onClick={() => router.push('/communications')}>
               View Full Transmission Log
             </Button>
           </section>
 
           <section className="space-y-4">
-            <h3 className="text-xs font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+            <h3 className="text-[11px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
               <Activity className="w-4 h-4" /> Property Health
             </h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="p-4 bg-white rounded-2xl border shadow-sm">
-                <p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Cleaning In-Progress</p>
+                <p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Cleaning In-Progress</p>
                 <div className="flex items-end gap-2">
                   <span className="text-xl font-black text-primary">{stats.cleaning}</span>
                   <Brush className="w-4 h-4 text-primary mb-1" />
                 </div>
               </div>
               <div className="p-4 bg-white rounded-2xl border shadow-sm">
-                <p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Guest Check-ins</p>
+                <p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Guest Check-ins</p>
                 <div className="flex items-end gap-2">
                   <span className="text-xl font-black text-blue-600">{checkedInReservations?.length || 0}</span>
                   <Bed className="w-4 h-4 text-blue-600 mb-1" />
@@ -245,9 +245,9 @@ function KPICard({ label, value, sub, icon: Icon, color, bg }: any) {
           <Icon className={cn("w-6 h-6", color)} />
         </div>
         <div>
-          <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">{label}</p>
+          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">{label}</p>
           <h3 className="text-2xl font-black mt-0.5 tracking-tight">{value}</h3>
-          <p className="text-[9px] font-bold text-muted-foreground mt-1 opacity-70">{sub}</p>
+          <p className="text-[10px] font-bold text-muted-foreground mt-1 opacity-70">{sub}</p>
         </div>
       </CardContent>
     </Card>

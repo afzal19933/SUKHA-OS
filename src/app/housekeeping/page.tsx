@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -172,9 +171,9 @@ export default function HousekeepingPage() {
       onClick={() => setActiveFilter(active ? null : id)}
     >
       <CardContent className="p-2.5 flex flex-col items-center justify-center text-center">
-        <Icon className={cn("w-3.5 h-3.5 mb-1", colorClass)} />
-        <span className={cn("text-lg font-bold", colorClass)}>{value}</span>
-        <span className="text-[7.5px] uppercase font-bold text-muted-foreground">{label}</span>
+        <Icon className={cn("w-4 h-4 mb-1", colorClass)} />
+        <span className={cn("text-xl font-bold", colorClass)}>{value}</span>
+        <span className="text-[8.5px] uppercase font-bold text-muted-foreground">{label}</span>
       </CardContent>
     </Card>
   );
@@ -205,9 +204,9 @@ export default function HousekeepingPage() {
                 onClick={() => setActiveFilter(null)}
               >
                 <CardContent className="p-2.5 flex flex-col items-center justify-center text-center">
-                  <DoorOpen className="w-3.5 h-3.5 text-muted-foreground mb-1" />
-                  <span className="text-lg font-bold">{stats.total}</span>
-                  <span className="text-[7.5px] uppercase font-bold text-muted-foreground">Total</span>
+                  <DoorOpen className="w-4 h-4 text-muted-foreground mb-1" />
+                  <span className="text-xl font-bold">{stats.total}</span>
+                  <span className="text-[8.5px] uppercase font-bold text-muted-foreground">Total</span>
                 </CardContent>
               </Card>
               <StatCard id="available" label="Ready" value={stats.available} icon={ShieldCheck} colorClass="text-emerald-500" active={activeFilter === 'available'} />
@@ -234,9 +233,9 @@ export default function HousekeepingPage() {
                         <div className="flex flex-col">
                           <span className="text-sm font-bold tracking-tight">Room {room.roomNumber}</span>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-[7px] text-muted-foreground uppercase font-bold">Floor {room.floor}</span>
+                            <span className="text-[8px] text-muted-foreground uppercase font-bold">Floor {room.floor}</span>
                             {isParadise && room.building && (
-                              <Badge variant="outline" className="text-[6px] h-3 px-1 uppercase font-black bg-primary/5 text-primary border-primary/10">
+                              <Badge variant="outline" className="text-[7px] h-3 px-1 uppercase font-black bg-primary/5 text-primary border-primary/10">
                                 {room.building}
                               </Badge>
                             )}
@@ -262,12 +261,12 @@ export default function HousekeepingPage() {
                       <CardContent className="p-2.5 pt-2.5 space-y-2">
                         <div className={cn("flex items-center gap-1.5 p-1 rounded-lg", config.bg)}>
                           <config.icon className={cn("w-2.5 h-2.5", config.color)} />
-                          <span className={cn("text-[8px] font-bold uppercase", config.color)}>{config.label}</span>
+                          <span className={cn("text-[9px] font-bold uppercase", config.color)}>{config.label}</span>
                         </div>
                         
                         {activeTask && (room.status === 'cleaning' || room.status === 'occupied_cleaning') ? (
-                          <div className="flex items-center gap-1 text-[8px] text-muted-foreground bg-secondary/30 p-1 rounded-md border border-secondary truncate">
-                            <UserCheck className="w-2 h-2 text-primary shrink-0" />
+                          <div className="flex items-center gap-1 text-[9px] text-muted-foreground bg-secondary/30 p-1 rounded-md border border-secondary truncate">
+                            <UserCheck className="w-2.5 h-2.5 text-primary shrink-0" />
                             <span className="truncate">{activeTask.assignedStaffName}</span>
                           </div>
                         ) : (
@@ -275,11 +274,11 @@ export default function HousekeepingPage() {
                         )}
 
                         <div className="flex items-center justify-between pt-1 border-t">
-                          <Badge variant="outline" className="text-[7px] uppercase px-1 py-0 bg-secondary/20">
+                          <Badge variant="outline" className="text-[8px] uppercase px-1 py-0 bg-secondary/20">
                             {room.roomTypeId}
                           </Badge>
-                          <span className="text-[7px] text-muted-foreground flex items-center gap-1">
-                            <History className="w-2 h-2" />
+                          <span className="text-[8px] text-muted-foreground flex items-center gap-1">
+                            <History className="w-2.5 h-2.5" />
                             {room.updatedAt ? new Date(room.updatedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'N/A'}
                           </span>
                         </div>
@@ -292,7 +291,7 @@ export default function HousekeepingPage() {
               <div className="text-center py-12 bg-white rounded-2xl border border-dashed flex flex-col items-center">
                 <FilterX className="w-6 h-6 text-muted-foreground/20 mb-1" />
                 <h3 className="text-xs font-semibold">No matches</h3>
-                <Button variant="link" onClick={() => setActiveFilter(null)} className="text-[10px] text-primary h-auto p-0 mt-1">Clear filters</Button>
+                <Button variant="link" onClick={() => setActiveFilter(null)} className="text-[11px] text-primary h-auto p-0 mt-1">Clear filters</Button>
               </div>
             )}
           </TabsContent>
@@ -319,12 +318,12 @@ export default function HousekeepingPage() {
                               <div>
                                 <h4 className="text-xs font-bold">{area}</h4>
                                 <div className="flex items-center gap-2 mt-0.5">
-                                  <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
-                                    <Clock className="w-2.5 h-2.5" />
+                                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                    <Clock className="w-3 h-3" />
                                     <span>{lastCleaned ? formatAppDate(lastCleaned.updatedAt) : "Never"}</span>
                                   </div>
                                   {activeTask && (
-                                    <Badge variant="outline" className="text-[8px] h-3.5 px-1 bg-amber-50 text-amber-600 border-amber-100">
+                                    <Badge variant="outline" className="text-[9px] h-3.5 px-1 bg-amber-50 text-amber-600 border-amber-100">
                                       {activeTask.assignedStaffName}
                                     </Badge>
                                   )}
@@ -333,11 +332,11 @@ export default function HousekeepingPage() {
                             </div>
                             <div className="flex gap-1.5">
                               {activeTask ? (
-                                <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold text-emerald-600" onClick={() => completeAreaTask(area)}>
+                                <Button size="sm" variant="outline" className="h-7 text-[11px] font-bold text-emerald-600" onClick={() => completeAreaTask(area)}>
                                   Complete
                                 </Button>
                               ) : (
-                                <Button size="sm" variant="ghost" className="h-7 text-[10px] font-bold text-primary">
+                                <Button size="sm" variant="ghost" className="h-7 text-[11px] font-bold text-primary">
                                   Assign
                                 </Button>
                               )}
@@ -363,10 +362,10 @@ export default function HousekeepingPage() {
                       <div className="space-y-2">
                         {taskHistory?.filter(t => t.isCommonArea).slice(0, 10).map((log) => (
                           <div key={log.id} className="p-2.5 bg-white rounded-lg border border-primary/10 flex items-start gap-2">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600 mt-0.5" />
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5" />
                             <div>
-                              <p className="text-[10px] font-bold leading-tight">{log.roomId}</p>
-                              <p className="text-[9px] text-muted-foreground mt-0.5">{log.assignedStaffName}</p>
+                              <p className="text-[11px] font-bold leading-tight">{log.roomId}</p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5">{log.assignedStaffName}</p>
                             </div>
                           </div>
                         ))}

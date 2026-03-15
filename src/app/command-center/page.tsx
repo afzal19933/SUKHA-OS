@@ -122,8 +122,8 @@ function EntityCommandPanel({ entity, db }: { entity: any; db: any }) {
 
       {/* Occupancy Grid */}
       <section className="space-y-2">
-        <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
-          <Users className="w-3 h-3" /> Occupancy Status
+        <h3 className="text-[11px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
+          <Users className="w-3.5 h-3.5" /> Occupancy Status
         </h3>
         <div className="grid grid-cols-3 gap-2">
           <MetricCard label="Total Units" value={stats.totalRooms} icon={Building2} />
@@ -134,8 +134,8 @@ function EntityCommandPanel({ entity, db }: { entity: any; db: any }) {
 
       {/* Housekeeping Grid */}
       <section className="space-y-2">
-        <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
-          <Brush className="w-3 h-3" /> Housekeeping Status
+        <h3 className="text-[11px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
+          <Brush className="w-3.5 h-3.5" /> Housekeeping Status
         </h3>
         <div className="grid grid-cols-4 gap-2">
           <MetricCard label="Clean" value={stats.clean} small />
@@ -148,32 +148,32 @@ function EntityCommandPanel({ entity, db }: { entity: any; db: any }) {
       {/* Maintenance & Laundry */}
       <div className="grid grid-cols-2 gap-4">
         <section className="space-y-2">
-          <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
-            <Wrench className="w-3 h-3" /> Maintenance
+          <h3 className="text-[11px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
+            <Wrench className="w-3.5 h-3.5" /> Maintenance
           </h3>
           <div className="space-y-1.5">
             <div className="flex justify-between items-center p-2 bg-white rounded-lg border shadow-sm">
-              <span className="text-[9px] font-bold uppercase text-muted-foreground">Open Tasks</span>
+              <span className="text-[10px] font-bold uppercase text-muted-foreground">Open Tasks</span>
               <span className="text-xs font-black">{stats.openMaint}</span>
             </div>
             <div className="flex justify-between items-center p-2 bg-white rounded-lg border shadow-sm">
-              <span className="text-[9px] font-bold uppercase text-muted-foreground">Fixed Today</span>
+              <span className="text-[10px] font-bold uppercase text-muted-foreground">Fixed Today</span>
               <span className="text-xs font-black text-emerald-600">{stats.completedMaintToday}</span>
             </div>
           </div>
         </section>
 
         <section className="space-y-2">
-          <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
-            <WashingMachine className="w-3 h-3" /> Laundry Flow
+          <h3 className="text-[11px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
+            <WashingMachine className="w-3.5 h-3.5" /> Laundry Flow
           </h3>
           <div className="space-y-1.5">
             <div className="flex justify-between items-center p-2 bg-white rounded-lg border shadow-sm">
-              <span className="text-[9px] font-bold uppercase text-muted-foreground">Sent Today</span>
+              <span className="text-[10px] font-bold uppercase text-muted-foreground">Sent Today</span>
               <span className="text-xs font-black">{stats.laundrySentToday}</span>
             </div>
             <div className="flex justify-between items-center p-2 bg-white rounded-lg border shadow-sm">
-              <span className="text-[9px] font-bold uppercase text-muted-foreground">Signature Pending</span>
+              <span className="text-[10px] font-bold uppercase text-muted-foreground">Signature Pending</span>
               <span className="text-xs font-black text-amber-600">{stats.laundryPending}</span>
             </div>
           </div>
@@ -182,17 +182,17 @@ function EntityCommandPanel({ entity, db }: { entity: any; db: any }) {
 
       {/* Revenue Section */}
       <section className="space-y-2">
-        <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
-          <TrendingUp className="w-3 h-3" /> Revenue Metrics
+        <h3 className="text-[11px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
+          <TrendingUp className="w-3.5 h-3.5" /> Revenue Metrics
         </h3>
         <Card className="border-none bg-primary/5 shadow-none overflow-hidden">
           <CardContent className="p-3 grid grid-cols-2 gap-4">
             <div>
-              <p className="text-[8px] font-black uppercase text-primary/60">Today's Sales</p>
+              <p className="text-[9px] font-black uppercase text-primary/60">Today's Sales</p>
               <h4 className="text-sm font-black">₹{stats.todayRev.toLocaleString()}</h4>
             </div>
             <div className="text-right">
-              <p className="text-[8px] font-black uppercase text-primary/60">Monthly MTD</p>
+              <p className="text-[9px] font-black uppercase text-primary/60">Monthly MTD</p>
               <h4 className="text-sm font-black">₹{stats.monthRev.toLocaleString()}</h4>
             </div>
           </CardContent>
@@ -201,16 +201,16 @@ function EntityCommandPanel({ entity, db }: { entity: any; db: any }) {
 
       {/* Ayursiha Metrics */}
       <section className="space-y-2">
-        <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
-          <Activity className="w-3 h-3 text-rose-500" /> Ayursiha Operations
+        <h3 className="text-[11px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
+          <Activity className="w-3.5 h-3.5 text-rose-500" /> Ayursiha Operations
         </h3>
         <div className="grid grid-cols-2 gap-3">
           <div className="p-3 bg-rose-50/50 rounded-xl border border-rose-100">
-            <p className="text-[8px] font-black uppercase text-rose-600/70">Hospital Occupancy</p>
+            <p className="text-[9px] font-black uppercase text-rose-600/70">Hospital Occupancy</p>
             <h5 className="text-sm font-black">{stats.ayurRooms} Units</h5>
           </div>
           <div className="p-3 bg-rose-50/50 rounded-xl border border-rose-100 text-right">
-            <p className="text-[8px] font-black uppercase text-rose-600/70">Cycle Revenue</p>
+            <p className="text-[9px] font-black uppercase text-rose-600/70">Cycle Revenue</p>
             <h5 className="text-sm font-black">₹{stats.ayurCycleRev.toLocaleString()}</h5>
           </div>
         </div>
@@ -219,13 +219,13 @@ function EntityCommandPanel({ entity, db }: { entity: any; db: any }) {
       {/* Alerts */}
       {stats.alerts.length > 0 && (
         <section className="space-y-2">
-          <h3 className="text-[10px] font-black uppercase text-rose-600 tracking-widest flex items-center gap-1.5">
-            <AlertCircle className="w-3 h-3" /> System Alerts
+          <h3 className="text-[11px] font-black uppercase text-rose-600 tracking-widest flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5" /> System Alerts
           </h3>
           <div className="space-y-1">
             {stats.alerts.map((alert, idx) => (
-              <div key={idx} className="px-2 py-1 bg-rose-600 text-white text-[9px] font-black uppercase rounded flex items-center gap-2">
-                <AlertTriangle className="w-2.5 h-2.5" />
+              <div key={idx} className="px-2 py-1 bg-rose-600 text-white text-[10px] font-black uppercase rounded flex items-center gap-2">
+                <AlertTriangle className="w-3 h-3" />
                 {alert}
               </div>
             ))}
@@ -239,9 +239,9 @@ function EntityCommandPanel({ entity, db }: { entity: any; db: any }) {
 function MetricCard({ label, value, icon: Icon, color = "", small = false }: any) {
   return (
     <div className="p-3 bg-white rounded-xl border shadow-sm flex flex-col items-center justify-center text-center">
-      {Icon && <Icon className={cn("w-3.5 h-3.5 mb-1.5 text-muted-foreground", color)} />}
+      {Icon && <Icon className={cn("w-4 h-4 mb-1.5 text-muted-foreground", color)} />}
       <span className={cn("font-black", small ? "text-base" : "text-xl", color)}>{value}</span>
-      <span className="text-[8px] font-black uppercase text-muted-foreground tracking-tight">{label}</span>
+      <span className="text-[9.5px] font-black uppercase text-muted-foreground tracking-tight">{label}</span>
     </div>
   );
 }
@@ -278,11 +278,11 @@ export default function CommandCenterPage() {
               </div>
               <h1 className="text-3xl font-black tracking-tighter text-primary">COMMAND CENTER</h1>
             </div>
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Consolidated Multi-Property Operations</p>
+            <p className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Consolidated Multi-Property Operations</p>
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
             <Activity className="w-3.5 h-3.5 animate-pulse" />
-            <span className="text-[10px] font-black uppercase">Live Sync Active</span>
+            <span className="text-[11px] font-black uppercase">Live Sync Active</span>
           </div>
         </header>
 
@@ -290,21 +290,21 @@ export default function CommandCenterPage() {
           {retreatEntity ? (
             <EntityCommandPanel entity={retreatEntity} db={db} />
           ) : (
-            <div className="p-20 text-center border-2 border-dashed rounded-3xl text-muted-foreground font-bold uppercase text-[10px]">Sukha Retreats data unavailable</div>
+            <div className="p-20 text-center border-2 border-dashed rounded-3xl text-muted-foreground font-bold uppercase text-[11px]">Sukha Retreats data unavailable</div>
           )}
 
           {paradiseEntity ? (
             <EntityCommandPanel entity={paradiseEntity} db={db} />
           ) : (
-            <div className="p-20 text-center border-2 border-dashed rounded-3xl text-muted-foreground font-bold uppercase text-[10px]">Sukha Paradise data unavailable</div>
+            <div className="p-20 text-center border-2 border-dashed rounded-3xl text-muted-foreground font-bold uppercase text-[11px]">Sukha Paradise data unavailable</div>
           )}
         </div>
 
         <footer className="pt-10 border-t flex justify-center">
-          <div className="flex items-center gap-4 text-[9px] font-black text-muted-foreground uppercase tracking-widest">
-            <span className="flex items-center gap-1.5"><History className="w-3 h-3" /> Automated Sync (Real-time)</span>
+          <div className="flex items-center gap-4 text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+            <span className="flex items-center gap-1.5"><History className="w-3.5 h-3.5" /> Automated Sync (Real-time)</span>
             <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
-            <span className="flex items-center gap-1.5"><Info className="w-3 h-3" /> Summarized Operational Context</span>
+            <span className="flex items-center gap-1.5"><Info className="w-3.5 h-3.5" /> Summarized Operational Context</span>
           </div>
         </footer>
       </div>

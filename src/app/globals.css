@@ -53,8 +53,8 @@
 
 @layer base {
   html {
-    /* Increases overall font size by 5% (16px * 1.05 = 16.8px base) */
-    font-size: 105%;
+    /* Increased root font size to 112% per user request (7% bump from 105%) */
+    font-size: 112%;
   }
   * {
     @apply border-border;
