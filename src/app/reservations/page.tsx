@@ -331,7 +331,7 @@ export default function ReservationsPage() {
               </Select>
             </div>
             <div className="space-y-1 text-left">
-              <Label className="text-[8.5px] font-black uppercase text-muted-foreground">Arrival From</Label>
+              <Label className="text-[8.5px] font-black uppercase text-muted-foreground">Check-in Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className={cn("h-8 w-full justify-between text-[9.5px] rounded-lg border-none bg-secondary/40 px-3", !startDate && "text-muted-foreground")}>
@@ -345,7 +345,7 @@ export default function ReservationsPage() {
               </Popover>
             </div>
             <div className="space-y-1 text-left">
-              <Label className="text-[8.5px] font-black uppercase text-muted-foreground">Arrival To</Label>
+              <Label className="text-[8.5px] font-black uppercase text-muted-foreground">Check-out Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className={cn("h-8 w-full justify-between text-[9.5px] rounded-lg border-none bg-secondary/40 px-3", !endDate && "text-muted-foreground")}>
