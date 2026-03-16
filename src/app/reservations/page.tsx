@@ -239,9 +239,9 @@ export default function ReservationsPage() {
                 <DialogContent className="sm:max-w-[450px] rounded-[2rem]">
                   <DialogHeader>
                     <DialogTitle className="text-xl font-black uppercase text-primary">Create Reservation</DialogTitle>
-                    <DialogDescription className="text-[10px] font-bold uppercase tracking-wider">Secure room and automate WhatsApp notification.</DialogDescription>
+                    <DialogDescription className="text-[10px] font-bold uppercase tracking-wider">Secure room and automate notification.</DialogDescription>
                   </DialogHeader>
-                  <form onSubmit={handleAddReservation} className="space-y-5 pt-4">
+                  <form onSubmit={handleAddReservation} className="space-y-5 pt-4 text-left">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <Label className="text-[10px] uppercase font-black text-muted-foreground">Guest Name</Label>
@@ -259,7 +259,7 @@ export default function ReservationsPage() {
                           <SelectTrigger className="h-10 text-xs bg-secondary/30 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
                           <SelectContent>
                             {rooms?.filter(r => r.status === 'available').map(r => (
-                              <SelectItem key={`${r.id}-${r.roomNumber}`} value={r.roomNumber}>{r.roomNumber}</SelectItem>
+                              <SelectItem key={`${r.id}-${r.roomNumber}`} value={r.roomNumber.toString()}>Room {r.roomNumber}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -366,18 +366,18 @@ export default function ReservationsPage() {
           </div>
         </div>
 
-        {/* Ledger Table - Reordered Columns */}
+        {/* Ledger Table - Highlighted Header */}
         <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
           <Table>
-            <TableHeader className="bg-secondary/50">
-              <TableRow>
-                <TableHead className="h-12 text-[10px] font-black uppercase text-center pl-8">Room Unit</TableHead>
-                <TableHead className="h-12 text-[10px] font-black uppercase text-center">Guest Name</TableHead>
-                <TableHead className="h-12 text-[10px] font-black uppercase text-center">Booking Source</TableHead>
-                <TableHead className="h-12 text-[10px] font-black uppercase text-center">Stay Status</TableHead>
-                <TableHead className="h-12 text-[10px] font-black uppercase text-center">Check-In Date</TableHead>
-                <TableHead className="h-12 text-[10px] font-black uppercase text-center">Check-Out Date</TableHead>
-                <TableHead className="w-16 pr-8"></TableHead>
+            <TableHeader className="bg-primary">
+              <TableRow className="hover:bg-transparent border-none">
+                <TableHead className="h-12 text-[10px] font-black uppercase text-center pl-8 text-primary-foreground">Room Unit</TableHead>
+                <TableHead className="h-12 text-[10px] font-black uppercase text-center text-primary-foreground">Guest Name</TableHead>
+                <TableHead className="h-12 text-[10px] font-black uppercase text-center text-primary-foreground">Booking Source</TableHead>
+                <TableHead className="h-12 text-[10px] font-black uppercase text-center text-primary-foreground">Stay Status</TableHead>
+                <TableHead className="h-12 text-[10px] font-black uppercase text-center text-primary-foreground">Check-In Date</TableHead>
+                <TableHead className="h-12 text-[10px] font-black uppercase text-center text-primary-foreground">Check-Out Date</TableHead>
+                <TableHead className="w-16 pr-8 text-primary-foreground"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -418,7 +418,7 @@ export default function ReservationsPage() {
                           </DropdownMenuItem>
                           {res.phoneNumber && (
                             <DropdownMenuItem className="text-[11px] font-black uppercase p-3 rounded-xl cursor-pointer text-blue-600" onClick={() => window.open(`https://wa.me/${(res.phoneNumber || "").replace(/\D/g, '')}`, '_blank')}>
-                              <MessageSquare className="w-4 h-4 mr-3" /> WhatsApp Guest
+                              <MessageSquare className="w-4 h-4 mr-3" /> Message Guest
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem className="text-[11px] font-black uppercase p-3 rounded-xl cursor-pointer text-rose-600 hover:bg-rose-50" onClick={() => deleteDocumentNonBlocking(doc(db, "hotel_properties", entityId!, "reservations", res.id))}>

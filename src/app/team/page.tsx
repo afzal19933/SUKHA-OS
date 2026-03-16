@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -239,7 +240,7 @@ export default function TeamPage() {
       <div className="space-y-6 max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Team Management</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-primary uppercase">Team Management</h1>
             <p className="text-muted-foreground text-sm mt-0.5">Manage staff roles and system access</p>
           </div>
           
@@ -253,12 +254,12 @@ export default function TeamPage() {
             {isAdmin && (
               <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
                 <DialogTrigger asChild>
-                  <Button className="h-9 shadow-md bg-primary hover:bg-primary/90 px-4 font-semibold text-xs">
+                  <Button className="h-9 shadow-md bg-primary hover:bg-primary/90 px-4 font-semibold text-xs text-white">
                     <UserPlus className="w-4 h-4 mr-2" />
                     Add Member
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[340px]">
+                <DialogContent className="sm:max-w-[340px] text-left">
                   <DialogHeader>
                     <DialogTitle className="text-sm">Add New Member</DialogTitle>
                     <DialogDescription className="text-xs">Create a new staff profile.</DialogDescription>
@@ -301,13 +302,13 @@ export default function TeamPage() {
 
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
           <Table>
-            <TableHeader className="bg-secondary/50">
-              <TableRow>
-                <TableHead className="text-[10px] font-bold uppercase h-9">Member</TableHead>
-                <TableHead className="text-[10px] font-bold uppercase h-9">Username</TableHead>
-                <TableHead className="text-[10px] font-bold uppercase h-9">Role</TableHead>
-                <TableHead className="text-[10px] font-bold uppercase h-9">Status</TableHead>
-                <TableHead className="text-right text-[10px] font-bold uppercase h-9 pr-4">Actions</TableHead>
+            <TableHeader className="bg-primary">
+              <TableRow className="hover:bg-transparent border-none">
+                <TableHead className="text-[10px] font-bold uppercase h-12 text-primary-foreground">Member</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase h-12 text-primary-foreground">Username</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase h-12 text-primary-foreground">Role</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase h-12 text-primary-foreground">Status</TableHead>
+                <TableHead className="text-right text-[10px] font-bold uppercase h-12 pr-4 text-primary-foreground">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -315,9 +316,9 @@ export default function TeamPage() {
                 <TableRow><TableCell colSpan={5} className="text-center py-10"><Loader2 className="w-5 h-5 animate-spin mx-auto text-primary" /></TableCell></TableRow>
               ) : filteredMembers && filteredMembers.length > 0 ? (
                 filteredMembers.map((member) => (
-                  <TableRow key={member.id} className="group">
+                  <TableRow key={member.id} className="group border-b border-secondary/50">
                     <TableCell>
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2.5 py-2">
                         <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">{member.name?.charAt(0) || "U"}</div>
                         <span className="font-semibold text-[11px]">{member.name}</span>
                       </div>
@@ -356,7 +357,7 @@ export default function TeamPage() {
         </div>
 
         <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-          <DialogContent className="sm:max-w-[340px]">
+          <DialogContent className="sm:max-w-[340px] text-left">
             <DialogHeader><DialogTitle className="text-sm">Edit Member</DialogTitle></DialogHeader>
             {editingMember && (
               <form onSubmit={handleUpdateMember} className="space-y-3 pt-2">
@@ -386,7 +387,7 @@ export default function TeamPage() {
         </Dialog>
 
         <Dialog open={isPermissionsOpen} onOpenChange={setIsPermissionsOpen}>
-          <DialogContent className="sm:max-w-[340px]">
+          <DialogContent className="sm:max-w-[340px] text-left">
             <DialogHeader>
               <DialogTitle className="text-sm">Access Control</DialogTitle>
               <DialogDescription className="text-xs">Module assignment for {editingMember?.name}</DialogDescription>

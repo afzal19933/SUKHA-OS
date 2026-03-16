@@ -251,14 +251,14 @@ export default function AccountingPage() {
   return (
     <AppLayout>
       <div className="flex h-[calc(100vh-8rem)] gap-6 max-w-6xl mx-auto overflow-hidden">
-        {/* Accounting Sidebar */}
+        {/* Highlighted Sidebar */}
         <aside className="w-64 bg-white rounded-3xl border shadow-sm flex flex-col shrink-0 overflow-hidden">
-          <div className="p-6 border-b">
-            <h2 className="text-sm font-black uppercase tracking-widest text-primary">Accounting</h2>
-            <p className="text-[10px] text-muted-foreground font-bold uppercase">FOLIO & REVENUE</p>
+          <div className="p-6 bg-primary text-primary-foreground">
+            <h2 className="text-sm font-black uppercase tracking-widest">Accounting</h2>
+            <p className="text-[10px] text-primary-foreground/70 font-bold uppercase">FOLIO & REVENUE</p>
           </div>
           <ScrollArea className="flex-1 p-2">
-            <div className="space-y-1">
+            <div className="space-y-1 mt-2">
               {SIDEBAR_ITEMS.map((item) => (
                 <button
                   key={item.id}
@@ -289,16 +289,16 @@ export default function AccountingPage() {
 
         {/* View Content */}
         <main className="flex-1 bg-white rounded-3xl border shadow-sm overflow-hidden flex flex-col">
-          {/* Global Filter Bar */}
-          <div className="px-8 py-4 border-b bg-secondary/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Highlighted Global Filter Bar */}
+          <div className="px-8 py-4 border-b bg-primary text-primary-foreground flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-primary" />
-              <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Global Date Filter</h2>
+              <CalendarDays className="w-4 h-4 text-white" />
+              <h2 className="text-[10px] font-black uppercase tracking-widest text-white">Global Date Filter</h2>
             </div>
             
             <div className="flex flex-wrap items-center gap-2">
               <Select value={dateFilter} onValueChange={setDateFilter}>
-                <SelectTrigger className="h-8 w-32 text-[10px] font-bold bg-white rounded-xl shadow-sm">
+                <SelectTrigger className="h-8 w-32 text-[10px] font-bold bg-white text-primary rounded-xl shadow-sm border-none">
                   <SelectValue placeholder="All Time" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
@@ -313,7 +313,7 @@ export default function AccountingPage() {
                 <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("h-8 text-[9px] font-bold bg-white rounded-xl", !customStart && "text-muted-foreground")}>
+                      <Button variant="outline" className={cn("h-8 text-[9px] font-bold bg-white text-primary border-none rounded-xl", !customStart && "text-primary/50")}>
                         <CalendarIcon className="mr-2 h-3 w-3" />
                         {customStart ? format(customStart, "PPP") : "Start Date"}
                       </Button>
@@ -322,10 +322,10 @@ export default function AccountingPage() {
                       <Calendar mode="single" selected={customStart} onSelect={setCustomStart} initialFocus />
                     </PopoverContent>
                   </Popover>
-                  <span className="text-[9px] font-black text-muted-foreground">TO</span>
+                  <span className="text-[9px] font-black text-white/70">TO</span>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("h-8 text-[9px] font-bold bg-white rounded-xl", !customEnd && "text-muted-foreground")}>
+                      <Button variant="outline" className={cn("h-8 text-[9px] font-bold bg-white text-primary border-none rounded-xl", !customEnd && "text-primary/50")}>
                         <CalendarIcon className="mr-2 h-3 w-3" />
                         {customEnd ? format(customEnd, "PPP") : "End Date"}
                       </Button>
@@ -340,7 +340,7 @@ export default function AccountingPage() {
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="h-8 w-8 text-rose-500 hover:bg-rose-50 rounded-xl"
+                className="h-8 w-8 text-white hover:bg-white/10 rounded-xl"
                 onClick={() => { setDateFilter('all'); setCustomStart(undefined); setCustomEnd(undefined); }}
               >
                 <FilterX className="w-3.5 h-3.5" />
@@ -424,13 +424,13 @@ export default function AccountingPage() {
 
                   <div className="rounded-2xl border overflow-hidden">
                     <Table>
-                      <TableHeader className="bg-secondary/50">
-                        <TableRow>
-                          <TableHead className="text-[10px] font-black uppercase pl-6 h-12">Invoice #</TableHead>
-                          <TableHead className="text-[10px] font-black uppercase h-12">Guest</TableHead>
-                          <TableHead className="text-[10px] font-black uppercase h-12">Amount</TableHead>
-                          <TableHead className="text-[10px] font-black uppercase h-12">Status</TableHead>
-                          <TableHead className="text-right text-[10px] font-black uppercase pr-6 h-12">Action</TableHead>
+                      <TableHeader className="bg-primary">
+                        <TableRow className="hover:bg-transparent border-none">
+                          <TableHead className="text-[10px] font-black uppercase pl-6 h-12 text-primary-foreground">Invoice #</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Guest</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Amount</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Status</TableHead>
+                          <TableHead className="text-right text-[10px] font-black uppercase pr-6 h-12 text-primary-foreground">Action</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -497,13 +497,13 @@ export default function AccountingPage() {
 
                   <div className="rounded-2xl border overflow-hidden">
                     <Table>
-                      <TableHeader className="bg-secondary/50">
-                        <TableRow>
-                          <TableHead className="text-[10px] font-black uppercase pl-6 h-12">Date</TableHead>
-                          <TableHead className="text-[10px] font-black uppercase h-12">Room & Guest</TableHead>
-                          <TableHead className="text-[10px] font-black uppercase h-12">Items</TableHead>
-                          <TableHead className="text-[10px] font-black uppercase h-12">Total ₹</TableHead>
-                          <TableHead className="text-right text-[10px] font-black uppercase pr-6 h-12">Status</TableHead>
+                      <TableHeader className="bg-primary">
+                        <TableRow className="hover:bg-transparent border-none">
+                          <TableHead className="text-[10px] font-black uppercase pl-6 h-12 text-primary-foreground">Date</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Room & Guest</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Items</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Total ₹</TableHead>
+                          <TableHead className="text-right text-[10px] font-black uppercase pr-6 h-12 text-primary-foreground">Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -608,12 +608,12 @@ export default function AccountingPage() {
 
                   <div className="rounded-2xl border overflow-hidden">
                     <Table>
-                      <TableHeader className="bg-secondary/50">
-                        <TableRow>
-                          <TableHead className="text-[10px] font-black uppercase pl-6 h-12">Description</TableHead>
-                          <TableHead className="text-[10px] font-black uppercase h-12">Category</TableHead>
-                          <TableHead className="text-[10px] font-black uppercase h-12">Date</TableHead>
-                          <TableHead className="text-[10px] font-black uppercase h-12 text-right pr-6">Amount</TableHead>
+                      <TableHeader className="bg-primary">
+                        <TableRow className="hover:bg-transparent border-none">
+                          <TableHead className="text-[10px] font-black uppercase pl-6 h-12 text-primary-foreground">Description</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Category</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Date</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase h-12 text-right pr-6 text-primary-foreground">Amount</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -825,10 +825,10 @@ export default function AccountingPage() {
 
               <div className="rounded-2xl border overflow-hidden">
                 <Table>
-                  <TableHeader className="bg-secondary/30">
-                    <TableRow className="h-10">
-                      <TableHead className="text-[9px] font-black uppercase tracking-widest pl-4">Description</TableHead>
-                      <TableHead className="text-right text-[9px] font-black uppercase tracking-widest pr-4">Amount</TableHead>
+                  <TableHeader className="bg-primary">
+                    <TableRow className="hover:bg-transparent border-none">
+                      <TableHead className="text-[9px] font-black uppercase tracking-widest pl-4 text-primary-foreground">Description</TableHead>
+                      <TableHead className="text-right text-[9px] font-black uppercase tracking-widest pr-4 text-primary-foreground">Amount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

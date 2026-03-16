@@ -119,7 +119,7 @@ export default function WhatsAppDashboard() {
       createdAt: new Date().toISOString()
     });
 
-    toast({ title: "Contact Added", description: `${newContact.name} is now authorized for WhatsApp alerts.` });
+    toast({ title: "Contact Added", description: `${newContact.name} is now authorized for alerts.` });
     setIsAddContactOpen(false);
     setNewContact({ name: "", phoneNumber: "", role: "Manager" });
   };
@@ -135,7 +135,7 @@ export default function WhatsAppDashboard() {
       <div className="space-y-6 max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">WhatsApp Communications</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-primary uppercase">Communications Hub</h1>
             <p className="text-[10px] text-muted-foreground mt-0.5 uppercase font-bold tracking-widest">Gateway Traffic & AI Interactions</p>
           </div>
           <div className="flex items-center gap-3">
@@ -155,13 +155,13 @@ export default function WhatsAppDashboard() {
                       <DialogTitle className="text-sm font-black uppercase">Authorize WhatsApp Number</DialogTitle>
                       <DialogDescription className="text-[10px] font-bold uppercase">Registered numbers can receive alerts and request AI reports.</DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={handleAddContact} className="space-y-4 pt-2">
+                    <form onSubmit={handleAddContact} className="space-y-4 pt-2 text-left">
                       <div className="space-y-1.5">
                         <Label className="text-[9px] uppercase font-bold text-muted-foreground">Full Name</Label>
                         <Input placeholder="Property Manager" value={newContact.name} onChange={e => setNewContact({...newContact, name: e.target.value})} required className="h-9 text-xs" />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[9px] uppercase font-bold text-muted-foreground">WhatsApp Number</Label>
+                        <Label className="text-[9px] uppercase font-bold text-muted-foreground">Phone Number</Label>
                         <Input placeholder="+91..." value={newContact.phoneNumber} onChange={e => setNewContact({...newContact, phoneNumber: e.target.value})} required className="h-9 text-xs" />
                       </div>
                       <div className="space-y-1.5">
@@ -206,13 +206,13 @@ export default function WhatsAppDashboard() {
           <TabsContent value="all-logs" className="space-y-4">
             <div className="bg-white rounded-3xl border shadow-sm overflow-hidden">
               <Table>
-                <TableHeader className="bg-secondary/50">
-                  <TableRow>
-                    <TableHead className="text-[9px] uppercase font-black text-center h-12">Direction</TableHead>
-                    <TableHead className="text-[9px] uppercase font-black text-center">Contact</TableHead>
-                    <TableHead className="text-[9px] uppercase font-black">Message Content</TableHead>
-                    <TableHead className="text-[9px] uppercase font-black text-center">Time</TableHead>
-                    <TableHead className="text-[9px] uppercase font-black text-center">Status</TableHead>
+                <TableHeader className="bg-primary">
+                  <TableRow className="hover:bg-transparent border-none">
+                    <TableHead className="text-[9px] uppercase font-black text-center h-12 text-primary-foreground">Direction</TableHead>
+                    <TableHead className="text-[9px] uppercase font-black text-center text-primary-foreground">Contact</TableHead>
+                    <TableHead className="text-[9px] uppercase font-black text-primary-foreground">Message Content</TableHead>
+                    <TableHead className="text-[9px] uppercase font-black text-center text-primary-foreground">Time</TableHead>
+                    <TableHead className="text-[9px] uppercase font-black text-center text-primary-foreground">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -220,7 +220,7 @@ export default function WhatsAppDashboard() {
                     <TableRow><TableCell colSpan={5} className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
                   ) : logs?.length ? (
                     logs.map((log) => (
-                      <TableRow key={log.id} className="hover:bg-primary/5 group">
+                      <TableRow key={log.id} className="hover:bg-primary/5 group border-b border-secondary/50">
                         <TableCell className="text-center">
                           <Badge variant="outline" className={cn(
                             "text-[8px] font-black uppercase px-2 h-5 rounded-lg",
@@ -272,10 +272,10 @@ export default function WhatsAppDashboard() {
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                {logs?.filter(l => l.isAiQuery).length ? logs?.filter(l => l.isAiQuery).map(log => (
                  <Card key={log.id} className="border-none shadow-sm bg-indigo-50/30 rounded-[2rem]">
-                   <CardHeader className="p-5 pb-3 border-b border-indigo-100/50">
+                   <CardHeader className="p-5 pb-3 border-b border-indigo-100/50 bg-indigo-600 text-white rounded-t-[2rem]">
                      <div className="flex justify-between items-center">
-                       <Badge className="bg-indigo-600 text-[8px] font-black uppercase px-2 h-5 rounded-lg">{log.intent}</Badge>
-                       <span className="text-[9px] font-bold text-muted-foreground">{formatAppTime(log.createdAt)}</span>
+                       <Badge className="bg-white/20 text-white border-none text-[8px] font-black uppercase px-2 h-5 rounded-lg">{log.intent}</Badge>
+                       <span className="text-[9px] font-bold text-indigo-100">{formatAppTime(log.createdAt)}</span>
                      </div>
                    </CardHeader>
                    <CardContent className="p-5 space-y-4">
@@ -307,13 +307,13 @@ export default function WhatsAppDashboard() {
           <TabsContent value="contacts">
             <div className="bg-white rounded-3xl border shadow-sm overflow-hidden">
               <Table>
-                <TableHeader className="bg-secondary/50">
-                  <TableRow>
-                    <TableHead className="text-[9px] uppercase font-black pl-8 h-12">Authorized Name</TableHead>
-                    <TableHead className="text-[9px] uppercase font-black">WhatsApp Device</TableHead>
-                    <TableHead className="text-[9px] uppercase font-black">System Role</TableHead>
-                    <TableHead className="text-[9px] uppercase font-black">Access Level</TableHead>
-                    <TableHead className="text-right text-[9px] font-black pr-8">Actions</TableHead>
+                <TableHeader className="bg-primary text-primary-foreground">
+                  <TableRow className="hover:bg-transparent border-none">
+                    <TableHead className="text-[9px] uppercase font-black pl-8 h-12 text-primary-foreground">Authorized Name</TableHead>
+                    <TableHead className="text-[9px] uppercase font-black text-primary-foreground">WhatsApp Device</TableHead>
+                    <TableHead className="text-[9px] uppercase font-black text-primary-foreground">System Role</TableHead>
+                    <TableHead className="text-[9px] uppercase font-black text-primary-foreground">Access Level</TableHead>
+                    <TableHead className="text-right text-[9px] font-black pr-8 text-primary-foreground">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -321,7 +321,7 @@ export default function WhatsAppDashboard() {
                     <TableRow><TableCell colSpan={5} className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
                   ) : contacts && contacts.length > 0 ? (
                     contacts.map((contact) => (
-                      <TableRow key={contact.id} className="hover:bg-primary/5 group">
+                      <TableRow key={contact.id} className="hover:bg-primary/5 group border-b border-secondary/50">
                         <TableCell className="pl-8 py-4">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-black">
