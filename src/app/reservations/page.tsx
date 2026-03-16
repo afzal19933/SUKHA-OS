@@ -14,9 +14,11 @@ import {
   FilterX,
   MessageSquare,
   CalendarDays,
+  Calendar as CalendarIcon,
   Tag,
   MapPin,
-  Building2
+  Building2,
+  DoorOpen
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
@@ -56,6 +58,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
 import { triggerWhatsAppAutomation } from "@/services/whatsapp-service";
 
 const BOOKING_SOURCES = ["Direct", "Walkin", "MMT", "Agoda", "Airbnb", "Ayursiha", "Travel Agent", "Corporate"];
@@ -78,8 +83,8 @@ export default function ReservationsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [roomSearch, setRoomSearch] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
   const [newRes, setNewRes] = useState({ 
     guestName: "", 
@@ -118,9 +123,9 @@ export default function ReservationsPage() {
       const matchesSource = sourceFilter === "all" || res.bookingSource === sourceFilter;
       const matchesRoom = roomSearch === "" || (res.roomNumber || "").toString().includes(roomSearch);
       
-      const resDate = res.checkInDate || "";
-      const matchesStart = !startDate || resDate >= startDate;
-      const matchesEnd = !endDate || resDate <= endDate;
+      const resDate = res.checkInDate ? new Date(res.checkInDate) : null;
+      const matchesStart = !startDate || (resDate && resDate >= startDate);
+      const matchesEnd = !endDate || (resDate && resDate <= endDate);
 
       return matchesName && matchesStatus && matchesSource && matchesRoom && matchesStart && matchesEnd;
     });
@@ -210,24 +215,24 @@ export default function ReservationsPage() {
     setStatusFilter("all");
     setSourceFilter("all");
     setRoomSearch("");
-    setStartDate("");
-    setEndDate("");
+    setStartDate(undefined);
+    setEndDate(undefined);
   };
 
   return (
     <AppLayout>
-      <div className="space-y-8 max-w-[1200px] mx-auto text-center">
+      <div className="space-y-6 max-w-[1200px] mx-auto text-center">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-left">
           <div>
-            <h1 className="text-3xl font-black tracking-tighter text-primary uppercase">Guest Reservations</h1>
-            <p className="text-[10px] text-muted-foreground mt-1 uppercase font-black tracking-[0.2em]">Operational Ledger & WhatsApp Hub</p>
+            <h1 className="text-2xl font-black tracking-tighter text-primary uppercase">Guest Reservations</h1>
+            <p className="text-[10px] text-muted-foreground mt-0.5 uppercase font-black tracking-[0.2em]">Operational Ledger & WhatsApp Hub</p>
           </div>
 
           <div className="flex gap-2">
             {isAdmin && (
               <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                 <DialogTrigger asChild>
-                  <Button className="h-11 px-8 font-black shadow-xl text-xs uppercase tracking-widest">
+                  <Button className="h-10 px-6 font-black shadow-xl text-xs uppercase tracking-widest rounded-xl">
                     <Plus className="w-4 h-4 mr-2" /> New Booking
                   </Button>
                 </DialogTrigger>
@@ -289,34 +294,34 @@ export default function ReservationsPage() {
           </div>
         </div>
 
-        {/* Professional Filter Bar */}
-        <div className="bg-white p-6 rounded-[2rem] border shadow-sm space-y-4">
-          <div className="flex items-center gap-2 mb-2 text-left">
-            <CalendarDays className="w-4 h-4 text-primary" />
-            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Advanced Filters</span>
+        {/* Compact Professional Filter Bar */}
+        <div className="bg-white p-4 rounded-[1.5rem] border shadow-sm space-y-3">
+          <div className="flex items-center gap-2 mb-1 text-left">
+            <CalendarDays className="w-3.5 h-3.5 text-primary" />
+            <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Advanced Filters</span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="space-y-1.5 text-left">
-              <Label className="text-[9px] font-black uppercase text-muted-foreground">Guest Search</Label>
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="space-y-1 text-left">
+              <Label className="text-[8.5px] font-black uppercase text-muted-foreground">Guest Search</Label>
               <div className="relative">
-                <Search className="absolute left-3 top-3 w-3 h-3 text-muted-foreground" />
-                <Input placeholder="Name..." className="pl-8 h-9 text-[10px] rounded-xl border-none bg-secondary/40" value={nameSearch} onChange={e => setNameSearch(e.target.value)} />
+                <Search className="absolute left-2.5 top-2.5 w-3 h-3 text-muted-foreground" />
+                <Input placeholder="Name..." className="pl-8 h-8 text-[9.5px] rounded-lg border-none bg-secondary/40" value={nameSearch} onChange={e => setNameSearch(e.target.value)} />
               </div>
             </div>
-            <div className="space-y-1.5 text-left">
-              <Label className="text-[9px] font-black uppercase text-muted-foreground">Source</Label>
+            <div className="space-y-1 text-left">
+              <Label className="text-[8.5px] font-black uppercase text-muted-foreground">Source</Label>
               <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                <SelectTrigger className="h-9 text-[10px] rounded-xl border-none bg-secondary/40"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 text-[9.5px] rounded-lg border-none bg-secondary/40"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all" className="text-xs">All Sources</SelectItem>
                   {BOOKING_SOURCES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5 text-left">
-              <Label className="text-[9px] font-black uppercase text-muted-foreground">Status</Label>
+            <div className="space-y-1 text-left">
+              <Label className="text-[8.5px] font-black uppercase text-muted-foreground">Status</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="h-9 text-[10px] rounded-xl border-none bg-secondary/40"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 text-[9.5px] rounded-lg border-none bg-secondary/40"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all" className="text-xs">All Stays</SelectItem>
                   <SelectItem value="confirmed" className="text-xs">Confirmed</SelectItem>
@@ -325,66 +330,86 @@ export default function ReservationsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5 text-left">
-              <Label className="text-[9px] font-black uppercase text-muted-foreground">Arrival From</Label>
-              <Input type="date" className="h-9 text-[10px] rounded-xl border-none bg-secondary/40" value={startDate} onChange={e => setStartDate(e.target.value)} />
+            <div className="space-y-1 text-left">
+              <Label className="text-[8.5px] font-black uppercase text-muted-foreground">Arrival From</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("h-8 w-full justify-between text-[9.5px] rounded-lg border-none bg-secondary/40 px-3", !startDate && "text-muted-foreground")}>
+                    {startDate ? format(startDate, "dd-MM-yyyy") : ""}
+                    <CalendarIcon className="h-3 w-3 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 rounded-2xl" align="start">
+                  <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus />
+                </PopoverContent>
+              </Popover>
             </div>
-            <div className="space-y-1.5 text-left">
-              <Label className="text-[9px] font-black uppercase text-muted-foreground">Arrival To</Label>
-              <Input type="date" className="h-9 text-[10px] rounded-xl border-none bg-secondary/40" value={endDate} onChange={e => setEndDate(e.target.value)} />
+            <div className="space-y-1 text-left">
+              <Label className="text-[8.5px] font-black uppercase text-muted-foreground">Arrival To</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("h-8 w-full justify-between text-[9.5px] rounded-lg border-none bg-secondary/40 px-3", !endDate && "text-muted-foreground")}>
+                    {endDate ? format(endDate, "dd-MM-yyyy") : ""}
+                    <CalendarIcon className="h-3 w-3 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 rounded-2xl" align="start">
+                  <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus />
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="flex items-end">
-              <Button variant="ghost" className="h-9 w-full text-[10px] font-black uppercase hover:bg-rose-50 text-rose-600 rounded-xl" onClick={clearFilters}>
+              <Button variant="ghost" className="h-8 w-full text-[9px] font-black uppercase hover:bg-rose-50 text-rose-600 rounded-lg" onClick={clearFilters}>
                 <FilterX className="w-3.5 h-3.5 mr-2" /> Reset
               </Button>
             </div>
           </div>
         </div>
 
-        {/* Ledger Table */}
-        <div className="bg-white rounded-[2.5rem] shadow-sm border overflow-hidden">
+        {/* Ledger Table - Reordered Columns */}
+        <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
           <Table>
             <TableHeader className="bg-secondary/50">
               <TableRow>
-                <TableHead className="h-14 text-[10px] font-black uppercase text-center pl-8">Guest Name</TableHead>
-                <TableHead className="h-14 text-[10px] font-black uppercase text-center">Booking Source</TableHead>
-                <TableHead className="h-14 text-[10px] font-black uppercase text-center">Stay Status</TableHead>
-                <TableHead className="h-14 text-[10px] font-black uppercase text-center">Room Unit</TableHead>
-                <TableHead className="h-14 text-[10px] font-black uppercase text-center">Check-In Date</TableHead>
-                <TableHead className="h-14 text-[10px] font-black uppercase text-center">Check-Out Date</TableHead>
+                <TableHead className="h-12 text-[10px] font-black uppercase text-center pl-8">Room Unit</TableHead>
+                <TableHead className="h-12 text-[10px] font-black uppercase text-center">Guest Name</TableHead>
+                <TableHead className="h-12 text-[10px] font-black uppercase text-center">Booking Source</TableHead>
+                <TableHead className="h-12 text-[10px] font-black uppercase text-center">Stay Status</TableHead>
+                <TableHead className="h-12 text-[10px] font-black uppercase text-center">Check-In Date</TableHead>
+                <TableHead className="h-12 text-[10px] font-black uppercase text-center">Check-Out Date</TableHead>
                 <TableHead className="w-16 pr-8"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-24"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-20"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
               ) : filteredReservations.length > 0 ? (
                 filteredReservations.map((res) => (
                   <TableRow key={res.id} className="hover:bg-primary/5 transition-colors group border-b border-secondary/50">
-                    <TableCell className="font-black text-[13px] text-center pl-8 py-5 uppercase tracking-tight">{res.guestName}</TableCell>
+                    <TableCell className="text-center pl-8 py-4">
+                      <div className="w-9 h-9 flex items-center justify-center rounded-xl bg-secondary/50 text-primary font-black text-xs border border-secondary mx-auto shadow-inner">
+                        {res.roomNumber}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-black text-[12px] text-center uppercase tracking-tight">{res.guestName}</TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="outline" className="text-[9px] font-black uppercase bg-primary/5 text-primary border-primary/10 px-3 h-6 rounded-lg">{res.bookingSource}</Badge>
+                      <Badge variant="outline" className="text-[8.5px] font-black uppercase bg-primary/5 text-primary border-primary/10 px-2.5 h-5.5 rounded-lg">{res.bookingSource}</Badge>
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge className={cn(
-                        "text-[9px] font-black uppercase px-3 h-6 rounded-lg",
+                        "text-[8.5px] font-black uppercase px-2.5 h-5.5 rounded-lg",
                         res.status === 'checked_in' ? "bg-emerald-500 shadow-md shadow-emerald-100" : res.status === 'confirmed' ? "bg-blue-500 shadow-md shadow-blue-100" : "bg-slate-400"
                       )}>
                         {(res.status || "").replace('_', ' ')}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-center">
-                      <div className="w-10 h-10 flex items-center justify-center rounded-2xl bg-secondary/50 text-primary font-black text-sm border border-secondary mx-auto shadow-inner">
-                        {res.roomNumber}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center font-bold text-[11px] text-muted-foreground uppercase">{formatAppDate(res.checkInDate)}</TableCell>
-                    <TableCell className="text-center font-bold text-[11px] text-primary uppercase">{res.checkOutDate ? formatAppDate(res.checkOutDate) : "OPEN"}</TableCell>
+                    <TableCell className="text-center font-bold text-[10px] text-muted-foreground uppercase">{formatAppDate(res.checkInDate)}</TableCell>
+                    <TableCell className="text-center font-bold text-[10px] text-primary uppercase">{res.checkOutDate ? formatAppDate(res.checkOutDate) : "OPEN"}</TableCell>
                     <TableCell className="text-center pr-8">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:bg-white hover:shadow-md rounded-2xl transition-all">
-                            <MoreVertical className="w-5 h-5" />
+                          <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:bg-white hover:shadow-md rounded-xl transition-all">
+                            <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl border-none shadow-2xl">
@@ -406,9 +431,9 @@ export default function ReservationsPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-32 space-y-4">
-                    <FilterX className="w-12 h-12 text-muted-foreground/20 mx-auto" />
-                    <p className="text-xs font-black uppercase text-muted-foreground">No reservations matching current filters</p>
+                  <TableCell colSpan={7} className="text-center py-24 space-y-4">
+                    <FilterX className="w-10 h-10 text-muted-foreground/20 mx-auto" />
+                    <p className="text-[10px] font-black uppercase text-muted-foreground">No reservations matching current filters</p>
                   </TableCell>
                 </TableRow>
               )}
