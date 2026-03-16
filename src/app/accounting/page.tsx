@@ -26,7 +26,8 @@ import {
   WashingMachine,
   Wallet,
   CalendarDays,
-  FilterX
+  FilterX,
+  Calendar as CalendarIcon
 } from "lucide-react";
 import { 
   Table, 
@@ -67,10 +68,13 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
 
 const SIDEBAR_ITEMS = [
   { id: 'overview', label: 'Financial Overview', icon: LayoutDashboard },
-  { id: 'invoices', label: 'Revenue & Invoices', icon: Receipt },
+  { id: 'invoices', label: 'Sales', icon: Receipt },
   { id: 'laundry_revenue', label: 'Laundry Revenue', icon: WashingMachine },
   { id: 'ayurcycles', label: 'Ayursiha Cycles', icon: Hospital },
   { id: 'expenses', label: 'Operating Expenses', icon: CreditCard },
@@ -87,10 +91,10 @@ export default function AccountingPage() {
   const [activeView, setActiveView] = useState('overview');
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
 
-  // Laundry Filtering State
-  const [laundryDateFilter, setLaundryDateFilter] = useState('all');
-  const [laundryCustomStart, setLaundryCustomStart] = useState('');
-  const [laundryCustomEnd, setLaundryCustomEnd] = useState('');
+  // Global Date Filtering State
+  const [dateFilter, setDateFilter] = useState('all');
+  const [customStart, setCustomStart] = useState<Date | undefined>(undefined);
+  const [customEnd, setCustomEnd] = useState<Date | undefined>(undefined);
 
   const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
 
@@ -152,50 +156,49 @@ export default function AccountingPage() {
     }
   }, [gst]);
 
-  // Filtered Laundry Calculations
-  const filteredLaundryOrders = useMemo(() => {
-    if (!laundryOrders) return [];
+  // Filtering Logic
+  const isWithinFilter = (dateInput: string) => {
+    if (dateFilter === 'all') return true;
+    if (!dateInput) return false;
+    
+    const date = new Date(dateInput);
     const now = new Date();
     
-    return laundryOrders.filter(order => {
-      const orderDate = new Date(order.createdAt);
-      
-      if (laundryDateFilter === 'this_month') {
-        return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear();
-      }
-      
-      if (laundryDateFilter === 'last_month') {
-        const lastMonth = new Date();
-        lastMonth.setMonth(now.getMonth() - 1);
-        return orderDate.getMonth() === lastMonth.getMonth() && orderDate.getFullYear() === lastMonth.getFullYear();
-      }
-      
-      if (laundryDateFilter === 'custom') {
-        if (!laundryCustomStart || !laundryCustomEnd) return true;
-        const start = new Date(laundryCustomStart);
-        const end = new Date(laundryCustomEnd);
-        end.setHours(23, 59, 59, 999);
-        return orderDate >= start && orderDate <= end;
-      }
-      
-      return true; // 'all'
-    });
-  }, [laundryOrders, laundryDateFilter, laundryCustomStart, laundryCustomEnd]);
+    if (dateFilter === 'this_month') {
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    }
+    
+    if (dateFilter === 'last_month') {
+      const lastMonth = new Date();
+      lastMonth.setMonth(now.getMonth() - 1);
+      return date.getMonth() === lastMonth.getMonth() && date.getFullYear() === lastMonth.getFullYear();
+    }
+    
+    if (dateFilter === 'custom') {
+      if (!customStart || !customEnd) return true;
+      const start = new Date(customStart);
+      const end = new Date(customEnd);
+      end.setHours(23, 59, 59, 999);
+      return date >= start && date <= end;
+    }
+    
+    return true;
+  };
 
-  const filteredLaundryRevenueTotal = filteredLaundryOrders.reduce((acc, order) => acc + (order.hotelTotal || 0), 0);
-  const filteredLaundryCollected = filteredLaundryOrders.filter(o => o.status === 'paid').reduce((acc, o) => acc + (o.hotelTotal || 0), 0);
+  const filteredInvoices = useMemo(() => invoices?.filter(inv => isWithinFilter(inv.createdAt)) || [], [invoices, dateFilter, customStart, customEnd]);
+  const filteredLaundryOrders = useMemo(() => laundryOrders?.filter(order => isWithinFilter(order.createdAt)) || [], [laundryOrders, dateFilter, customStart, customEnd]);
+  const filteredExpenses = useMemo(() => expenses?.filter(exp => isWithinFilter(exp.date)) || [], [expenses, dateFilter, customStart, customEnd]);
 
-  // Combined Revenue Calculations (Full History)
-  const invoiceRevenue = invoices?.reduce((acc, inv) => acc + (inv.totalAmount || 0), 0) || 0;
-  const laundryRevenue = laundryOrders?.reduce((acc, order) => acc + (order.hotelTotal || 0), 0) || 0;
+  // Derived Statistics
+  const invoiceRevenue = filteredInvoices.reduce((acc, inv) => acc + (inv.totalAmount || 0), 0);
+  const laundryRevenue = filteredLaundryOrders.reduce((acc, order) => acc + (order.hotelTotal || 0), 0);
   const totalRevenue = invoiceRevenue + laundryRevenue;
-  
-  const totalExpenses = expenses?.reduce((acc, exp) => acc + (exp.amount || 0), 0) || 0;
+  const totalExpenses = filteredExpenses.reduce((acc, exp) => acc + (exp.amount || 0), 0);
   const netProfit = totalRevenue - totalExpenses;
 
   const ayurCycles = useMemo(() => {
-    return invoices?.filter(inv => inv.isCycleInvoice || inv.invoiceNumber?.startsWith('AYUR')) || [];
-  }, [invoices]);
+    return filteredInvoices.filter(inv => inv.isCycleInvoice || inv.invoiceNumber?.startsWith('AYUR')) || [];
+  }, [filteredInvoices]);
 
   const chartData = useMemo(() => {
     return [
@@ -207,16 +210,15 @@ export default function AccountingPage() {
 
   const sourceData = useMemo(() => {
     const sources: Record<string, number> = {};
-    invoices?.forEach(inv => {
+    filteredInvoices.forEach(inv => {
       const source = inv.bookingSource || 'Unknown';
       sources[source] = (sources[source] || 0) + (inv.totalAmount || 0);
     });
-    // Add laundry as a source
     if (laundryRevenue > 0) {
       sources['Laundry'] = laundryRevenue;
     }
     return Object.entries(sources).map(([name, value]) => ({ name, value }));
-  }, [invoices, laundryRevenue]);
+  }, [filteredInvoices, laundryRevenue]);
 
   const handleUpdateGst = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -287,13 +289,74 @@ export default function AccountingPage() {
 
         {/* View Content */}
         <main className="flex-1 bg-white rounded-3xl border shadow-sm overflow-hidden flex flex-col">
+          {/* Global Filter Bar */}
+          <div className="px-8 py-4 border-b bg-secondary/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-primary" />
+              <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Global Date Filter</h2>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={dateFilter} onValueChange={setDateFilter}>
+                <SelectTrigger className="h-8 w-32 text-[10px] font-bold bg-white rounded-xl shadow-sm">
+                  <SelectValue placeholder="All Time" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="all" className="text-[10px] font-bold">Full History</SelectItem>
+                  <SelectItem value="this_month" className="text-[10px] font-bold">This Month</SelectItem>
+                  <SelectItem value="last_month" className="text-[10px] font-bold">Last Month</SelectItem>
+                  <SelectItem value="custom" className="text-[10px] font-bold">Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {dateFilter === 'custom' && (
+                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("h-8 text-[9px] font-bold bg-white rounded-xl", !customStart && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-3 w-3" />
+                        {customStart ? format(customStart, "PPP") : "Start Date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 rounded-2xl">
+                      <Calendar mode="single" selected={customStart} onSelect={setCustomStart} initialFocus />
+                    </PopoverContent>
+                  </Popover>
+                  <span className="text-[9px] font-black text-muted-foreground">TO</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("h-8 text-[9px] font-bold bg-white rounded-xl", !customEnd && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-3 w-3" />
+                        {customEnd ? format(customEnd, "PPP") : "End Date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 rounded-2xl">
+                      <Calendar mode="single" selected={customEnd} onSelect={setCustomEnd} initialFocus />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-rose-500 hover:bg-rose-50 rounded-xl"
+                onClick={() => { setDateFilter('all'); setCustomStart(undefined); setCustomEnd(undefined); }}
+              >
+                <FilterX className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+
           <ScrollArea className="flex-1">
             <div className="p-8 space-y-8">
               {activeView === 'overview' && (
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <div className="space-y-1">
                     <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Financial Overview</h1>
-                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Real-time property health (Invoices + Laundry)</p>
+                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">
+                      Health summary for: {dateFilter === 'all' ? 'All Time' : dateFilter.replace('_', ' ')}
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -325,7 +388,7 @@ export default function AccountingPage() {
                       <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Revenue Mix</h3>
                       <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                          <span className="text-[11px] font-bold">GST Invoices</span>
+                          <span className="text-[11px] font-bold">Sales (GST Invoices)</span>
                           <span className="text-[11px] font-black">₹{invoiceRevenue.toLocaleString()}</span>
                         </div>
                         <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
@@ -354,8 +417,8 @@ export default function AccountingPage() {
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                   <div className="flex justify-between items-end">
                     <div>
-                      <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Revenue Ledger</h1>
-                      <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">All processed GST invoices</p>
+                      <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Sales Ledger</h1>
+                      <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">All processed GST invoices for selected period</p>
                     </div>
                   </div>
 
@@ -373,8 +436,8 @@ export default function AccountingPage() {
                       <TableBody>
                         {invLoading ? (
                           <TableRow><TableCell colSpan={5} className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
-                        ) : invoices?.length ? (
-                          invoices.map((inv) => (
+                        ) : filteredInvoices.length ? (
+                          filteredInvoices.map((inv) => (
                             <TableRow key={inv.id} className="group hover:bg-primary/5 transition-colors">
                               <TableCell className="pl-6 font-mono text-[11px] font-bold text-primary">{inv.invoiceNumber}</TableCell>
                               <TableCell className="text-[11px] font-bold">{inv.guestDetails?.name || inv.guestName}</TableCell>
@@ -392,7 +455,7 @@ export default function AccountingPage() {
                             </TableRow>
                           ))
                         ) : (
-                          <TableRow><TableCell colSpan={5} className="text-center py-20 text-[10px] text-muted-foreground uppercase font-black">No revenue records found</TableCell></TableRow>
+                          <TableRow><TableCell colSpan={5} className="text-center py-20 text-[10px] text-muted-foreground uppercase font-black">No sales records found for this period</TableCell></TableRow>
                         )}
                       </TableBody>
                     </Table>
@@ -407,42 +470,6 @@ export default function AccountingPage() {
                       <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Laundry Revenue Hub</h1>
                       <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Detail tracking of guest service income</p>
                     </div>
-
-                    {/* Filter Bar */}
-                    <div className="bg-secondary/30 p-2 rounded-2xl flex flex-wrap items-center gap-2">
-                      <div className="flex items-center gap-2 px-3 border-r border-border/50">
-                        <CalendarDays className="w-3.5 h-3.5 text-primary" />
-                        <span className="text-[9px] font-black uppercase text-muted-foreground">Period</span>
-                      </div>
-                      <Select value={laundryDateFilter} onValueChange={setLaundryDateFilter}>
-                        <SelectTrigger className="h-8 w-32 text-[10px] font-bold border-none bg-white rounded-xl shadow-sm focus:ring-0">
-                          <SelectValue placeholder="All Time" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl border-none shadow-2xl">
-                          <SelectItem value="all" className="text-[10px] font-bold">Full History</SelectItem>
-                          <SelectItem value="this_month" className="text-[10px] font-bold">This Month</SelectItem>
-                          <SelectItem value="last_month" className="text-[10px] font-bold">Last Month</SelectItem>
-                          <SelectItem value="custom" className="text-[10px] font-bold">Custom Range</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      {laundryDateFilter === 'custom' && (
-                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
-                          <Input type="date" className="h-8 w-28 text-[9px] font-bold bg-white border-none rounded-xl" value={laundryCustomStart} onChange={e => setLaundryCustomStart(e.target.value)} />
-                          <span className="text-[9px] font-black text-muted-foreground">TO</span>
-                          <Input type="date" className="h-8 w-28 text-[9px] font-bold bg-white border-none rounded-xl" value={laundryCustomEnd} onChange={e => setLaundryCustomEnd(e.target.value)} />
-                        </div>
-                      )}
-
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-rose-500 hover:bg-rose-50 rounded-xl"
-                        onClick={() => { setLaundryDateFilter('all'); setLaundryCustomStart(''); setLaundryCustomEnd(''); }}
-                      >
-                        <FilterX className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -452,7 +479,7 @@ export default function AccountingPage() {
                       </div>
                       <div>
                         <p className="text-[10px] font-black uppercase text-indigo-600/70">Filtered Laundry Billed</p>
-                        <h3 className="text-xl font-black text-indigo-700">₹{filteredLaundryRevenueTotal.toLocaleString()}</h3>
+                        <h3 className="text-xl font-black text-indigo-700">₹{laundryRevenue.toLocaleString()}</h3>
                       </div>
                     </div>
                     <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 flex items-center gap-4">
@@ -462,7 +489,7 @@ export default function AccountingPage() {
                       <div>
                         <p className="text-[10px] font-black uppercase text-emerald-600/70">Filtered Collected Revenue</p>
                         <h3 className="text-xl font-black text-emerald-700">
-                          ₹{filteredLaundryCollected.toLocaleString()}
+                          ₹{filteredLaundryOrders.filter(o => o.status === 'paid').reduce((acc, o) => acc + (o.hotelTotal || 0), 0).toLocaleString()}
                         </h3>
                       </div>
                     </div>
@@ -482,7 +509,7 @@ export default function AccountingPage() {
                       <TableBody>
                         {laundryLoading ? (
                           <TableRow><TableCell colSpan={5} className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
-                        ) : filteredLaundryOrders?.length ? (
+                        ) : filteredLaundryOrders.length ? (
                           filteredLaundryOrders.map((order) => (
                             <TableRow key={order.id} className="hover:bg-primary/5 transition-colors">
                               <TableCell className="pl-6 text-[11px] font-bold">{formatAppDate(order.createdAt)}</TableCell>
@@ -565,7 +592,7 @@ export default function AccountingPage() {
                       ))
                     ) : (
                       <div className="text-center py-24 border-2 border-dashed rounded-[3rem] text-muted-foreground font-black uppercase text-xs">
-                        No Ayursiha cycle invoices generated yet.
+                        No Ayursiha cycle invoices found for this period.
                       </div>
                     )}
                   </div>
@@ -576,7 +603,7 @@ export default function AccountingPage() {
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                   <div className="space-y-1">
                     <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Expense Ledger</h1>
-                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Property operating costs</p>
+                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Property operating costs for selected period</p>
                   </div>
 
                   <div className="rounded-2xl border overflow-hidden">
@@ -592,8 +619,8 @@ export default function AccountingPage() {
                       <TableBody>
                         {expLoading ? (
                           <TableRow><TableCell colSpan={4} className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
-                        ) : expenses?.length ? (
-                          expenses.map((exp) => (
+                        ) : filteredExpenses.length ? (
+                          filteredExpenses.map((exp) => (
                             <TableRow key={exp.id} className="hover:bg-rose-50/30 transition-colors">
                               <TableCell className="pl-6 text-[11px] font-bold">{exp.description}</TableCell>
                               <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase px-2 h-5 bg-secondary/50">{exp.category}</Badge></TableCell>
@@ -604,7 +631,7 @@ export default function AccountingPage() {
                             </TableRow>
                           ))
                         ) : (
-                          <TableRow><TableCell colSpan={4} className="text-center py-20 text-[10px] text-muted-foreground uppercase font-black">No expense records logged</TableCell></TableRow>
+                          <TableRow><TableCell colSpan={4} className="text-center py-20 text-[10px] text-muted-foreground uppercase font-black">No expense records found for this period</TableCell></TableRow>
                         )}
                       </TableBody>
                     </Table>
