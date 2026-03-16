@@ -248,7 +248,7 @@ export default function ReservationsPage() {
                         <Input value={newRes.guestName} onChange={e => setNewRes({...newRes, guestName: e.target.value})} required className="h-10 text-xs bg-secondary/30 rounded-xl" />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase font-black text-muted-foreground">WhatsApp #</Label>
+                        <Label className="text-[10px] uppercase font-black text-muted-foreground">Phone Number</Label>
                         <Input placeholder="+91..." value={newRes.phoneNumber} onChange={e => setNewRes({...newRes, phoneNumber: e.target.value})} required className="h-10 text-xs bg-secondary/30 rounded-xl" />
                       </div>
                     </div>
@@ -259,7 +259,7 @@ export default function ReservationsPage() {
                           <SelectTrigger className="h-10 text-xs bg-secondary/30 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
                           <SelectContent>
                             {rooms?.filter(r => r.status === 'available').map(r => (
-                              <SelectItem key={r.id} value={r.roomNumber}>{r.roomNumber}</SelectItem>
+                              <SelectItem key={`${r.id}-${r.roomNumber}`} value={r.roomNumber}>{r.roomNumber}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -286,7 +286,7 @@ export default function ReservationsPage() {
                         <Input type="date" value={newRes.checkOut} onChange={e => setNewRes({...newRes, checkOut: e.target.value})} required className="h-10 text-xs bg-secondary/30 rounded-xl" />
                       </div>
                     </div>
-                    <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest mt-2 rounded-2xl shadow-lg">Confirm & Send WhatsApp</Button>
+                    <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest mt-2 rounded-2xl shadow-lg">Confirm</Button>
                   </form>
                 </DialogContent>
               </Dialog>
