@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -98,7 +97,6 @@ export default function HousekeepingPage() {
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
   const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([]);
 
-  const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
   const canAssignTasks = ["owner", "admin", "manager", "supervisor", "staff", "frontdesk"].includes(currentUserRole || "");
 
   // Data Queries
@@ -142,25 +140,6 @@ export default function HousekeepingPage() {
   const { data: property } = useDoc(propertyRef);
 
   const isParadise = property?.name?.toLowerCase().includes("paradise");
-
-  useEffect(() => {
-    if (!entityId || !rooms || !canAssignTasks) return;
-    
-    const today = new Date().toISOString().split('T')[0];
-    
-    rooms.forEach((room: any) => {
-      if (room.status === 'occupied' && room.updatedAt) {
-        const lastUpdate = new Date(room.updatedAt).toISOString().split('T')[0];
-        if (lastUpdate < today) {
-          const roomRef = doc(db, "hotel_properties", entityId, "rooms", room.id);
-          updateDocumentNonBlocking(roomRef, { 
-            status: 'occupied_dirty', 
-            updatedAt: new Date().toISOString() 
-          });
-        }
-      }
-    });
-  }, [rooms, entityId, db, canAssignTasks]);
 
   const stats = useMemo(() => {
     if (!rooms) return { total: 0, available: 0, cleaning: 0, occupied: 0, dirty: 0, maintenance: 0, occupied_dirty: 0, occupied_cleaning: 0, skipped: 0 };
@@ -265,17 +244,14 @@ export default function HousekeepingPage() {
       const room = rooms?.find(r => r.id === roomId);
       if (!room) continue;
 
-      // 1. Determine new cleaning status
       const newStatus = room.status.includes('occupied') ? 'occupied_cleaning' : 'cleaning';
       
-      // 2. Update room status
       const roomRef = doc(db, "hotel_properties", entityId, "rooms", roomId);
       updateDocumentNonBlocking(roomRef, { 
         status: newStatus, 
         updatedAt: new Date().toISOString() 
       });
 
-      // 3. Create task
       addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "housekeeping_tasks"), {
         entityId,
         roomId: room.id,
@@ -460,7 +436,6 @@ export default function HousekeepingPage() {
                 )}
               </div>
 
-              {/* Side Log */}
               <div className="space-y-4">
                 <Card className="border-none shadow-sm bg-primary/5 h-[calc(100vh-20rem)] flex flex-col overflow-hidden">
                   <CardHeader className="p-4 pb-2 border-b border-primary/10">
