@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -23,7 +22,8 @@ import {
   Clock,
   Check,
   Monitor,
-  MessageSquare
+  MessageSquare,
+  Package
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -59,7 +59,7 @@ const NAV_ITEMS = [
   { name: "Command Center", href: "/command-center", icon: Monitor, restricted: ["owner", "admin", "manager"] },
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Reservations", href: "/reservations", icon: CalendarDays },
-  { name: "Rooms", href: "/rooms", icon: DoorOpen },
+  { name: "Inventory", href: "/rooms", icon: Package },
   { name: "Housekeeping", href: "/housekeeping", icon: BedDouble },
   { name: "Maintenance", href: "/maintenance", icon: Wrench },
   { name: "Laundry", href: "/laundry", icon: WashingMachine },

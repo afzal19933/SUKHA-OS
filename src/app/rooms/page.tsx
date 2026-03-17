@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -53,11 +52,26 @@ import { cn, formatAppDate } from "@/lib/utils";
 const BUILDINGS = ["Old Apartment", "New Apartment"];
 
 const SUPPLY_CATEGORIES = [
-  { label: "Cleaning Chemicals", items: ["Floor Cleaner", "Toilet Cleaner", "Room Freshener", "Glass Cleaner", "Dish Wash", "Hand Wash"] },
-  { label: "Guest Amenities", items: ["Drinking Water Bottles", "Tissue Box", "Soap Kit", "Shampoo Kit"] },
-  { label: "Washroom Supplies", items: ["Paper Towel Roll", "Toilet Paper Roll", "C-Fold Paper"] },
-  { label: "Tools & Equipment", items: ["Mop Head", "Floor Brush", "Toilet Brush", "Bucket", "Microfiber Cloth"] },
-  { label: "Other", items: ["General Supply"] }
+  { 
+    label: "Cleaning Chemicals", 
+    items: ["Floor Cleaner", "Toilet Cleaner", "Room Freshner", "Glass Cleaner", "Dish Wash", "Hand Wash", "Bleach", "Surface Sanitizer"] 
+  },
+  { 
+    label: "Guest Amenities", 
+    items: ["Drinking Water Bottles (500ml)", "Drinking Water Bottles (1L)", "Tissue Box (Room)", "Soap Kit", "Shampoo Kit", "Toothbrush Kit", "Moisturizer"] 
+  },
+  { 
+    label: "Washroom Supplies", 
+    items: ["Paper Towel Roll", "Toilet Paper Roll", "C-Fold Paper", "Hand Towel", "Bath Mat"] 
+  },
+  { 
+    label: "Tools & Equipment", 
+    items: ["Mop Head", "Floor Brush", "Toilet Brush", "Bucket", "Microfiber Cloth", "Broom", "Dustpan", "Vacuum Filter"] 
+  },
+  { 
+    label: "Other", 
+    items: ["General Supply", "Garbage Bags (Small)", "Garbage Bags (Large)"] 
+  }
 ];
 
 export default function RoomsPage() {
@@ -87,10 +101,6 @@ export default function RoomsPage() {
   });
 
   const [purchaseSearch, setPurchaseSearch] = useState("");
-
-  // Form states for editing
-  const [editingRoom, setEditingRoom] = useState<any>(null);
-  const [editingType, setEditingType] = useState<any>(null);
 
   // Data fetching
   const typesQuery = useMemoFirebase(() => {
@@ -213,7 +223,7 @@ export default function RoomsPage() {
 
         <Tabs defaultValue="inventory" className="space-y-4">
           <TabsList className="bg-white border p-1 rounded-xl h-10 shadow-sm">
-            <TabsTrigger value="inventory" className="rounded-lg text-[11px] font-bold px-6">Physical Inventory</TabsTrigger>
+            <TabsTrigger value="inventory" className="rounded-lg text-[11px] font-bold px-6">Physical Units</TabsTrigger>
             <TabsTrigger value="categories" className="rounded-lg text-[11px] font-bold px-6">Room Categories</TabsTrigger>
             <TabsTrigger value="purchase-history" className="rounded-lg text-[11px] font-bold px-6">Purchase History</TabsTrigger>
           </TabsList>
@@ -397,7 +407,7 @@ export default function RoomsPage() {
                     <DialogContent className="sm:max-w-[450px] rounded-[2rem]">
                       <DialogHeader>
                         <DialogTitle className="text-lg font-black uppercase text-primary">Record Supply Purchase</DialogTitle>
-                        <DialogDescription className="text-[10px] uppercase font-bold">Track usage of cleaning agents and amenities.</DialogDescription>
+                        <DialogDescription className="text-[10px] uppercase font-bold">Track usage of cleaning agents, guest amenities, and washroom essentials.</DialogDescription>
                       </DialogHeader>
                       <form onSubmit={handleAddPurchase} className="space-y-4 pt-2">
                         <div className="grid grid-cols-2 gap-3">
@@ -437,7 +447,7 @@ export default function RoomsPage() {
                             <Select value={newPurchase.unit} onValueChange={v => setNewPurchase({...newPurchase, unit: v})}>
                               <SelectTrigger className="h-10 text-xs bg-secondary/30 border-none rounded-xl"><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                {["pcs", "ltr", "kg", "box", "roll"].map(u => <SelectItem key={u} value={u} className="text-xs uppercase">{u}</SelectItem>)}
+                                {["pcs", "ltr", "kg", "box", "roll", "bundle"].map(u => <SelectItem key={u} value={u} className="text-xs uppercase">{u}</SelectItem>)}
                               </SelectContent>
                             </Select>
                           </div>
