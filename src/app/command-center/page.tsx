@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
@@ -24,7 +25,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { startOfDay, endOfDay, subDays } from "date-fns";
+import { AIInsights } from "@/components/ai/AIInsights";
 
 /**
  * EntityCommandPanel - Renders a side-by-side operational overview for a property.
@@ -286,7 +287,10 @@ export default function CommandCenterPage() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+        {/* AI STRATEGIC ANALYSIS */}
+        <AIInsights />
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 pt-8">
           {retreatEntity ? (
             <EntityCommandPanel entity={retreatEntity} db={db} />
           ) : (

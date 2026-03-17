@@ -4,3 +4,4 @@ import './flows/ai-assistant-flow';
 import './flows/reconcile-laundry-invoice-flow';
 import './flows/whatsapp-intent-flow';
 import './flows/whatsapp-receptionist-flow';
+import './flows/property-analysis-flow';
