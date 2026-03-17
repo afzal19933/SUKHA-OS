@@ -33,7 +33,7 @@ const KPISchema = z.object({
 const AnalysisOutputSchema = z.object({
   summary: z.string(),
   alerts: z.array(AlertSchema),
-  score: z.number().describe("Overall operational health score out of 100. Set to 0 if no data is available."),
+  score: z.number().describe("Overall operational health score out of 100. Set to 0 if data is insufficient."),
   kpis: z.array(KPISchema).optional().describe("Strategic data analytics metrics derived from the data context.")
 });
 
@@ -44,40 +44,31 @@ const analysisPrompt = ai.definePrompt({
   name: 'propertyAnalysisPrompt',
   input: { schema: AnalysisInputSchema },
   output: { schema: AnalysisOutputSchema },
-  prompt: `You are the SUKHA OS Strategic Data Auditor. Your task is to perform strictly factual quantitative and qualitative analysis on hotel property data.
+  prompt: `You are the SUKHA OS Strategic Data Auditor. Perform a clinical operational audit on the provided data.
 
-CRITICAL SECURITY & ACCURACY RULES:
-1. USE ONLY THE PROVIDED DATA. 
-2. DO NOT HALLUCINATE. If a list is empty, state "Data not available" for that specific module.
-3. NEVER INVENT ROOM NUMBERS, ITEM NAMES, OR ENTITIES. If you mention a room number (e.g., "103"), it MUST exist in the 'Room Status' data provided.
-4. IF A MODULE HAS DATA BUT NO ISSUES, DO NOT INVENT WARNINGS. Report "No critical issues detected" for that module.
-5. IF ALL MODULES ARE EMPTY, set the health score to 0 and the summary to "Operational data unavailable for analysis."
-6. DO NOT BE "HELPFUL" BY CREATING EXAMPLES. Only report on real data.
+STRICT AUDIT RULES:
+1. DATA SCOPE: Use ONLY the provided arrays. If an array is empty [], you MUST NOT calculate percentages or derive trends for that specific section.
+2. NO DATA = NO ANALYTICS: If ALL provided data arrays are empty, return "Data not available" for all text fields and 0 for the health score.
+3. ZERO TOLERANCE FOR HALLUCINATION: Never invent room numbers, item names, or quantities. If it isn't in the context, it doesn't exist.
+4. HEALTH SCORE CALCULATION:
+   - Start at 100.
+   - Deduct 10 points for every empty module (data unavailable).
+   - Deduct 15 points for every 'critical' alert found in the actual logs.
+   - If 3 or more modules (inventory, laundry, maintenance, rooms, accounting) are empty [], set the health score to 0 immediately.
+5. KPIs: If the data for a KPI is unavailable, set its value to "N/A" and its label to something descriptive like "Awaiting Data".
 
 DATA CONTEXT:
-- Inventory: {{{inventory}}}
-- Accounting (Unpaid Invoices): {{{accounting}}}
-- Laundry (Unpaid Orders): {{{laundry}}}
-- Maintenance (Open Tasks): {{{maintenance}}}
-- Room Status: {{{rooms}}}
+- Inventory Stock: {{{inventory}}}
+- Unpaid Invoices: {{{accounting}}}
+- Laundry Orders (Unpaid): {{{laundry}}}
+- Open Maintenance Tasks: {{{maintenance}}}
+- Room Status Records: {{{rooms}}}
 
-ANALYSIS GUIDELINES:
-- INVENTORY: Compare current stock vs min levels. If stock > min, there is NO shortage.
-- ACCOUNTING: Check the dates of unpaid invoices. Only flag as "Aging" if they are older than 7 days.
-- MAINTENANCE: Only flag "Backlog" if there are more than 3 'pending' tasks.
-- HOUSEKEEPING: Only flag "Stale Dirty" if the 'updated' timestamp for a dirty room is older than the current date.
-
-KPI CALCULATION:
-- Mathematically derive values. 
-- Inventory Shortage Ratio = (items below min / total items).
-- Room Readiness Rate = (available rooms / total rooms).
-- If a metric cannot be calculated precisely because lists are empty, set value to "N/A" and trend to "stable".
-
-OUTPUT FORMAT:
-- summary: High-level executive brief based ONLY on facts.
-- alerts: Specific flags. (Empty array if no issues).
-- score: 0-100 based strictly on presence of issues. (100 = No issues found in data provided).
-- kpis: At least 3 specific analytical metrics derived FROM THE LISTS.`,
+OUTPUT REQUIREMENTS:
+- summary: A factual briefing. If data is missing, explicitly state "Audit incomplete due to missing module records."
+- alerts: Specific flags based ONLY on data. (Empty array if no issues).
+- score: 0-100 based strictly on presence of data and issues.
+- kpis: Maximum 3 specific analytical metrics. Set value to "N/A" if data is sparse.`,
 });
 
 export async function analyzeProperty(input: AnalysisInput): Promise<AnalysisOutput> {
