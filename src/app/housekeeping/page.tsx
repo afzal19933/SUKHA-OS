@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -152,7 +153,7 @@ export default function HousekeepingPage() {
   const { data: teamMembers } = useCollection(teamQuery);
   const { data: property } = useDoc(propertyRef);
 
-  // Filter staff to exclude owners, admins, and specific names (Suhara, Admin)
+  // Filter operational staff from the registry (Registry source of truth)
   const operationalStaff = useMemo(() => {
     if (!teamMembers) return [];
     return teamMembers.filter(m => {
