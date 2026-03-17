@@ -56,7 +56,7 @@ export function AIInsights() {
   const currentContext = useMemo(() => {
     if (!isDataLoaded) return null;
     return {
-      inventory: stocks?.length ? stocks.map(s => ({ name: s.itemName, stock: s.currentStock, min: s.minStock })) : [],
+      inventory: stocks?.length ? stocks.map(s => ({ name: s.itemName, stock: s.currentStock, min: s.minStock, cat: s.category })) : [],
       accounting: invoices?.length ? invoices.filter(i => i.status !== 'paid').map(i => ({ no: i.invoiceNumber, amount: i.totalAmount, date: i.createdAt })) : [],
       laundry: laundry?.length ? laundry.filter(l => l.status !== 'paid').map(l => ({ room: l.roomNumber, status: l.status, hotelTotal: l.hotelTotal })) : [],
       maintenance: tasks?.length ? tasks.filter(t => t.taskType === 'repair' && t.status !== 'completed').map(t => ({ area: t.roomId, type: t.taskType, priority: t.priority })) : [],
@@ -89,14 +89,14 @@ export function AIInsights() {
   /**
    * Real-time Debounced Effect:
    * Triggers the AI engine automatically when data changes, with a 5-second debounce
-   * to batch multiple Firestore updates and control API costs.
+   * to control API calls and batch Firestore updates.
    */
   useEffect(() => {
     if (!isDataLoaded || !entityId || isAnalyzing) return;
 
     const debounceTimer = setTimeout(() => {
       runAnalysis();
-    }, 5000); // 5 second debounce
+    }, 5000);
 
     return () => clearTimeout(debounceTimer);
   }, [currentContext, entityId, isDataLoaded]);
@@ -120,7 +120,7 @@ export function AIInsights() {
           <div>
             <CardTitle className="text-lg font-black uppercase tracking-tight">AI Analytical Engine</CardTitle>
             <div className="flex items-center gap-2">
-              <p className="text-[10px] text-white/70 font-bold uppercase tracking-widest">Real-time Diagnostic Audit</p>
+              <p className="text-[10px] text-white/70 font-bold uppercase tracking-widest">Factual Operational Audit</p>
               <div className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500/20 rounded-full border border-emerald-500/30">
                 <div className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse" />
                 <span className="text-[7px] font-black text-emerald-300 uppercase">Live Data Stream</span>
@@ -142,7 +142,7 @@ export function AIInsights() {
         {(isAnalyzing && !insights) || !isDataLoaded ? (
           <div className="py-20 flex flex-col items-center justify-center space-y-4">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <p className="text-xs font-black uppercase text-muted-foreground animate-pulse">Synchronizing cross-module data analytics...</p>
+            <p className="text-xs font-black uppercase text-muted-foreground animate-pulse">Auditing system logs...</p>
           </div>
         ) : hasNoDataAtAll ? (
           <div className="py-20 text-center space-y-4">
@@ -152,7 +152,7 @@ export function AIInsights() {
             <div className="space-y-1">
               <h3 className="text-sm font-black uppercase text-primary">Analytical Baseline Unavailable</h3>
               <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-                Populate Inventory, Invoices, or Repairs to enable data analysis.
+                Populate module data to enable factual analysis.
               </p>
             </div>
           </div>
@@ -226,7 +226,7 @@ export function AIInsights() {
                 )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {insights.alerts.map((alert, idx) => {
+                {insights.alerts.length > 0 ? insights.alerts.map((alert, idx) => {
                   const Icon = alert.severity === 'critical' ? AlertCircle : alert.severity === 'warning' ? AlertTriangle : Info;
                   const colorClass = alert.severity === 'critical' ? "text-rose-600 bg-rose-50 border-rose-100" : alert.severity === 'warning' ? "text-amber-600 bg-amber-50 border-amber-100" : "text-blue-600 bg-blue-50 border-blue-100";
                   
@@ -247,16 +247,14 @@ export function AIInsights() {
                       </div>
                     </div>
                   );
-                })}
+                }) : (
+                  <div className="col-span-2 py-12 text-center space-y-2 bg-secondary/20 rounded-[2rem] border border-dashed border-secondary">
+                    <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto opacity-50" />
+                    <p className="text-[11px] font-black uppercase text-muted-foreground">Full Operational Compliance Detected</p>
+                  </div>
+                )}
               </div>
             </div>
-
-            {insights.alerts.length === 0 && (
-              <div className="py-12 text-center space-y-2">
-                <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
-                <p className="text-[11px] font-black uppercase text-muted-foreground">Full Operational Compliance Detected</p>
-              </div>
-            )}
           </div>
         ) : null}
       </CardContent>

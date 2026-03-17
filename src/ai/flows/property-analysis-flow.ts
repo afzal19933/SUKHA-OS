@@ -44,7 +44,15 @@ const analysisPrompt = ai.definePrompt({
   name: 'propertyAnalysisPrompt',
   input: { schema: AnalysisInputSchema },
   output: { schema: AnalysisOutputSchema },
-  prompt: `You are the SUKHA OS Strategic Data Analyst & Auditor. Your task is to perform quantitative and qualitative analysis on hotel property data.
+  prompt: `You are the SUKHA OS Strategic Data Auditor. Your task is to perform strictly factual quantitative and qualitative analysis on hotel property data.
+
+CRITICAL SECURITY & ACCURACY RULES:
+1. USE ONLY THE PROVIDED DATA. 
+2. DO NOT HALLUCINATE. If a list is empty, state "Data not available" for that specific module.
+3. NEVER INVENT ROOM NUMBERS, ITEM NAMES, OR ENTITIES. If you mention a room number (e.g., "103"), it MUST exist in the 'Room Status' data provided.
+4. IF A MODULE HAS DATA BUT NO ISSUES, DO NOT INVENT WARNINGS. Report "No critical issues detected" for that module.
+5. IF ALL MODULES ARE EMPTY, set the health score to 0 and the summary to "Operational data unavailable for analysis."
+6. DO NOT BE "HELPFUL" BY CREATING EXAMPLES. Only report on real data.
 
 DATA CONTEXT:
 - Inventory: {{{inventory}}}
@@ -53,30 +61,23 @@ DATA CONTEXT:
 - Maintenance (Open Tasks): {{{maintenance}}}
 - Room Status: {{{rooms}}}
 
-CRITICAL INSTRUCTIONS:
-1. USE ONLY THE DATA PROVIDED. 
-2. DO NOT HALLUCINATE figures or entities. If a module is empty, state "Data not available" for that module.
-3. IF ALL MODULES HAVE NO DATA, set the health score to 0 and the summary to "Operational data unavailable for analysis."
-4. ANALYTICS CAPABILITIES:
-   - Calculate KPIs based on the density of data. 
-   - Example: Inventory Shortage Ratio = (items below min / total items).
-   - Example: Maintenance Resolution Velocity = (completed vs pending repair ratio).
-   - Example: Revenue Settlement Risk = (total unpaid value vs time elapsed).
-
 ANALYSIS GUIDELINES:
-- INVENTORY: Analyze current stock vs min levels to detect replenishment trends.
-- ACCOUNTING: Analyze the aging of unpaid invoices.
-- LAUNDRY: Identify guest folio risks.
-- MAINTENANCE: Determine if there is a growing repair backlog.
-- HOUSEKEEPING: Look for 'stale dirty' rooms (rooms updated long ago but still dirty).
+- INVENTORY: Compare current stock vs min levels. If stock > min, there is NO shortage.
+- ACCOUNTING: Check the dates of unpaid invoices. Only flag as "Aging" if they are older than 7 days.
+- MAINTENANCE: Only flag "Backlog" if there are more than 3 'pending' tasks.
+- HOUSEKEEPING: Only flag "Stale Dirty" if the 'updated' timestamp for a dirty room is older than the current date.
+
+KPI CALCULATION:
+- Mathematically derive values. 
+- Inventory Shortage Ratio = (items below min / total items).
+- Room Readiness Rate = (available rooms / total rooms).
+- If a metric cannot be calculated precisely because lists are empty, set value to "N/A" and trend to "stable".
 
 OUTPUT FORMAT:
-- summary: A high-level executive briefing.
-- alerts: Specific critical or warning flags.
-- score: 0-100 based strictly on data presence and alert severity.
-- kpis: At least 3 specific analytical metrics derived from the context. If data is too thin for a metric, describe it as 'Establishing Baseline'.
-
-Professional hospitality and data-driven tone.`,
+- summary: High-level executive brief based ONLY on facts.
+- alerts: Specific flags. (Empty array if no issues).
+- score: 0-100 based strictly on presence of issues. (100 = No issues found in data provided).
+- kpis: At least 3 specific analytical metrics derived FROM THE LISTS.`,
 });
 
 export async function analyzeProperty(input: AnalysisInput): Promise<AnalysisOutput> {
