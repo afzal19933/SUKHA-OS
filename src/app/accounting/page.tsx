@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -546,14 +545,13 @@ export default function AccountingPage() {
 
               {activeView === 'ayuraccounts' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                  <div className="bg-primary p-8 rounded-[2.5rem] text-white space-y-4 shadow-xl">
+                  <div className="bg-primary p-5 rounded-3xl text-white space-y-4 shadow-xl max-w-2xl">
                     <div className="flex items-center gap-4">
-                      <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-md">
-                        <Hospital className="w-10 h-10 text-white" />
+                      <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
+                        <Hospital className="w-7 h-7 text-white" />
                       </div>
                       <div>
-                        <h1 className="text-2xl font-black uppercase tracking-tight">Ayursiha Hospital Accounts</h1>
-                        <p className="text-xs text-white/70 font-bold uppercase tracking-widest">Consolidated 10-Day Cycle Reconciliation</p>
+                        <h1 className="text-xl font-black uppercase tracking-tight">Ayursiha Hospital Accounts</h1>
                       </div>
                     </div>
                   </div>
