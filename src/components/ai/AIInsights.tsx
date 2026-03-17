@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { 
   Cpu, 
   AlertTriangle, 
@@ -11,9 +11,7 @@ import {
   TrendingUp,
   TrendingDown,
   CheckCircle2,
-  ChevronRight,
   Database,
-  BarChart3,
   Activity,
   LineChart
 } from "lucide-react";
@@ -26,11 +24,16 @@ import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
 import { collection } from "firebase/firestore";
 
+/**
+ * AIInsights Component
+ * Automatically analyzes operational data in real-time using Gemini AI.
+ */
 export function AIInsights() {
   const { entityId } = useAuthStore();
   const db = useFirestore();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [insights, setInsights] = useState<AnalysisOutput | null>(null);
+  const lastAnalysisHash = useRef<string>("");
 
   // Data Aggregation for AI Context
   const stocksRef = useMemoFirebase(() => entityId ? collection(db, "hotel_properties", entityId, "inventory_stocks") : null, [db, entityId]);
@@ -47,34 +50,56 @@ export function AIInsights() {
 
   const isDataLoaded = !stocksLoading && !invoicesLoading && !laundryLoading && !tasksLoading && !roomsLoading;
 
+  /**
+   * Prepares the data object for the AI engine.
+   */
+  const currentContext = useMemo(() => {
+    if (!isDataLoaded) return null;
+    return {
+      inventory: stocks?.length ? stocks.map(s => ({ name: s.itemName, stock: s.currentStock, min: s.minStock })) : [],
+      accounting: invoices?.length ? invoices.filter(i => i.status !== 'paid').map(i => ({ no: i.invoiceNumber, amount: i.totalAmount, date: i.createdAt })) : [],
+      laundry: laundry?.length ? laundry.filter(l => l.status !== 'paid').map(l => ({ room: l.roomNumber, status: l.status, hotelTotal: l.hotelTotal })) : [],
+      maintenance: tasks?.length ? tasks.filter(t => t.taskType === 'repair' && t.status !== 'completed').map(t => ({ area: t.roomId, type: t.taskType, priority: t.priority })) : [],
+      rooms: rooms?.length ? rooms.map(r => ({ no: r.roomNumber, status: r.status, updated: r.updatedAt })) : []
+    };
+  }, [isDataLoaded, stocks, invoices, laundry, tasks, rooms]);
+
+  /**
+   * Executes the AI analysis flow.
+   */
   const runAnalysis = async () => {
-    if (!entityId || isAnalyzing || !isDataLoaded) return;
+    if (!entityId || isAnalyzing || !currentContext) return;
+    
+    // Create a simple hash/string of the data to check if it actually changed significantly
+    const contextString = JSON.stringify(currentContext);
+    if (contextString === lastAnalysisHash.current) return;
+
     setIsAnalyzing(true);
-
     try {
-      // Prepare analytics-ready context
-      const context = {
-        inventory: stocks?.length ? stocks.map(s => ({ name: s.itemName, stock: s.currentStock, min: s.minStock })) : [],
-        accounting: invoices?.length ? invoices.filter(i => i.status !== 'paid').map(i => ({ no: i.invoiceNumber, amount: i.totalAmount, date: i.createdAt })) : [],
-        laundry: laundry?.length ? laundry.filter(l => l.status !== 'paid').map(l => ({ room: l.roomNumber, status: l.status, hotelTotal: l.hotelTotal })) : [],
-        maintenance: tasks?.length ? tasks.filter(t => t.taskType === 'repair' && t.status !== 'completed').map(t => ({ area: t.roomId, type: t.taskType, priority: t.priority })) : [],
-        rooms: rooms?.length ? rooms.map(r => ({ no: r.roomNumber, status: r.status, updated: r.updatedAt })) : []
-      };
-
-      const result = await analyzeProperty(context);
+      const result = await analyzeProperty(currentContext);
       setInsights(result);
+      lastAnalysisHash.current = contextString;
     } catch (error) {
-      console.error("Analysis failed", error);
+      console.error("AI Analysis failed", error);
     } finally {
       setIsAnalyzing(false);
     }
   };
 
+  /**
+   * Real-time Debounced Effect:
+   * Triggers the AI engine automatically when data changes, with a 5-second debounce
+   * to batch multiple Firestore updates and control API costs.
+   */
   useEffect(() => {
-    if (isDataLoaded && !insights && entityId) {
+    if (!isDataLoaded || !entityId || isAnalyzing) return;
+
+    const debounceTimer = setTimeout(() => {
       runAnalysis();
-    }
-  }, [isDataLoaded, entityId]);
+    }, 5000); // 5 second debounce
+
+    return () => clearTimeout(debounceTimer);
+  }, [currentContext, entityId, isDataLoaded]);
 
   const hasNoDataAtAll = useMemo(() => {
     return isDataLoaded && 
@@ -94,7 +119,13 @@ export function AIInsights() {
           </div>
           <div>
             <CardTitle className="text-lg font-black uppercase tracking-tight">AI Analytical Engine</CardTitle>
-            <p className="text-[10px] text-white/70 font-bold uppercase tracking-widest">Descriptive & Diagnostic Audit</p>
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] text-white/70 font-bold uppercase tracking-widest">Real-time Diagnostic Audit</p>
+              <div className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500/20 rounded-full border border-emerald-500/30">
+                <div className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse" />
+                <span className="text-[7px] font-black text-emerald-300 uppercase">Live Data Stream</span>
+              </div>
+            </div>
           </div>
         </div>
         <Button 
@@ -108,10 +139,10 @@ export function AIInsights() {
         </Button>
       </CardHeader>
       <CardContent className="p-6 space-y-8">
-        {isAnalyzing || !isDataLoaded ? (
+        {(isAnalyzing && !insights) || !isDataLoaded ? (
           <div className="py-20 flex flex-col items-center justify-center space-y-4">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <p className="text-xs font-black uppercase text-muted-foreground animate-pulse">Processing cross-module data analytics...</p>
+            <p className="text-xs font-black uppercase text-muted-foreground animate-pulse">Synchronizing cross-module data analytics...</p>
           </div>
         ) : hasNoDataAtAll ? (
           <div className="py-20 text-center space-y-4">
@@ -153,7 +184,7 @@ export function AIInsights() {
               </div>
             </div>
 
-            {/* Strategic KPIs Section - DATA ANALYTICS POWER */}
+            {/* Strategic KPIs Section */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 px-2">
                 <LineChart className="w-4 h-4 text-primary" />
@@ -182,9 +213,17 @@ export function AIInsights() {
 
             {/* Alert List */}
             <div className="space-y-4 pt-4 border-t">
-              <div className="flex items-center gap-2 px-2">
-                <AlertTriangle className="w-4 h-4 text-muted-foreground" />
-                <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Diagnostic Operational Alerts</h3>
+              <div className="flex items-center justify-between px-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-muted-foreground" />
+                  <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Diagnostic Operational Alerts</h3>
+                </div>
+                {isAnalyzing && (
+                  <div className="flex items-center gap-1.5">
+                    <Loader2 className="w-3 h-3 animate-spin text-primary" />
+                    <span className="text-[8px] font-bold text-primary uppercase">Recalculating...</span>
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {insights.alerts.map((alert, idx) => {
