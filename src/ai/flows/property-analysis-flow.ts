@@ -26,7 +26,7 @@ const AlertSchema = z.object({
 const AnalysisOutputSchema = z.object({
   summary: z.string(),
   alerts: z.array(AlertSchema),
-  score: z.number().describe("Overall operational health score out of 100")
+  score: z.number().describe("Overall operational health score out of 100. Set to 0 if no data is available.")
 });
 
 export type AnalysisInput = z.infer<typeof AnalysisInputSchema>;
@@ -48,9 +48,9 @@ DATA CONTEXT:
 CRITICAL INSTRUCTIONS:
 1. USE ONLY THE DATA PROVIDED. 
 2. DO NOT HALLUCINATE. If a specific room, stock item, or invoice is not in the context, do not mention it.
-3. DO NOT USE EXAMPLES AS REAL DATA. 
-4. If a module (e.g. Inventory) has no data or an empty array, simply skip analysis for that module and note its absence in the summary.
-5. Provide a realistic health score based ONLY on the alerts found. 100 means no alerts found in provided data.
+3. IF A MODULE (e.g. Inventory) HAS NO DATA OR AN EMPTY ARRAY, you MUST state "Current data not available" for that module in the summary.
+4. IF ALL MODULES HAVE NO DATA, set the score to 0 and the summary to "Operational data unavailable for all modules. Please ensure logs are updated."
+5. Provide a realistic health score based ONLY on the alerts found. 100 means all modules have data and no alerts were found.
 
 ANALYSIS GUIDELINES:
 - INVENTORY: Flag items where currentStock <= minStock.
