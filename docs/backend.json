@@ -1,138 +1,442 @@
 {
   "entities": {
-    "HotelProperty": {
-      "title": "HotelProperty",
+    "InventoryItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "InventoryItem",
       "type": "object",
+      "description": "Represents a distinct item stocked by the hotel, tracking its quantity and properties.",
       "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "address": { "type": "string" },
-        "phone": { "type": "string" },
-        "email": { "type": "string" },
-        "isActive": { "type": "boolean" },
-        "gstin": { "type": "string" },
-        "whatsappNumber": { "type": "string", "description": "The official business number used to send messages." },
-        "whatsappBusinessId": { "type": "string" },
-        "whatsappAccessToken": { "type": "string", "description": "Meta Cloud API permanent access token." }
-      }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the InventoryItem entity."
+        },
+        "entityId": {
+          "type": "string",
+          "description": "Reference to the hotel property entity. (Relationship: Entity 1:N InventoryItem)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the inventory item (e.g., 'Hand Towel', 'Shampoo Bottle', 'Coffee Sachet')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the inventory item."
+        },
+        "category": {
+          "type": "string",
+          "description": "The category of the item (e.g., 'Linen', 'Toiletries', 'Cleaning Supplies', 'F&B', 'Office Supplies')."
+        },
+        "unitOfMeasure": {
+          "type": "string",
+          "description": "The unit in which the item is measured and stocked (e.g., 'piece', 'bottle', 'packet', 'liter', 'kg')."
+        },
+        "currentStock": {
+          "type": "number",
+          "description": "The current quantity of the item on hand in stock."
+        },
+        "minStockLevel": {
+          "type": "number",
+          "description": "The minimum stock level for this item, triggering a reorder alert if below."
+        },
+        "maxStockLevel": {
+          "type": "number",
+          "description": "The desired maximum stock level for this item."
+        },
+        "lastPurchasePrice": {
+          "type": "number",
+          "description": "The unit price of the item from its last recorded purchase."
+        },
+        "supplierIds": {
+          "type": "array",
+          "description": "References to Suppliers from whom this item can be purchased. (Relationship: Supplier N:N InventoryItem)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "laundryItemId": {
+          "type": "string",
+          "description": "Optional reference to a LaundryItem if this inventory item is a linen item. (Relationship: LaundryItem 1:N InventoryItem)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the inventory item was first created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the inventory item was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "entityId",
+        "name",
+        "category",
+        "unitOfMeasure",
+        "currentStock",
+        "minStockLevel",
+        "createdAt",
+        "updatedAt"
+      ]
     },
-    "UserProfile": {
-      "title": "UserProfile",
+    "Supplier": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Supplier",
       "type": "object",
+      "description": "Details of a vendor or supplier from whom the hotel procures inventory items.",
       "properties": {
-        "id": { "type": "string" },
-        "entityId": { "type": "string" },
-        "name": { "type": "string" },
-        "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["owner", "admin", "manager", "supervisor", "staff"] },
-        "isActive": { "type": "boolean" },
-        "permissions": { "type": "array", "items": { "type": "string" } }
-      }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Supplier entity."
+        },
+        "entityId": {
+          "type": "string",
+          "description": "Reference to the hotel property entity. (Relationship: Entity 1:N Supplier)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The official name of the supplier company."
+        },
+        "contactPerson": {
+          "type": "string",
+          "description": "The primary contact person at the supplier."
+        },
+        "phone": {
+          "type": "string",
+          "description": "The contact phone number for the supplier."
+        },
+        "email": {
+          "type": "string",
+          "description": "The contact email address for the supplier.",
+          "format": "email"
+        },
+        "address": {
+          "type": "string",
+          "description": "The physical address of the supplier."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Any additional notes or details about the supplier."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates if the supplier is currently active and can be used for purchases."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the supplier record was first created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the supplier record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "entityId",
+        "name",
+        "isActive",
+        "createdAt",
+        "updatedAt"
+      ]
     },
-    "Reservation": {
-      "title": "Reservation",
+    "PurchaseOrder": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PurchaseOrder",
       "type": "object",
+      "description": "Represents an order placed with a supplier for specific inventory items.",
       "properties": {
-        "id": { "type": "string" },
-        "guestName": { "type": "string" },
-        "roomNumber": { "type": "string" },
-        "status": { "type": "string", "enum": ["confirmed", "checked_in", "checked_out", "cancelled"] },
-        "checkInDate": { "type": "string", "format": "date" },
-        "checkOutDate": { "type": "string", "format": "date" },
-        "bookingSource": { "type": "string" },
-        "negotiatedRate": { "type": "number" },
-        "phoneNumber": { "type": "string", "description": "WhatsApp enabled phone number" }
-      }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the PurchaseOrder entity."
+        },
+        "entityId": {
+          "type": "string",
+          "description": "Reference to the hotel property entity. (Relationship: Entity 1:N PurchaseOrder)"
+        },
+        "supplierId": {
+          "type": "string",
+          "description": "Reference to the Supplier for this purchase order. (Relationship: Supplier 1:N PurchaseOrder)"
+        },
+        "orderNumber": {
+          "type": "string",
+          "description": "A unique, auto-generated or manual number for the purchase order."
+        },
+        "orderDate": {
+          "type": "string",
+          "description": "The date when the purchase order was placed.",
+          "format": "date-time"
+        },
+        "expectedDeliveryDate": {
+          "type": "string",
+          "description": "The expected date for the delivery of the ordered items.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the purchase order (e.g., 'draft', 'ordered', 'partially_received', 'received', 'cancelled')."
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "The total monetary value of all items in the purchase order."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Any additional notes or special instructions for the purchase order."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the purchase order was first created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the purchase order was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "entityId",
+        "supplierId",
+        "orderNumber",
+        "orderDate",
+        "status",
+        "totalAmount",
+        "createdAt",
+        "updatedAt"
+      ]
     },
-    "WhatsAppMessageLog": {
-      "title": "WhatsAppMessageLog",
+    "PurchaseOrderItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PurchaseOrderItem",
       "type": "object",
-      "description": "Logs all WhatsApp communication including AI interactions.",
+      "description": "Represents a single line item within a PurchaseOrder, detailing the specific inventory item ordered.",
       "properties": {
-        "id": { "type": "string" },
-        "entityId": { "type": "string" },
-        "phoneNumber": { "type": "string" },
-        "role": { "type": "string" },
-        "direction": { "type": "string", "enum": ["incoming", "outgoing"] },
-        "message": { "type": "string" },
-        "response": { "type": "string" },
-        "status": { "type": "string" },
-        "isAiQuery": { "type": "boolean" },
-        "intent": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the PurchaseOrderItem entity."
+        },
+        "entityId": {
+          "type": "string",
+          "description": "Reference to the hotel property entity. (Relationship: Entity 1:N PurchaseOrderItem)"
+        },
+        "purchaseOrderId": {
+          "type": "string",
+          "description": "Reference to the parent PurchaseOrder. (Relationship: PurchaseOrder 1:N PurchaseOrderItem)"
+        },
+        "inventoryItemId": {
+          "type": "string",
+          "description": "Reference to the InventoryItem being ordered. (Relationship: InventoryItem N:1 PurchaseOrderItem)"
+        },
+        "orderedQuantity": {
+          "type": "number",
+          "description": "The quantity of the item that was ordered."
+        },
+        "receivedQuantity": {
+          "type": "number",
+          "description": "The quantity of the item that has been received so far for this order item."
+        },
+        "unitPrice": {
+          "type": "number",
+          "description": "The price per unit for this specific order item."
+        },
+        "lineTotal": {
+          "type": "number",
+          "description": "The total calculated amount for this line item (orderedQuantity * unitPrice)."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Any specific notes for this purchase order item."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the purchase order item was first created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the purchase order item was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "entityId",
+        "purchaseOrderId",
+        "inventoryItemId",
+        "orderedQuantity",
+        "receivedQuantity",
+        "unitPrice",
+        "lineTotal",
+        "createdAt",
+        "updatedAt"
+      ]
     },
-    "WhatsAppTemplate": {
-      "title": "WhatsAppTemplate",
+    "StockTransaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "StockTransaction",
       "type": "object",
+      "description": "Records every movement or change in the quantity of an inventory item.",
       "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "body": { "type": "string" },
-        "triggerEvent": { "type": "string" },
-        "isActive": { "type": "boolean" }
-      }
-    },
-    "SystemAlert": {
-      "title": "SystemAlert",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "entityId": { "type": "string" },
-        "alertType": { "type": "string" },
-        "title": { "type": "string" },
-        "message": { "type": "string" },
-        "severity": { "type": "string" },
-        "status": { "type": "string" }
-      }
-    },
-    "LaundryVendorPayment": {
-      "title": "LaundryVendorPayment",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "amount": { "type": "number" },
-        "paymentDate": { "type": "string", "format": "date" },
-        "paymentMethod": { "type": "string" },
-        "reference": { "type": "string" },
-        "notes": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the StockTransaction entity."
+        },
+        "entityId": {
+          "type": "string",
+          "description": "Reference to the hotel property entity. (Relationship: Entity 1:N StockTransaction)"
+        },
+        "inventoryItemId": {
+          "type": "string",
+          "description": "Reference to the InventoryItem affected by this transaction. (Relationship: InventoryItem 1:N StockTransaction)"
+        },
+        "transactionType": {
+          "type": "string",
+          "description": "The type of stock movement (e.g., 'purchase', 'consumption', 'adjustment_in', 'adjustment_out', 'transfer_in', 'transfer_out', 'return_to_supplier')."
+        },
+        "quantityChange": {
+          "type": "number",
+          "description": "The change in quantity for the item. Positive for stock increase, negative for decrease."
+        },
+        "currentStockSnapshot": {
+          "type": "number",
+          "description": "The stock level of the item immediately after this transaction occurred."
+        },
+        "transactionDate": {
+          "type": "string",
+          "description": "The date and time when the stock transaction took place.",
+          "format": "date-time"
+        },
+        "performedByUserId": {
+          "type": "string",
+          "description": "Reference to the User who performed this stock transaction. (Relationship: User 1:N StockTransaction)"
+        },
+        "referenceDocumentId": {
+          "type": "string",
+          "description": "Optional reference to a document that initiated this transaction (e.g., PurchaseOrderID, RoomID for consumption, InvoiceID)."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Any additional notes for this specific transaction."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the stock transaction record was first created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the stock transaction record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "entityId",
+        "inventoryItemId",
+        "transactionType",
+        "quantityChange",
+        "currentStockSnapshot",
+        "transactionDate",
+        "performedByUserId",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "auth": {
-    "providers": ["password", "anonymous"]
+    "providers": [
+      "password",
+      "anonymous"
+    ]
   },
   "firestore": {
-    "structure": {
-      "/user_profiles/{userId}": {
-        "schema": "UserProfile",
-        "description": "Stores core user profile and role data."
+    "structure": [
+      {
+        "path": "/inventory_items/{inventoryItemId}",
+        "definition": {
+          "entityName": "inventoryItem",
+          "schema": {
+            "$ref": "#/backend/entities/InventoryItem"
+          },
+          "description": "Stores details for each inventory item, including its current stock. Includes denormalized 'entityId' for authorization independence and 'laundryItemId' to link to linen items from the laundry section.",
+          "params": [
+            {
+              "name": "inventoryItemId",
+              "description": "The unique identifier for the inventory item."
+            }
+          ]
+        }
       },
-      "/hotel_properties/{entityId}": {
-        "schema": "HotelProperty",
-        "description": "Root document for a specific hotel/apartment entity."
+      {
+        "path": "/suppliers/{supplierId}",
+        "definition": {
+          "entityName": "supplier",
+          "schema": {
+            "$ref": "#/backend/entities/Supplier"
+          },
+          "description": "Contains information about vendors from whom inventory items are procured. Includes denormalized 'entityId' for authorization independence.",
+          "params": [
+            {
+              "name": "supplierId",
+              "description": "The unique identifier for the supplier."
+            }
+          ]
+        }
       },
-      "/hotel_properties/{entityId}/reservations/{resId}": {
-        "schema": "Reservation",
-        "description": "Guest stay records."
+      {
+        "path": "/purchase_orders/{purchaseOrderId}",
+        "definition": {
+          "entityName": "purchaseOrder",
+          "schema": {
+            "$ref": "#/backend/entities/PurchaseOrder"
+          },
+          "description": "Manages orders placed with suppliers for inventory items. Includes denormalized 'entityId' for authorization independence and 'supplierId' reference.",
+          "params": [
+            {
+              "name": "purchaseOrderId",
+              "description": "The unique identifier for the purchase order."
+            }
+          ]
+        }
       },
-      "/hotel_properties/{entityId}/whatsapp_logs/{logId}": {
-        "schema": "WhatsAppMessageLog",
-        "description": "Log of all automated and AI WhatsApp messages."
+      {
+        "path": "/purchase_order_items/{purchaseOrderItemId}",
+        "definition": {
+          "entityName": "purchaseOrderItem",
+          "schema": {
+            "$ref": "#/backend/entities/PurchaseOrderItem"
+          },
+          "description": "Represents individual line items within a purchase order. Includes denormalized 'entityId' for authorization independence, 'purchaseOrderId', and 'inventoryItemId' references.",
+          "params": [
+            {
+              "name": "purchaseOrderItemId",
+              "description": "The unique identifier for the purchase order item."
+            }
+          ]
+        }
       },
-      "/hotel_properties/{entityId}/whatsapp_templates/{templateId}": {
-        "schema": "WhatsAppTemplate",
-        "description": "Pre-defined messages for guest automation."
-      },
-      "/hotel_properties/{entityId}/system_alerts/{alertId}": {
-        "schema": "SystemAlert",
-        "description": "Critical operational alerts sent via WhatsApp."
-      },
-      "/hotel_properties/{entityId}/laundry_vendor_payments/{paymentId}": {
-        "schema": "LaundryVendorPayment",
-        "description": "Payments made to the laundry vendor (Signature Laundry)."
+      {
+        "path": "/stock_transactions/{stockTransactionId}",
+        "definition": {
+          "entityName": "stockTransaction",
+          "schema": {
+            "$ref": "#/backend/entities/StockTransaction"
+          },
+          "description": "Records every movement or change in the quantity of an inventory item. Includes denormalized 'entityId' for authorization independence, 'inventoryItemId', and 'performedByUserId' references.",
+          "params": [
+            {
+              "name": "stockTransactionId",
+              "description": "The unique identifier for the stock transaction."
+            }
+          ]
+        }
       }
-    }
+    ],
+    "reasoning": "The Firestore structure for the inventory module is designed to be secure, scalable, and highly debuggable, primarily by enforcing **Authorization Independence** and supporting **Queryable Access Patterns (QAPs)**. Each hotel property (referred to as an 'entity') is assigned a unique `entityId`, which serves as the core authorization context for all data within its scope. This `entityId` is explicitly denormalized and included as a required field in every document across the `inventory_items`, `suppliers`, `purchase_orders`, `purchase_order_items`, and `stock_transactions` collections. This critical denormalization strategy eliminates the need for expensive and complex `get()` calls in Firebase Security Rules to establish hierarchical authorization. Instead, rules can directly evaluate `request.auth.token.entityId == resource.data.entityId`, making them atomic, efficient, and straightforward to write and debug. This approach also greatly simplifies the debugging process, as all necessary authorization information is contained within the document itself.\n\nFor **Queryable Access Patterns (QAPs)**, the consistent inclusion of `entityId` in every document allows for secure and performant list operations. Frontend queries can safely and efficiently filter data using `collection.where('entityId', '==', request.auth.token.entityId)`, ensuring that users only retrieve data belonging to their assigned hotel property. This prevents security rules from being used as filters, which is inefficient and insecure. The collections maintain a **Structural Segregation** where all documents within a collection share the same security posture – all are scoped to a specific `entityId` and are internal to the PMS, thereby avoiding the complexity of mixing public and private data within the same collection.\n\nThe inventory module effectively manages stock by storing the `currentStock` in each `inventory_item` document. The user's requirement to link linen items from laundry is addressed by the `laundryItemId` reference within `inventory_items`. Purchase operations are managed through `purchase_orders` and their associated `purchase_order_items`. When a purchase is received, `stock_transactions` are created to record the movement, and the `currentStock` of the respective `inventory_item` is updated, typically via an atomic Cloud Function to maintain data integrity. This design ensures clarity, predictability, and full compliance with the specified core design principles and mandates for a robust Firebase architecture."
   }
 }
