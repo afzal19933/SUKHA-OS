@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
@@ -25,7 +24,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { AIInsights } from "@/components/ai/AIInsights";
 
 /**
  * EntityCommandPanel - Renders a side-by-side operational overview for a property.
@@ -286,9 +284,6 @@ export default function CommandCenterPage() {
             <span className="text-[11px] font-black uppercase">Live Sync Active</span>
           </div>
         </header>
-
-        {/* AI STRATEGIC ANALYSIS */}
-        <AIInsights />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 pt-8">
           {retreatEntity ? (

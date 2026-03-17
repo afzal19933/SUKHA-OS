@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview AI Flow for holistic property operational analysis.
@@ -41,18 +40,24 @@ const analysisPrompt = ai.definePrompt({
 
 DATA CONTEXT:
 - Inventory: {{{inventory}}}
-- Accounting (Invoices): {{{accounting}}}
-- Laundry (Orders & Batches): {{{laundry}}}
-- Maintenance (Tasks & Schedules): {{{maintenance}}}
+- Accounting (Unpaid Invoices): {{{accounting}}}
+- Laundry (Unpaid Orders): {{{laundry}}}
+- Maintenance (Open Tasks): {{{maintenance}}}
 - Room Status: {{{rooms}}}
 
+CRITICAL INSTRUCTIONS:
+1. USE ONLY THE DATA PROVIDED. 
+2. DO NOT HALLUCINATE. If a specific room, stock item, or invoice is not in the context, do not mention it.
+3. DO NOT USE EXAMPLES AS REAL DATA. 
+4. If a module (e.g. Inventory) has no data or an empty array, simply skip analysis for that module and note its absence in the summary.
+5. Provide a realistic health score based ONLY on the alerts found. 100 means no alerts found in provided data.
+
 ANALYSIS GUIDELINES:
-1. INVENTORY: Flag items where currentStock <= minStock. Look for high-consumption items.
-2. ACCOUNTING: Flag "unpaid" invoices older than 3 days. Mention high-value receivables.
-3. LAUNDRY: Flag orders marked "sent" for more than 48 hours. Detect high vendor dues.
-4. MAINTENANCE: Flag "high" priority repairs that aren't "completed". Note upcoming "routine" tasks.
-5. HOUSEKEEPING: Suggest "Deep Cleaning" for rooms that have been "dirty" for more than 12 hours.
-6. OVERALL: Provide a summary of the property's health and a score.
+- INVENTORY: Flag items where currentStock <= minStock.
+- ACCOUNTING: Flag "unpaid" invoices. 
+- LAUNDRY: Flag guest orders where status is not 'paid'.
+- MAINTENANCE: Flag "high" priority repairs that aren't "completed".
+- HOUSEKEEPING: From the 'rooms' data, identify rooms where status is 'dirty' or 'occupied_dirty'. Suggest cleaning.
 
 Be professional, concise, and operational. Use hospitality terminology.`,
 });

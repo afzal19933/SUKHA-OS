@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, Suspense } from "react";
@@ -28,7 +27,6 @@ import { collection, query, where, orderBy, limit } from "firebase/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AIInsights } from "@/components/ai/AIInsights";
 
 /* ------------------------------ */
 /* Dashboard Content Component    */
@@ -143,9 +141,6 @@ function DashboardContent() {
         <KPICard label="Today's Revenue" value={`₹${stats.revenue.toLocaleString()}`} sub="Current Settlements" icon={IndianRupee} color="text-primary" bg="bg-primary/5" />
         <KPICard label="Dirty Units" value={stats.dirty} sub="Housekeeping Required" icon={AlertTriangle} color="text-orange-600" bg="bg-orange-50" />
       </div>
-
-      {/* AI INTELLIGENCE SECTION */}
-      <AIInsights />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
