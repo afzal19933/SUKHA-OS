@@ -59,7 +59,8 @@ const NAV_ITEMS = [
   { name: "Command Center", href: "/command-center", icon: Monitor, restricted: ["owner", "admin", "manager"] },
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Reservations", href: "/reservations", icon: CalendarDays },
-  { name: "Inventory", href: "/rooms", icon: Package },
+  { name: "Rooms", href: "/rooms", icon: DoorOpen },
+  { name: "Inventory", href: "/inventory", icon: Package },
   { name: "Housekeeping", href: "/housekeeping", icon: BedDouble },
   { name: "Maintenance", href: "/maintenance", icon: Wrench },
   { name: "Laundry", href: "/laundry", icon: WashingMachine },
@@ -138,22 +139,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   const filteredNavItems = useMemo(() => {
     return NAV_ITEMS.filter(item => {
-      // 1. Check Role-based restriction for the item itself
       if (item.restricted && !item.restricted.includes(role || "")) {
         return false;
       }
-      
-      // 2. Dashboard is always visible
       if (item.name === "Dashboard") return true;
-
-      // 3. For owners/admins, all (non-restricted by other means) items are visible
       if (role === 'owner' || role === 'admin') return true;
-
-      // 4. For others, check specific permissions
       if (permissions && permissions.length > 0) {
         return permissions.includes(item.name);
       }
-
       return false;
     });
   }, [role, permissions]);

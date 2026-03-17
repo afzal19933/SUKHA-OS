@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,13 +11,8 @@ import {
   Plus, 
   DoorOpen, 
   Trash2, 
-  Edit3, 
   Loader2,
-  ShoppingCart,
-  History as HistoryIcon,
-  Package,
-  Search,
-  FilterX
+  Package
 } from "lucide-react";
 import { 
   Dialog, 
@@ -25,7 +20,6 @@ import {
   DialogHeader, 
   DialogTitle, 
   DialogTrigger,
-  DialogDescription
 } from "@/components/ui/dialog";
 import { 
   Select, 
@@ -34,45 +28,13 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useDoc } from "@/firebase";
-import { collection, doc, query, orderBy, limit } from "firebase/firestore";
-import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { collection, doc, query, orderBy } from "firebase/firestore";
+import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
-import { cn, formatAppDate } from "@/lib/utils";
 
 const BUILDINGS = ["Old Apartment", "New Apartment"];
-
-const SUPPLY_CATEGORIES = [
-  { 
-    label: "Cleaning Chemicals", 
-    items: ["Floor Cleaner", "Toilet Cleaner", "Room Freshner", "Glass Cleaner", "Dish Wash", "Hand Wash", "Bleach", "Surface Sanitizer"] 
-  },
-  { 
-    label: "Guest Amenities", 
-    items: ["Drinking Water Bottles (500ml)", "Drinking Water Bottles (1L)", "Tissue Box (Room)", "Soap Kit", "Shampoo Kit", "Toothbrush Kit", "Moisturizer"] 
-  },
-  { 
-    label: "Washroom Supplies", 
-    items: ["Paper Towel Roll", "Toilet Paper Roll", "C-Fold Paper", "Hand Towel", "Bath Mat"] 
-  },
-  { 
-    label: "Tools & Equipment", 
-    items: ["Mop Head", "Floor Brush", "Toilet Brush", "Bucket", "Microfiber Cloth", "Broom", "Dustpan", "Vacuum Filter"] 
-  },
-  { 
-    label: "Other", 
-    items: ["General Supply", "Garbage Bags (Small)", "Garbage Bags (Large)"] 
-  }
-];
 
 export default function RoomsPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
@@ -83,24 +45,10 @@ export default function RoomsPage() {
 
   const [isTypeOpen, setIsTypeOpen] = useState(false);
   const [isRoomOpen, setIsRoomOpen] = useState(false);
-  const [isPurchaseOpen, setIsPurchaseOpen] = useState(false);
-  const [isEditRoomOpen, setIsEditRoomOpen] = useState(false);
-  const [isEditTypeOpen, setIsEditTypeOpen] = useState(false);
 
   // Form states
   const [newType, setNewType] = useState({ name: "", rate: "", occupancy: "2" });
   const [newRoom, setNewRoom] = useState({ roomNumber: "", floor: "1", typeId: "", building: "" });
-  const [newPurchase, setNewPurchase] = useState({ 
-    itemName: "", 
-    category: "", 
-    quantity: "", 
-    unit: "pcs", 
-    totalCost: "", 
-    vendor: "", 
-    date: new Date().toISOString().split('T')[0] 
-  });
-
-  const [purchaseSearch, setPurchaseSearch] = useState("");
 
   // Data fetching
   const typesQuery = useMemoFirebase(() => {
@@ -113,11 +61,6 @@ export default function RoomsPage() {
     return query(collection(db, "hotel_properties", entityId, "rooms"), orderBy("roomNumber"));
   }, [db, entityId]);
 
-  const purchasesQuery = useMemoFirebase(() => {
-    if (!entityId) return null;
-    return query(collection(db, "hotel_properties", entityId, "supply_purchases"), orderBy("date", "desc"), limit(100));
-  }, [db, entityId]);
-
   const propertyRef = useMemoFirebase(() => {
     if (!entityId) return null;
     return doc(db, "hotel_properties", entityId);
@@ -125,21 +68,9 @@ export default function RoomsPage() {
 
   const { data: roomTypes, isLoading: typesLoading } = useCollection(typesQuery);
   const { data: rooms, isLoading: roomsLoading } = useCollection(roomsQuery);
-  const { data: purchases, isLoading: purchasesLoading } = useCollection(purchasesQuery);
   const { data: property } = useDoc(propertyRef);
 
   const isParadise = property?.name?.toLowerCase().includes("paradise");
-
-  const filteredPurchases = useMemo(() => {
-    if (!purchases) return [];
-    if (!purchaseSearch) return purchases;
-    const s = purchaseSearch.toLowerCase();
-    return purchases.filter(p => 
-      p.itemName?.toLowerCase().includes(s) || 
-      p.category?.toLowerCase().includes(s) || 
-      p.vendor?.toLowerCase().includes(s)
-    );
-  }, [purchases, purchaseSearch]);
 
   const handleAddType = (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,7 +82,6 @@ export default function RoomsPage() {
       name: newType.name,
       baseRate: parseFloat(newType.rate),
       maxOccupancy: parseInt(newType.occupancy),
-      amenities: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
@@ -159,23 +89,6 @@ export default function RoomsPage() {
     toast({ title: "Room Category Added" });
     setIsTypeOpen(false);
     setNewType({ name: "", rate: "", occupancy: "2" });
-  };
-
-  const handleAddPurchase = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!entityId || !isAdmin) return;
-
-    const colRef = collection(db, "hotel_properties", entityId, "supply_purchases");
-    addDocumentNonBlocking(colRef, {
-      ...newPurchase,
-      quantity: parseFloat(newPurchase.quantity),
-      totalCost: parseFloat(newPurchase.totalCost) || 0,
-      createdAt: new Date().toISOString(),
-    });
-
-    toast({ title: "Purchase Recorded", description: `${newPurchase.itemName} added to history.` });
-    setIsPurchaseOpen(false);
-    setNewPurchase({ itemName: "", category: "", quantity: "", unit: "pcs", totalCost: "", vendor: "", date: new Date().toISOString().split('T')[0] });
   };
 
   const handleAddRoom = (e: React.FormEvent) => {
@@ -205,19 +118,13 @@ export default function RoomsPage() {
     toast({ title: "Room Deleted" });
   };
 
-  const deletePurchase = (id: string) => {
-    if (!entityId || !isAdmin) return;
-    deleteDocumentNonBlocking(doc(db, "hotel_properties", entityId, "supply_purchases", id));
-    toast({ title: "Record Deleted" });
-  };
-
   return (
     <AppLayout>
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-black tracking-tighter text-primary uppercase">Inventory & Supplies</h1>
-            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-[0.2em] mt-0.5">Asset Control & Consumption Log</p>
+            <h1 className="text-2xl font-black tracking-tighter text-primary uppercase">Rooms & Units</h1>
+            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-[0.2em] mt-0.5">Physical Asset Registry</p>
           </div>
         </div>
 
@@ -225,7 +132,6 @@ export default function RoomsPage() {
           <TabsList className="bg-white border p-1 rounded-xl h-10 shadow-sm">
             <TabsTrigger value="inventory" className="rounded-lg text-[11px] font-bold px-6">Physical Units</TabsTrigger>
             <TabsTrigger value="categories" className="rounded-lg text-[11px] font-bold px-6">Room Categories</TabsTrigger>
-            <TabsTrigger value="purchase-history" className="rounded-lg text-[11px] font-bold px-6">Purchase History</TabsTrigger>
           </TabsList>
 
           <TabsContent value="inventory" className="space-y-4">
@@ -379,156 +285,6 @@ export default function RoomsPage() {
                   </CardHeader>
                 </Card>
               ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="purchase-history" className="space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <h2 className="text-sm font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
-                <ShoppingCart className="w-4 h-4" /> Operational Supplies
-              </h2>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <div className="relative flex-1 sm:w-64">
-                  <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
-                  <Input 
-                    placeholder="Search supplies..." 
-                    className="pl-10 h-9 text-[11px] bg-white rounded-xl border-none shadow-sm" 
-                    value={purchaseSearch}
-                    onChange={e => setPurchaseSearch(e.target.value)}
-                  />
-                </div>
-                {isAdmin && (
-                  <Dialog open={isPurchaseOpen} onOpenChange={setIsPurchaseOpen}>
-                    <DialogTrigger asChild>
-                      <Button className="shadow-lg h-9 text-[10px] font-black uppercase tracking-widest px-6 rounded-xl shrink-0">
-                        <Plus className="w-3.5 h-3.5 mr-1.5" /> Log Purchase
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[450px] rounded-[2rem]">
-                      <DialogHeader>
-                        <DialogTitle className="text-lg font-black uppercase text-primary">Record Supply Purchase</DialogTitle>
-                        <DialogDescription className="text-[10px] uppercase font-bold">Track usage of cleaning agents, guest amenities, and washroom essentials.</DialogDescription>
-                      </DialogHeader>
-                      <form onSubmit={handleAddPurchase} className="space-y-4 pt-2">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Category</Label>
-                            <Select onValueChange={v => setNewPurchase({...newPurchase, category: v, itemName: ""})} required>
-                              <SelectTrigger className="h-10 text-xs bg-secondary/30 border-none rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                              <SelectContent>
-                                {SUPPLY_CATEGORIES.map(c => <SelectItem key={c.label} value={c.label} className="text-xs font-bold">{c.label}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Item Name</Label>
-                            <Select 
-                              value={newPurchase.itemName} 
-                              onValueChange={v => setNewPurchase({...newPurchase, itemName: v})} 
-                              disabled={!newPurchase.category}
-                              required
-                            >
-                              <SelectTrigger className="h-10 text-xs bg-secondary/30 border-none rounded-xl"><SelectValue placeholder="Select Item" /></SelectTrigger>
-                              <SelectContent>
-                                {SUPPLY_CATEGORIES.find(c => c.label === newPurchase.category)?.items.map(i => (
-                                  <SelectItem key={i} value={i} className="text-xs">{i}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="space-y-1.5">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Qty</Label>
-                            <Input type="number" step="0.1" value={newPurchase.quantity} onChange={e => setNewPurchase({...newPurchase, quantity: e.target.value})} required className="h-10 text-xs bg-secondary/30 border-none rounded-xl" />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Unit</Label>
-                            <Select value={newPurchase.unit} onValueChange={v => setNewPurchase({...newPurchase, unit: v})}>
-                              <SelectTrigger className="h-10 text-xs bg-secondary/30 border-none rounded-xl"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {["pcs", "ltr", "kg", "box", "roll", "bundle"].map(u => <SelectItem key={u} value={u} className="text-xs uppercase">{u}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Cost (₹)</Label>
-                            <Input type="number" value={newPurchase.totalCost} onChange={e => setNewPurchase({...newPurchase, totalCost: e.target.value})} required className="h-10 text-xs bg-secondary/30 border-none rounded-xl" />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Vendor / Store</Label>
-                            <Input placeholder="Market / Signature" value={newPurchase.vendor} onChange={e => setNewPurchase({...newPurchase, vendor: e.target.value})} className="h-10 text-xs bg-secondary/30 border-none rounded-xl" />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Date</Label>
-                            <Input type="date" value={newPurchase.date} onChange={e => setNewPurchase({...newPurchase, date: e.target.value})} required className="h-10 text-xs bg-secondary/30 border-none rounded-xl" />
-                          </div>
-                        </div>
-                        <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest rounded-2xl shadow-xl mt-2">Log To History</Button>
-                      </form>
-                    </DialogContent>
-                  </Dialog>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
-              <Table>
-                <TableHeader className="bg-primary">
-                  <TableRow className="hover:bg-transparent border-none">
-                    <TableHead className="text-[10px] font-black uppercase h-12 pl-8 text-primary-foreground">Date</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Supply Item</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Category</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase h-12 text-center text-primary-foreground">Quantity</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase h-12 text-right text-primary-foreground">Total ₹</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase h-12 pr-8 text-right text-primary-foreground">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {purchasesLoading ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
-                  ) : filteredPurchases.length > 0 ? (
-                    filteredPurchases.map((p) => (
-                      <TableRow key={p.id} className="group hover:bg-primary/5 transition-colors border-b border-secondary/50">
-                        <TableCell className="pl-8 text-[11px] font-bold">{formatAppDate(p.date)}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="text-[11px] font-black uppercase">{p.itemName}</span>
-                            <span className="text-[8px] text-muted-foreground font-bold uppercase">{p.vendor || "Direct Purchase"}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-[8px] font-black uppercase bg-secondary/50 border-none px-2 h-5">
-                            {p.category}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-[11px]">
-                          {p.quantity} <span className="text-[9px] text-muted-foreground uppercase">{p.unit}</span>
-                        </TableCell>
-                        <TableCell className="text-right font-black text-[11px] text-primary">₹{(p.totalCost || 0).toLocaleString()}</TableCell>
-                        <TableCell className="text-right pr-8">
-                          {isAdmin && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deletePurchase(p.id)}>
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-20">
-                        <div className="flex flex-col items-center gap-2 opacity-30">
-                          <HistoryIcon className="w-10 h-10" />
-                          <p className="text-[10px] font-black uppercase">No purchase history recorded</p>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
             </div>
           </TabsContent>
         </Tabs>
