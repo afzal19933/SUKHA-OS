@@ -25,7 +25,9 @@ import {
   Users,
   Plus,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Edit2,
+  User
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, formatAppDate, formatAppTime } from "@/lib/utils";
@@ -47,6 +49,7 @@ import {
   DialogFooter
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -92,7 +95,13 @@ export default function HousekeepingPage() {
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [skipDialogOpen, setSkipDialogOpen] = useState(false);
   const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
+  const [areaAssignOpen, setAreaAssignOpen] = useState(false);
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  
   const [roomToSkip, setRoomToSkip] = useState<any>(null);
+  const [selectedAreaForStaff, setSelectedAreaForStaff] = useState<string | null>(null);
+  const [historyToEdit, setHistoryToEdit] = useState<any>(null);
+  
   const [selectedSkipReason, setSelectedSkipReason] = useState("");
   const [expandedArea, setExpandedArea] = useState<string | null>(null);
 
@@ -100,6 +109,7 @@ export default function HousekeepingPage() {
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
   const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([]);
 
+  const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
   const canAssignTasks = ["owner", "admin", "manager", "supervisor", "staff", "frontdesk"].includes(currentUserRole || "");
 
   // Data Queries
@@ -274,7 +284,7 @@ export default function HousekeepingPage() {
     setSelectedRoomIds([]);
   };
 
-  const assignAreaTask = (areaName: string) => {
+  const assignAreaTask = (areaName: string, staffName: string) => {
     if (!entityId || !canAssignTasks) return;
     
     addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "housekeeping_tasks"), {
@@ -283,12 +293,14 @@ export default function HousekeepingPage() {
       isCommonArea: true,
       taskType: "cleaning",
       status: "in_progress",
-      assignedStaffName: user?.displayName || "Housekeeping Staff",
+      assignedStaffName: staffName,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
     
-    toast({ title: "Task Assigned", description: `${areaName} assigned to staff.` });
+    toast({ title: "Task Assigned", description: `${areaName} assigned to ${staffName}.` });
+    setAreaAssignOpen(false);
+    setSelectedAreaForStaff(null);
   };
 
   const completeAreaTask = (areaName: string) => {
@@ -303,6 +315,22 @@ export default function HousekeepingPage() {
       });
       toast({ title: "Task Completed" });
     }
+  };
+
+  const handleUpdateHistory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!entityId || !isAdmin || !historyToEdit) return;
+
+    const historyRef = doc(db, "hotel_properties", entityId, "housekeeping_tasks", historyToEdit.id);
+    updateDocumentNonBlocking(historyRef, {
+      completedBy: historyToEdit.completedBy,
+      updatedAt: historyToEdit.updatedAt,
+      notes: historyToEdit.notes
+    });
+
+    toast({ title: "Log Entry Updated" });
+    setEditHistoryOpen(false);
+    setHistoryToEdit(null);
   };
 
   const roomCleaningLogs = useMemo(() => {
@@ -476,12 +504,24 @@ export default function HousekeepingPage() {
                               <span className={cn("text-[11px] font-black", isSkip ? "text-rose-700" : "text-primary")}>
                                 Room {log.roomNumber || "N/A"}
                               </span>
-                              <Badge variant="outline" className={cn(
-                                "text-[7px] h-3.5 px-1 uppercase",
-                                isSkip ? "bg-rose-100 text-rose-700 border-rose-200" : "bg-emerald-50 text-emerald-600 border-emerald-100"
-                              )}>
-                                {isSkip ? "Skipped" : "Verified Clean"}
-                              </Badge>
+                              <div className="flex items-center gap-1">
+                                {isAdmin && (
+                                  <Button 
+                                    size="icon" 
+                                    variant="ghost" 
+                                    className="h-5 w-5 text-muted-foreground hover:text-primary"
+                                    onClick={() => { setHistoryToEdit(log); setEditHistoryOpen(true); }}
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                  </Button>
+                                )}
+                                <Badge variant="outline" className={cn(
+                                  "text-[7px] h-3.5 px-1 uppercase",
+                                  isSkip ? "bg-rose-100 text-rose-700 border-rose-200" : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                )}>
+                                  {isSkip ? "Skipped" : "Verified Clean"}
+                                </Badge>
+                              </div>
                             </div>
                             {isSkip && (
                               <p className="text-[9px] font-black text-rose-600 flex items-center gap-1">
@@ -562,8 +602,13 @@ export default function HousekeepingPage() {
                                     Mark Ready
                                   </Button>
                                 ) : (
-                                  <Button size="sm" variant="ghost" className="h-7 text-[11px] font-bold text-primary" onClick={() => assignAreaTask(area)}>
-                                    Assign
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost" 
+                                    className="h-7 text-[11px] font-bold text-primary" 
+                                    onClick={() => { setSelectedAreaForStaff(area); setAreaAssignOpen(true); }}
+                                  >
+                                    Assign Staff
                                   </Button>
                                 )}
                               </div>
@@ -576,12 +621,24 @@ export default function HousekeepingPage() {
                                 </p>
                                 <div className="space-y-1.5">
                                   {areaHistory.length > 0 ? areaHistory.map((h) => (
-                                    <div key={h.id} className="p-2 bg-white rounded-lg border border-primary/5 flex justify-between items-center">
+                                    <div key={h.id} className="p-2 bg-white rounded-lg border border-primary/5 flex justify-between items-center group">
                                       <div className="flex items-center gap-3">
                                         <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                                         <span className="text-[10px] font-bold text-slate-700">{formatAppDate(h.updatedAt)} at {formatAppTime(h.updatedAt)}</span>
                                       </div>
-                                      <span className="text-[9px] font-black uppercase text-primary/60">{h.completedBy || h.assignedStaffName}</span>
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-[9px] font-black uppercase text-primary/60">{h.completedBy || h.assignedStaffName}</span>
+                                        {isAdmin && (
+                                          <Button 
+                                            size="icon" 
+                                            variant="ghost" 
+                                            className="h-6 w-6 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                                            onClick={(e) => { e.stopPropagation(); setHistoryToEdit(h); setEditHistoryOpen(true); }}
+                                          >
+                                            <Edit2 className="w-3 h-3" />
+                                          </Button>
+                                        )}
+                                      </div>
                                     </div>
                                   )) : (
                                     <p className="text-[9px] italic text-muted-foreground py-2">No historical logs found for this area.</p>
@@ -609,10 +666,22 @@ export default function HousekeepingPage() {
                     <ScrollArea className="h-[420px]">
                       <div className="space-y-2 mt-3">
                         {taskHistory?.filter(t => t.isCommonArea).slice(0, 20).map((log) => (
-                          <div key={log.id} className="p-2.5 bg-white rounded-lg border border-primary/10 flex items-start gap-2 shadow-sm">
+                          <div key={log.id} className="p-2.5 bg-white rounded-lg border border-primary/10 flex items-start gap-2 shadow-sm group">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5" />
-                            <div>
-                              <p className="text-[11px] font-bold leading-tight">{log.roomId}</p>
+                            <div className="flex-1">
+                              <div className="flex justify-between items-start">
+                                <p className="text-[11px] font-bold leading-tight">{log.roomId}</p>
+                                {isAdmin && (
+                                  <Button 
+                                    size="icon" 
+                                    variant="ghost" 
+                                    className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100"
+                                    onClick={() => { setHistoryToEdit(log); setEditHistoryOpen(true); }}
+                                  >
+                                    <Edit2 className="w-2.5 h-2.5" />
+                                  </Button>
+                                )}
+                              </div>
                               <p className="text-[10px] text-muted-foreground mt-0.5">{log.assignedStaffName || log.completedBy}</p>
                               <p className="text-[8px] text-muted-foreground mt-1 uppercase font-bold">{formatAppDate(log.updatedAt)} • {formatAppTime(log.updatedAt)}</p>
                             </div>
@@ -628,7 +697,7 @@ export default function HousekeepingPage() {
         </Tabs>
 
         {/* Bulk Assign Dialog */}
-        <Dialog open={bulkAssignOpen} onOpenChange={setBulkAssignOpen}>
+        <Dialog open={bulkAssignOpen} onOpenChange={bulkAssignOpen ? () => setBulkAssignOpen(false) : undefined}>
           <DialogContent className="sm:max-w-[500px] rounded-[2.5rem] p-0 overflow-hidden">
             <div className="bg-primary p-8 text-white space-y-2">
               <DialogTitle className="flex items-center gap-3 text-xl font-black uppercase">
@@ -691,6 +760,81 @@ export default function HousekeepingPage() {
                 Confirm Bulk Assignment
               </Button>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Common Area Assign Dialog */}
+        <Dialog open={areaAssignOpen} onOpenChange={setAreaAssignOpen}>
+          <DialogContent className="sm:max-w-[400px] rounded-[2.5rem] p-0 overflow-hidden">
+            <div className="bg-primary p-6 text-white text-left">
+              <DialogTitle className="flex items-center gap-2 text-lg font-black uppercase">
+                <User className="w-5 h-5" /> Assign Particular Staff
+              </DialogTitle>
+              <DialogDescription className="text-[10px] text-white/70 font-bold uppercase mt-1">Select staff for: {selectedAreaForStaff}</DialogDescription>
+            </div>
+            <div className="p-6">
+              <ScrollArea className="h-64 pr-4">
+                <div className="space-y-2">
+                  {teamMembers?.map((member) => (
+                    <button
+                      key={member.id}
+                      onClick={() => assignAreaTask(selectedAreaForStaff!, member.name)}
+                      className="w-full flex items-center gap-3 p-3 rounded-2xl bg-secondary/30 hover:bg-primary/5 hover:text-primary transition-all group border border-transparent hover:border-primary/20"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-black text-xs group-hover:bg-primary group-hover:text-white transition-colors">
+                        {member.name.charAt(0)}
+                      </div>
+                      <span className="text-xs font-bold">{member.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit History Dialog */}
+        <Dialog open={editHistoryOpen} onOpenChange={setEditHistoryOpen}>
+          <DialogContent className="sm:max-w-[400px] rounded-[2rem]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-primary">
+                <Edit2 className="w-5 h-5" /> Edit Log Entry
+              </DialogTitle>
+              <DialogDescription className="text-xs font-bold uppercase">Administrative overwrite for operational log.</DialogDescription>
+            </DialogHeader>
+            {historyToEdit && (
+              <form onSubmit={handleUpdateHistory} className="space-y-4 py-4 text-left">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Staff Member Name</Label>
+                  <Input 
+                    value={historyToEdit.completedBy || historyToEdit.assignedStaffName || ""} 
+                    onChange={e => setHistoryToEdit({...historyToEdit, completedBy: e.target.value})}
+                    className="h-11 rounded-2xl bg-secondary/30 border-none text-xs font-bold"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Timestamp (ISO)</Label>
+                  <Input 
+                    type="datetime-local"
+                    value={historyToEdit.updatedAt ? historyToEdit.updatedAt.slice(0, 16) : ""} 
+                    onChange={e => setHistoryToEdit({...historyToEdit, updatedAt: new Date(e.target.value).toISOString()})}
+                    className="h-11 rounded-2xl bg-secondary/30 border-none text-xs font-bold"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Internal Notes</Label>
+                  <Input 
+                    value={historyToEdit.notes || ""} 
+                    onChange={e => setHistoryToEdit({...historyToEdit, notes: e.target.value})}
+                    className="h-11 rounded-2xl bg-secondary/30 border-none text-xs font-bold"
+                    placeholder="e.g. Area verified by supervisor"
+                  />
+                </div>
+                <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest shadow-xl rounded-2xl mt-4">
+                  Save Changes
+                </Button>
+              </form>
+            )}
           </DialogContent>
         </Dialog>
 
