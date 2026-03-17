@@ -90,7 +90,7 @@ export default function AccountingPage() {
   const [activeView, setActiveView] = useState('overview');
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
 
-  // Global Date Filtering State
+  // Global Date Filtering State (Maintained across views for context)
   const [dateFilter, setDateFilter] = useState('all');
   const [customStart, setCustomStart] = useState<Date | undefined>(undefined);
   const [customEnd, setCustomEnd] = useState<Date | undefined>(undefined);
@@ -247,14 +247,74 @@ export default function AccountingPage() {
     window.print();
   };
 
+  const LocalFilterBar = () => (
+    <div className="flex flex-wrap items-center gap-2 mb-6 p-2 bg-secondary/20 rounded-2xl border border-dashed border-primary/20">
+      <div className="flex items-center gap-2 px-3">
+        <CalendarDays className="w-3.5 h-3.5 text-primary" />
+        <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Period Filter</span>
+      </div>
+      
+      <Select value={dateFilter} onValueChange={setDateFilter}>
+        <SelectTrigger className="h-8 w-32 text-[10px] font-bold bg-white text-primary rounded-xl shadow-sm border-none">
+          <SelectValue placeholder="All Time" />
+        </SelectTrigger>
+        <SelectContent className="rounded-xl">
+          <SelectItem value="all" className="text-[10px] font-bold">Full History</SelectItem>
+          <SelectItem value="this_month" className="text-[10px] font-bold">This Month</SelectItem>
+          <SelectItem value="last_month" className="text-[10px] font-bold">Last Month</SelectItem>
+          <SelectItem value="custom" className="text-[10px] font-bold">Custom Range</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {dateFilter === 'custom' && (
+        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("h-8 text-[9px] font-bold bg-white text-primary border-none rounded-xl", !customStart && "text-primary/50")}>
+                <CalendarIcon className="mr-2 h-3 w-3" />
+                {customStart ? format(customStart, "PPP") : "Start Date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 rounded-2xl">
+              <Calendar mode="single" selected={customStart} onSelect={setCustomStart} initialFocus />
+            </PopoverContent>
+          </Popover>
+          <span className="text-[9px] font-black text-primary/40">TO</span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("h-8 text-[9px] font-bold bg-white text-primary border-none rounded-xl", !customEnd && "text-primary/50")}>
+                <CalendarIcon className="mr-2 h-3 w-3" />
+                {customEnd ? format(customEnd, "PPP") : "End Date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 rounded-2xl">
+              <Calendar mode="single" selected={customEnd} onSelect={setCustomEnd} initialFocus />
+            </PopoverContent>
+          </Popover>
+        </div>
+      )}
+
+      {(dateFilter !== 'all' || customStart || customEnd) && (
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-8 w-8 text-rose-500 hover:bg-rose-50 rounded-xl"
+          onClick={() => { setDateFilter('all'); setCustomStart(undefined); setCustomEnd(undefined); }}
+        >
+          <FilterX className="w-3.5 h-3.5" />
+        </Button>
+      )}
+    </div>
+  );
+
   return (
     <AppLayout>
       <div className="flex h-[calc(100vh-8rem)] gap-6 max-w-6xl mx-auto overflow-hidden">
-        {/* Highlighted Sidebar */}
+        {/* Sidebar */}
         <aside className="w-64 bg-white rounded-3xl border shadow-sm flex flex-col shrink-0 overflow-hidden">
           <div className="p-6 bg-primary text-primary-foreground">
             <h2 className="text-sm font-black uppercase tracking-widest">Accounting</h2>
-            <p className="text-[10px] text-primary-foreground/70 font-bold uppercase">FOLIO & REVENUE</p>
+            <p className="text-[10px] text-primary-foreground/70 font-bold uppercase">FOLIO & SALES</p>
           </div>
           <ScrollArea className="flex-1 p-2">
             <div className="space-y-1 mt-2">
@@ -288,75 +348,20 @@ export default function AccountingPage() {
 
         {/* View Content */}
         <main className="flex-1 bg-white rounded-3xl border shadow-sm overflow-hidden flex flex-col">
-          {/* Highlighted Global Filter Bar */}
-          <div className="px-8 py-4 border-b bg-primary text-primary-foreground flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-white" />
-              <h2 className="text-[10px] font-black uppercase tracking-widest text-white">Global Date Filter</h2>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-2">
-              <Select value={dateFilter} onValueChange={setDateFilter}>
-                <SelectTrigger className="h-8 w-32 text-[10px] font-bold bg-white text-primary rounded-xl shadow-sm border-none">
-                  <SelectValue placeholder="All Time" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  <SelectItem value="all" className="text-[10px] font-bold">Full History</SelectItem>
-                  <SelectItem value="this_month" className="text-[10px] font-bold">This Month</SelectItem>
-                  <SelectItem value="last_month" className="text-[10px] font-bold">Last Month</SelectItem>
-                  <SelectItem value="custom" className="text-[10px] font-bold">Custom Range</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {dateFilter === 'custom' && (
-                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("h-8 text-[9px] font-bold bg-white text-primary border-none rounded-xl", !customStart && "text-primary/50")}>
-                        <CalendarIcon className="mr-2 h-3 w-3" />
-                        {customStart ? format(customStart, "PPP") : "Start Date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 rounded-2xl">
-                      <Calendar mode="single" selected={customStart} onSelect={setCustomStart} initialFocus />
-                    </PopoverContent>
-                  </Popover>
-                  <span className="text-[9px] font-black text-white/70">TO</span>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("h-8 text-[9px] font-bold bg-white text-primary border-none rounded-xl", !customEnd && "text-primary/50")}>
-                        <CalendarIcon className="mr-2 h-3 w-3" />
-                        {customEnd ? format(customEnd, "PPP") : "End Date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 rounded-2xl">
-                      <Calendar mode="single" selected={customEnd} onSelect={setCustomEnd} initialFocus />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              )}
-
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8 text-white hover:bg-white/10 rounded-xl"
-                onClick={() => { setDateFilter('all'); setCustomStart(undefined); setCustomEnd(undefined); }}
-              >
-                <FilterX className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          </div>
-
           <ScrollArea className="flex-1">
             <div className="p-8 space-y-8">
               {activeView === 'overview' && (
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="space-y-1">
-                    <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Financial Overview</h1>
-                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">
-                      Health summary for: {dateFilter === 'all' ? 'All Time' : dateFilter.replace('_', ' ')}
-                    </p>
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Financial Overview</h1>
+                      <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">
+                        Health summary for: {dateFilter === 'all' ? 'All Time' : dateFilter.replace('_', ' ')}
+                      </p>
+                    </div>
                   </div>
+
+                  <LocalFilterBar />
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 space-y-2 shadow-sm">
@@ -414,12 +419,12 @@ export default function AccountingPage() {
 
               {activeView === 'invoices' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                  <div className="flex justify-between items-end">
-                    <div>
-                      <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Sales Ledger</h1>
-                      <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">All processed GST invoices for selected period</p>
-                    </div>
+                  <div className="space-y-1">
+                    <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Sales Ledger</h1>
+                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">All processed GST invoices</p>
                   </div>
+
+                  <LocalFilterBar />
 
                   <div className="rounded-2xl border overflow-hidden">
                     <Table>
@@ -464,12 +469,12 @@ export default function AccountingPage() {
 
               {activeView === 'laundry_revenue' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Laundry Revenue Hub</h1>
-                      <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Detail tracking of guest service income</p>
-                    </div>
+                  <div className="space-y-1">
+                    <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Laundry Revenue Hub</h1>
+                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Detail tracking of guest service income</p>
                   </div>
+
+                  <LocalFilterBar />
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <div className="p-6 bg-indigo-50 rounded-3xl border border-indigo-100 flex items-center gap-4">
@@ -545,16 +550,17 @@ export default function AccountingPage() {
 
               {activeView === 'ayuraccounts' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                  <div className="bg-primary p-5 rounded-3xl text-white space-y-4 shadow-xl max-w-2xl">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
-                        <Hospital className="w-7 h-7 text-white" />
-                      </div>
-                      <div>
-                        <h1 className="text-xl font-black uppercase tracking-tight">Ayursiha Hospital Accounts</h1>
-                      </div>
+                  <div className="p-4 bg-primary/5 rounded-[2rem] border border-primary/10 flex items-center gap-4 max-w-xl">
+                    <div className="p-2.5 bg-primary rounded-2xl text-white shadow-lg">
+                      <Hospital className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h1 className="text-sm font-black uppercase tracking-tight text-primary leading-none">Ayursiha Accounts</h1>
+                      <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">Hospital settlement cycles</p>
                     </div>
                   </div>
+
+                  <LocalFilterBar />
 
                   <div className="grid grid-cols-1 gap-4">
                     {ayurAccounts.length > 0 ? (
@@ -601,8 +607,10 @@ export default function AccountingPage() {
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                   <div className="space-y-1">
                     <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Expense Ledger</h1>
-                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Property operating costs for selected period</p>
+                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Property operating costs</p>
                   </div>
+
+                  <LocalFilterBar />
 
                   <div className="rounded-2xl border overflow-hidden">
                     <Table>
@@ -643,6 +651,8 @@ export default function AccountingPage() {
                     <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Analytics Reports</h1>
                     <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Financial Performance Visualization</p>
                   </div>
+
+                  <LocalFilterBar />
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="p-6 bg-white rounded-3xl border shadow-sm space-y-4">
