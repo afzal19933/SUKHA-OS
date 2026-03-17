@@ -23,7 +23,9 @@ import {
   XCircle,
   MessageSquare,
   Users,
-  Plus
+  Plus,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, formatAppDate, formatAppTime } from "@/lib/utils";
@@ -92,6 +94,7 @@ export default function HousekeepingPage() {
   const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
   const [roomToSkip, setRoomToSkip] = useState<any>(null);
   const [selectedSkipReason, setSelectedSkipReason] = useState("");
+  const [expandedArea, setExpandedArea] = useState<string | null>(null);
 
   // Bulk Assign States
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
@@ -119,7 +122,7 @@ export default function HousekeepingPage() {
       collection(db, "hotel_properties", entityId, "housekeeping_tasks"),
       where("status", "in", ["completed", "skipped"]),
       orderBy("updatedAt", "desc"),
-      limit(50)
+      limit(100)
     );
   }, [db, entityId]);
 
@@ -269,6 +272,23 @@ export default function HousekeepingPage() {
     setBulkAssignOpen(false);
     setSelectedStaffIds([]);
     setSelectedRoomIds([]);
+  };
+
+  const assignAreaTask = (areaName: string) => {
+    if (!entityId || !canAssignTasks) return;
+    
+    addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "housekeeping_tasks"), {
+      entityId,
+      roomId: areaName,
+      isCommonArea: true,
+      taskType: "cleaning",
+      status: "in_progress",
+      assignedStaffName: user?.displayName || "Housekeeping Staff",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    
+    toast({ title: "Task Assigned", description: `${areaName} assigned to staff.` });
   };
 
   const completeAreaTask = (areaName: string) => {
@@ -499,42 +519,76 @@ export default function HousekeepingPage() {
                       {COMMON_AREAS.map((area) => {
                         const activeTask = activeTasks?.find(t => t.roomId === area && t.isCommonArea);
                         const lastCleaned = taskHistory?.find(t => t.roomId === area && t.isCommonArea);
+                        const areaHistory = taskHistory?.filter(t => t.roomId === area && t.isCommonArea).slice(0, 3) || [];
+                        const isExpanded = expandedArea === area;
 
                         return (
-                          <div key={area} className="p-3 flex items-center justify-between hover:bg-secondary/10 transition-colors">
-                            <div className="flex items-center gap-3">
-                              <div className={cn(
-                                "p-2 rounded-xl",
-                                activeTask ? "bg-amber-50 text-amber-600" : "bg-primary/5 text-primary"
-                              )}>
-                                <Building2 className="w-4 h-4" />
-                              </div>
-                              <div>
-                                <h4 className="text-xs font-bold">{area}</h4>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                                    <Clock className="w-3 h-3" />
-                                    <span>{lastCleaned ? formatAppDate(lastCleaned.updatedAt) : "Never Cleaned"}</span>
+                          <div key={area} className="flex flex-col">
+                            <div 
+                              className={cn(
+                                "p-3 flex items-center justify-between hover:bg-secondary/10 transition-colors cursor-pointer",
+                                isExpanded && "bg-secondary/5"
+                              )}
+                              onClick={() => setExpandedArea(isExpanded ? null : area)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={cn(
+                                  "p-2 rounded-xl",
+                                  activeTask ? "bg-amber-50 text-amber-600" : "bg-primary/5 text-primary"
+                                )}>
+                                  <Building2 className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <h4 className="text-xs font-bold flex items-center gap-2">
+                                    {area}
+                                    {isExpanded ? <ChevronUp className="w-3 h-3 opacity-50" /> : <ChevronDown className="w-3 h-3 opacity-50" />}
+                                  </h4>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                      <Clock className="w-3 h-3" />
+                                      <span>{lastCleaned ? formatAppDate(lastCleaned.updatedAt) : "Never Cleaned"}</span>
+                                    </div>
+                                    {activeTask && (
+                                      <Badge variant="outline" className="text-[9px] h-3.5 px-1 bg-amber-50 text-amber-600 border-amber-100">
+                                        {activeTask.assignedStaffName}
+                                      </Badge>
+                                    )}
                                   </div>
-                                  {activeTask && (
-                                    <Badge variant="outline" className="text-[9px] h-3.5 px-1 bg-amber-50 text-amber-600 border-amber-100">
-                                      {activeTask.assignedStaffName}
-                                    </Badge>
+                                </div>
+                              </div>
+                              <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
+                                {activeTask ? (
+                                  <Button size="sm" variant="outline" className="h-7 text-[11px] font-bold text-emerald-600" onClick={() => completeAreaTask(area)}>
+                                    Mark Ready
+                                  </Button>
+                                ) : (
+                                  <Button size="sm" variant="ghost" className="h-7 text-[11px] font-bold text-primary" onClick={() => assignAreaTask(area)}>
+                                    Assign
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {isExpanded && (
+                              <div className="bg-secondary/5 px-12 pb-4 pt-1 animate-in slide-in-from-top-2 duration-200">
+                                <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mb-2 flex items-center gap-1.5">
+                                  <History className="w-3 h-3" /> Last 3 Cleaning History
+                                </p>
+                                <div className="space-y-1.5">
+                                  {areaHistory.length > 0 ? areaHistory.map((h) => (
+                                    <div key={h.id} className="p-2 bg-white rounded-lg border border-primary/5 flex justify-between items-center">
+                                      <div className="flex items-center gap-3">
+                                        <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                        <span className="text-[10px] font-bold text-slate-700">{formatAppDate(h.updatedAt)} at {formatAppTime(h.updatedAt)}</span>
+                                      </div>
+                                      <span className="text-[9px] font-black uppercase text-primary/60">{h.completedBy || h.assignedStaffName}</span>
+                                    </div>
+                                  )) : (
+                                    <p className="text-[9px] italic text-muted-foreground py-2">No historical logs found for this area.</p>
                                   )}
                                 </div>
                               </div>
-                            </div>
-                            <div className="flex gap-1.5">
-                              {activeTask ? (
-                                <Button size="sm" variant="outline" className="h-7 text-[11px] font-bold text-emerald-600" onClick={() => completeAreaTask(area)}>
-                                  Mark Ready
-                                </Button>
-                              ) : (
-                                <Button size="sm" variant="ghost" className="h-7 text-[11px] font-bold text-primary">
-                                  Assign
-                                </Button>
-                              )}
-                            </div>
+                            )}
                           </div>
                         );
                       })}
@@ -545,17 +599,17 @@ export default function HousekeepingPage() {
 
               <div className="space-y-3">
                 <Card className="border-none shadow-sm bg-primary/5">
-                  <CardHeader className="p-3 pb-2">
-                    <h3 className="text-xs font-bold flex items-center gap-1.5 uppercase tracking-widest text-primary">
+                  <CardHeader className="p-3 pb-2 bg-primary text-primary-foreground rounded-t-xl">
+                    <h3 className="text-xs font-black flex items-center gap-1.5 uppercase tracking-widest">
                       <Calendar className="w-3.5 h-3.5" />
-                      Area Logs
+                      Live Area Logs
                     </h3>
                   </CardHeader>
                   <div className="p-3 pt-0">
                     <ScrollArea className="h-[420px]">
-                      <div className="space-y-2">
+                      <div className="space-y-2 mt-3">
                         {taskHistory?.filter(t => t.isCommonArea).slice(0, 20).map((log) => (
-                          <div key={log.id} className="p-2.5 bg-white rounded-lg border border-primary/10 flex items-start gap-2">
+                          <div key={log.id} className="p-2.5 bg-white rounded-lg border border-primary/10 flex items-start gap-2 shadow-sm">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5" />
                             <div>
                               <p className="text-[11px] font-bold leading-tight">{log.roomId}</p>
