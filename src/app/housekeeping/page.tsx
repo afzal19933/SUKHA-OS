@@ -152,6 +152,20 @@ export default function HousekeepingPage() {
   const { data: teamMembers } = useCollection(teamQuery);
   const { data: property } = useDoc(propertyRef);
 
+  // Filter staff to exclude owners, admins, and specific names (Suhara, Admin)
+  const operationalStaff = useMemo(() => {
+    if (!teamMembers) return [];
+    return teamMembers.filter(m => {
+      const lowerRole = (m.role || "").toLowerCase();
+      const lowerName = (m.name || "").toLowerCase();
+      
+      const isExecutive = ['owner', 'admin'].includes(lowerRole);
+      const isExcludedName = ["suhara", "administrator", "admin"].includes(lowerName);
+      
+      return !isExecutive && !isExcludedName;
+    });
+  }, [teamMembers]);
+
   const isParadise = property?.name?.toLowerCase().includes("paradise");
 
   const stats = useMemo(() => {
@@ -248,7 +262,7 @@ export default function HousekeepingPage() {
       return;
     }
 
-    const teamNames = teamMembers
+    const teamNames = operationalStaff
       ?.filter(m => selectedStaffIds.includes(m.id))
       .map(m => m.name)
       .join(", ");
@@ -711,7 +725,7 @@ export default function HousekeepingPage() {
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">1. Assemble Team</Label>
                 <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-1">
-                  {teamMembers?.map((member) => (
+                  {operationalStaff?.map((member) => (
                     <div key={member.id} className="flex items-center space-x-2 p-2 rounded-xl bg-secondary/30 hover:bg-secondary/50 transition-colors">
                       <Checkbox 
                         id={`staff-${member.id}`} 
@@ -775,7 +789,7 @@ export default function HousekeepingPage() {
             <div className="p-6">
               <ScrollArea className="h-64 pr-4">
                 <div className="space-y-2">
-                  {teamMembers?.map((member) => (
+                  {operationalStaff?.map((member) => (
                     <button
                       key={member.id}
                       onClick={() => assignAreaTask(selectedAreaForStaff!, member.name)}
