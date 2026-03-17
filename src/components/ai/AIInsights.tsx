@@ -1,9 +1,8 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
 import { 
-  Sparkles, 
+  Cpu, 
   AlertTriangle, 
   Info, 
   AlertCircle, 
@@ -77,7 +76,7 @@ export function AIInsights() {
       <CardHeader className="bg-primary p-6 text-white flex flex-row items-center justify-between space-y-0">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
-            <Sparkles className="w-5 h-5 fill-white" />
+            <Cpu className="w-5 h-5" />
           </div>
           <div>
             <CardTitle className="text-lg font-black uppercase tracking-tight">AI Operational Insights</CardTitle>

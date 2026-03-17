@@ -24,6 +24,7 @@ import {
   Monitor,
   MessageSquare,
   Package,
+  Cpu,
   Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -59,7 +60,7 @@ import { Badge } from "@/components/ui/badge";
 const NAV_ITEMS = [
   { name: "Command Center", href: "/command-center", icon: Monitor, restricted: ["owner", "admin", "manager"] },
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "AI Insights", href: "/ai-insights", icon: Sparkles, restricted: ["owner", "admin"] },
+  { name: "AI Insights", href: "/ai-insights", icon: Cpu, restricted: ["owner", "admin"] },
   { name: "Reservations", href: "/reservations", icon: CalendarDays },
   { name: "Rooms", href: "/rooms", icon: DoorOpen },
   { name: "Inventory", href: "/inventory", icon: Package },

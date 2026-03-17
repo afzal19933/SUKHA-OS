@@ -2,7 +2,7 @@
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AIInsights } from "@/components/ai/AIInsights";
-import { Sparkles } from "lucide-react";
+import { Cpu } from "lucide-react";
 
 /**
  * Dedicated AI Insights Module Page.
@@ -15,7 +15,7 @@ export default function AIInsightsPage() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <div className="bg-primary text-white p-1.5 rounded-lg shadow-lg">
-                <Sparkles className="w-5 h-5 fill-white" />
+                <Cpu className="w-5 h-5" />
               </div>
               <h1 className="text-3xl font-black tracking-tighter text-primary uppercase">AI Insights Module</h1>
             </div>
