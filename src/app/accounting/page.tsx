@@ -76,7 +76,7 @@ const SIDEBAR_ITEMS = [
   { id: 'overview', label: 'Financial Overview', icon: LayoutDashboard },
   { id: 'invoices', label: 'Sales', icon: Receipt },
   { id: 'laundry_revenue', label: 'Laundry Revenue', icon: WashingMachine },
-  { id: 'ayurcycles', label: 'Ayursiha Cycles', icon: Hospital },
+  { id: 'ayuraccounts', label: 'Ayursiha Accounts', icon: Hospital },
   { id: 'expenses', label: 'Operating Expenses', icon: CreditCard },
   { id: 'reports', label: 'Analytics Reports', icon: BarChart3 },
   { id: 'settings', label: 'Tax Settings', icon: Settings2 },
@@ -196,7 +196,7 @@ export default function AccountingPage() {
   const totalExpenses = filteredExpenses.reduce((acc, exp) => acc + (exp.amount || 0), 0);
   const netProfit = totalRevenue - totalExpenses;
 
-  const ayurCycles = useMemo(() => {
+  const ayurAccounts = useMemo(() => {
     return filteredInvoices.filter(inv => inv.isCycleInvoice || inv.invoiceNumber?.startsWith('AYUR')) || [];
   }, [filteredInvoices]);
 
@@ -544,7 +544,7 @@ export default function AccountingPage() {
                 </div>
               )}
 
-              {activeView === 'ayurcycles' && (
+              {activeView === 'ayuraccounts' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                   <div className="bg-primary p-8 rounded-[2.5rem] text-white space-y-4 shadow-xl">
                     <div className="flex items-center gap-4">
@@ -552,15 +552,15 @@ export default function AccountingPage() {
                         <Hospital className="w-10 h-10 text-white" />
                       </div>
                       <div>
-                        <h1 className="text-2xl font-black uppercase tracking-tight">Ayursiha Hospital Billing</h1>
+                        <h1 className="text-2xl font-black uppercase tracking-tight">Ayursiha Hospital Accounts</h1>
                         <p className="text-xs text-white/70 font-bold uppercase tracking-widest">Consolidated 10-Day Cycle Reconciliation</p>
                       </div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-4">
-                    {ayurCycles.length > 0 ? (
-                      ayurCycles.map((cycle) => (
+                    {ayurAccounts.length > 0 ? (
+                      ayurAccounts.map((cycle) => (
                         <div key={cycle.id} className="p-6 bg-white rounded-[2rem] border shadow-sm flex items-center justify-between group hover:border-primary transition-all">
                           <div className="flex items-center gap-6">
                             <div className="text-center w-16">
@@ -592,7 +592,7 @@ export default function AccountingPage() {
                       ))
                     ) : (
                       <div className="text-center py-24 border-2 border-dashed rounded-[3rem] text-muted-foreground font-black uppercase text-xs">
-                        No Ayursiha cycle invoices found for this period.
+                        No Ayursiha accounts records found for this period.
                       </div>
                     )}
                   </div>
