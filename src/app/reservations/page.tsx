@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -225,7 +224,7 @@ export default function ReservationsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-left">
           <div>
             <h1 className="text-2xl font-black tracking-tighter text-primary uppercase">Guest Reservations</h1>
-            <p className="text-[10px] text-muted-foreground mt-0.5 uppercase font-black tracking-[0.2em]">Operational Ledger & WhatsApp Hub</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5 uppercase font-black tracking-[0.2em]">Operational Ledger & Status Audit</p>
           </div>
 
           <div className="flex gap-2">
@@ -259,7 +258,7 @@ export default function ReservationsPage() {
                           <SelectTrigger className="h-10 text-xs bg-secondary/30 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
                           <SelectContent>
                             {rooms?.filter(r => r.status === 'available').map(r => (
-                              <SelectItem key={`${r.id}-${r.roomNumber}`} value={r.roomNumber.toString()}>Room {r.roomNumber}</SelectItem>
+                              <SelectItem key={r.id} value={r.roomNumber.toString()}>Room {r.roomNumber}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
