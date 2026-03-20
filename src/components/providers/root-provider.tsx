@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect } from "react";
@@ -19,6 +20,7 @@ function AuthSync() {
   const db = useFirestore();
   const { 
     setUser, 
+    setUserName,
     setPermissions, 
     setRole, 
     setEntityId, 
@@ -56,6 +58,7 @@ function AuthSync() {
         if (snapshot.exists()) {
           const data = snapshot.data();
           if (data.permissions) setPermissions(data.permissions);
+          if (data.name) setUserName(data.name);
           
           // Sovereignty Guard: Override role from DB if it's the master account
           let assignedRole = data.role;
@@ -94,13 +97,14 @@ function AuthSync() {
       };
     } else {
       setUser(null);
+      setUserName(null);
       setPermissions(null);
       setRole(null);
       setEntityId(null);
       setAssignedEntityId(null);
       setAvailableProperties([]);
     }
-  }, [user, setUser, setPermissions, setRole, setEntityId, setAssignedEntityId, setAvailableProperties, db, entityId]);
+  }, [user, setUser, setUserName, setPermissions, setRole, setEntityId, setAssignedEntityId, setAvailableProperties, db, entityId]);
 
   // Handle initial session entity for Global Access users
   useEffect(() => {

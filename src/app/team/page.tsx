@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -36,7 +37,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
 import { collection, query, where, doc, setDoc } from "firebase/firestore";
 import { initializeApp, getApps, deleteApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, updateProfile as updateAuthProfile } from "firebase/auth";
 import { firebaseConfig } from "@/firebase/config";
 import { 
   Dialog, 
@@ -65,7 +66,7 @@ import { deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase
 import { useToast } from "@/hooks/use-toast";
 
 const SYSTEM_MODULES = [
-  "Dashboard", "Reservations", "Rooms", "Inventory", "Housekeeping", "Maintenance", 
+  "Dashboard", "AI Insights", "Reservations", "Rooms", "Inventory", "Housekeeping", "Maintenance", 
   "Laundry", "Accounting", "Communications", "Team", "Settings"
 ];
 
@@ -128,6 +129,9 @@ export default function TeamPage() {
       const internalEmail = `${newMember.username.toLowerCase().trim()}@sukha.os`;
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, internalEmail, newMember.password);
       const newUser = userCredential.user;
+
+      // Ensure the display name is updated in Auth immediately
+      await updateAuthProfile(newUser, { displayName: newMember.name });
 
       const memberData = {
         id: newUser.uid,

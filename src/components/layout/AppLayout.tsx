@@ -65,7 +65,7 @@ const NAV_ITEMS = [
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user: firebaseUser, isUserLoading } = useUser();
-  const { _hasHydrated, role, permissions, entityId, assignedEntityId, setEntityId, availableProperties } = useAuthStore();
+  const { _hasHydrated, role, permissions, entityId, assignedEntityId, setEntityId, availableProperties, userName } = useAuthStore();
   const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -99,22 +99,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   /**
    * Premium Welcome Sequence
-   * Strictly synchronized with TTS audio.
+   * Strictly synchronized with TTS audio and real profile name.
    */
   useEffect(() => {
-    if (firebaseUser && !isUserLoading && pathname === "/dashboard") {
-      const storageKey = `welcomed_v3_${firebaseUser.uid}`;
+    // Only trigger greeting when we have a real profile name and are on dashboard
+    if (firebaseUser && !isUserLoading && userName && pathname === "/dashboard") {
+      const storageKey = `welcomed_v4_${firebaseUser.uid}`;
       const hasWelcomed = sessionStorage.getItem(storageKey);
-      
-      // Get name directly from firebaseUser or use a placeholder while sync finishes
-      const displayName = firebaseUser.displayName || "Administrator";
       
       if (!hasWelcomed) {
         const hour = new Date().getHours();
         const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
         
         // Strictly use Mr format as requested
-        const formattedName = displayName.includes("Mr") ? displayName : `Mr ${displayName}`;
+        const formattedName = userName.includes("Mr") ? userName : `Mr ${userName}`;
         setWelcomeText(`${greeting}, ${formattedName}.`);
         sessionStorage.setItem(storageKey, 'true');
 
@@ -162,7 +160,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         welcomeAudioRef.current = null;
       }
     };
-  }, [firebaseUser, isUserLoading, pathname, dismissWelcome]);
+  }, [firebaseUser, isUserLoading, userName, pathname, dismissWelcome]);
 
   const filteredProperties = useMemo(() => {
     if (role === 'admin' || assignedEntityId === 'all') return availableProperties;
@@ -192,7 +190,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!firebaseUser) return null;
 
   const handleLogout = async () => {
-    sessionStorage.removeItem(`welcomed_v3_${firebaseUser.uid}`);
+    sessionStorage.removeItem(`welcomed_v4_${firebaseUser.uid}`);
     await signOut(auth);
     router.push("/login");
   };
@@ -292,14 +290,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <DropdownMenuTrigger asChild>
                 <div className="flex items-center gap-3 cursor-pointer group">
                   <div className="text-right hidden sm:block">
-                    <p className="text-xs font-black uppercase leading-none text-slate-800">{firebaseUser?.displayName}</p>
+                    <p className="text-xs font-black uppercase leading-none text-slate-800">{userName || firebaseUser?.displayName}</p>
                     <p className="text-[9px] text-muted-foreground capitalize font-black mt-1 uppercase">
                       {role === 'admin' ? "Master Administrator" : role === 'owner' ? "Property Owner (View Only)" : role}
                     </p>
                   </div>
                   <Avatar className="h-10 w-10 ring-offset-2 ring-primary transition-all group-hover:ring-2 shadow-md">
                     <AvatarFallback className="bg-primary text-white text-xs font-black uppercase">
-                      {firebaseUser?.displayName?.charAt(0) || "U"}
+                      {userName?.charAt(0) || firebaseUser?.displayName?.charAt(0) || "U"}
                     </AvatarFallback>
                   </Avatar>
                 </div>
@@ -317,7 +315,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className={cn(
+          "flex-1 overflow-y-auto p-8 transition-opacity duration-500",
+          showWelcome ? "opacity-0 pointer-events-none" : "opacity-100"
+        )}>
           {children}
         </main>
       </div>

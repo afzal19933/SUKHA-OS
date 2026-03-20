@@ -1,3 +1,4 @@
+
 "use client";
 
 import { create } from 'zustand';
@@ -11,6 +12,7 @@ interface PropertyInfo {
 
 interface AuthState {
   user: User | null;
+  userName: string | null;
   role: string | null;
   entityId: string | null; // Currently active session entity
   assignedEntityId: string | null; // Entity ID from profile (could be 'all')
@@ -19,6 +21,7 @@ interface AuthState {
   availableProperties: PropertyInfo[];
   _hasHydrated: boolean;
   setUser: (user: User | null, claims?: Record<string, any>) => void;
+  setUserName: (name: string | null) => void;
   setRole: (role: string | null) => void;
   setEntityId: (entityId: string | null) => void;
   setAssignedEntityId: (id: string | null) => void;
@@ -32,6 +35,7 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: null,
+      userName: null,
       role: null,
       entityId: null,
       assignedEntityId: null,
@@ -49,6 +53,7 @@ export const useAuthStore = create<AuthState>()(
           entityId: claims?.entityId || currentEntityId || null 
         });
       },
+      setUserName: (userName) => set({ userName }),
       setRole: (role) => set({ role }),
       setEntityId: (entityId) => set({ entityId }),
       setAssignedEntityId: (assignedEntityId) => set({ assignedEntityId }),
