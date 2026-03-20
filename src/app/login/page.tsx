@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { useAuth, useFirestore } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Building2, KeyRound, User } from "lucide-react";
-import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -36,8 +35,26 @@ export default function LoginPage() {
       displayName: "Administrator" 
     });
 
-    // 2. Create a New Hotel Property
+    // 2. Setup ID/Property context
     const hotelId = crypto.randomUUID();
+
+    // 3. Create User Profile FIRST to establish role for rules
+    const userProfileRef = doc(db, "user_profiles", user.uid);
+    const userProfileData = {
+      id: user.uid,
+      entityId: hotelId,
+      name: "Administrator",
+      email: internalEmail,
+      isActive: true,
+      role: "admin", 
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      permissions: ["Reservations", "Rooms", "Inventory", "Housekeeping", "Maintenance", "Laundry", "Accounting", "Team", "Settings"]
+    };
+
+    await setDoc(userProfileRef, userProfileData);
+
+    // 4. Create Property
     const propertyRef = doc(db, "hotel_properties", hotelId);
     const propertyData = {
       id: hotelId,
@@ -53,26 +70,11 @@ export default function LoginPage() {
       pan: "TBD"
     };
     
-    setDocumentNonBlocking(propertyRef, propertyData, { merge: true });
-
-    // 3. Create User Profile
-    const userProfileRef = doc(db, "user_profiles", user.uid);
-    const userProfileData = {
-      id: user.uid,
-      entityId: hotelId,
-      name: "Administrator",
-      email: internalEmail,
-      isActive: true,
-      role: "admin", // Initial user is now admin (full access)
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    setDocumentNonBlocking(userProfileRef, userProfileData, { merge: true });
+    await setDoc(propertyRef, propertyData);
 
     toast({
       title: "System Initialized",
-      description: "Default admin account and property have been created.",
+      description: "Administrator account and property have been successfully created.",
     });
   };
 
@@ -94,14 +96,19 @@ export default function LoginPage() {
           return;
         } catch (initError: any) {
           console.error("Initialization failed", initError);
+          toast({
+            variant: "destructive",
+            title: "Initialization Failed",
+            description: initError.message,
+          });
         }
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Login Failed",
+          description: "Invalid username or password.",
+        });
       }
-
-      toast({
-        variant: "destructive",
-        title: "Login Failed",
-        description: "Invalid username or password.",
-      });
     } finally {
       setLoading(false);
     }

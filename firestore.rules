@@ -13,25 +13,31 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function getUserData() {
+    // Helper to get user profile data
+    function getUserProfile() {
       return get(/databases/$(database)/documents/user_profiles/$(request.auth.uid)).data;
     }
 
-    function isAdmin() {
-      return isSignedIn() && getUserData().role == 'admin';
+    // Check if user is the master administrator
+    function isMasterAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'admin@sukha.os' ||
+        getUserProfile().role == 'admin'
+      );
     }
 
+    // Check if user is an owner of a specific entity
     function isOwner(entityId) {
-      return isSignedIn() && getUserData().role == 'owner' && getUserData().entityId == entityId;
+      return isSignedIn() && getUserProfile().role == 'owner' && getUserProfile().entityId == entityId;
     }
 
     /** 
      * @description User Profiles
-     * Admin can manage all. Users can read their own.
+     * Users can read their own profiles. Admins can manage all.
      */
     match /user_profiles/{userId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow write: if isMasterAdmin() || (isSignedIn() && request.auth.uid == userId);
       
       match /notifications/{notificationId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
@@ -42,24 +48,29 @@ service cloud.firestore {
      * @description Hotel Properties & Multi-tenancy
      */
     match /hotel_properties/{entityId} {
-      // Admin sees all. Owner sees their entity only.
-      allow read: if isAdmin() || isOwner(entityId);
-      // Only Admin can modify property settings or root docs.
-      allow write: if isAdmin();
+      // Metadata (name, etc) is readable by all staff to support the switcher.
+      // Sensitive data is protected in subcollections.
+      allow read: if isSignedIn();
+      // Only Master Admin can modify property settings.
+      allow write: if isMasterAdmin();
 
       match /{allSubcollections=**} {
-        // Reads allowed for Admin and specific Owner
-        allow read: if isAdmin() || isOwner(entityId) || (isSignedIn() && getUserData().entityId == entityId);
-        // Writes strictly reserved for Admin (and Staff/Manager based on app logic, but Admin is master)
-        allow write: if isAdmin() || (isSignedIn() && getUserData().role != 'owner' && getUserData().entityId == entityId);
+        // Reads allowed for Master Admin or people assigned to this entity.
+        allow read: if isMasterAdmin() || 
+                     isOwner(entityId) || 
+                     (isSignedIn() && getUserProfile().entityId == entityId);
+        
+        // Writes reserved for Master Admin and non-owner staff assigned to the entity.
+        allow write: if isMasterAdmin() || 
+                      (isSignedIn() && getUserProfile().role != 'owner' && getUserProfile().entityId == entityId);
       }
     }
 
     /**
      * @description Global Configs
      */
-    match /laundry_items/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
-    match /inventory_stocks/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /laundry_items/{id} { allow read: if isSignedIn(); allow write: if isMasterAdmin(); }
+    match /inventory_stocks/{id} { allow read: if isSignedIn(); allow write: if isMasterAdmin(); }
 
   }
 }

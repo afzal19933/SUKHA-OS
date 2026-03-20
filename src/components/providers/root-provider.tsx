@@ -8,6 +8,8 @@ import { useAuthStore } from "@/store/authStore";
 import { Toaster } from "@/components/ui/toaster";
 import { useUser } from "@/firebase";
 import { doc, onSnapshot, collection } from "firebase/firestore";
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 function AuthSync() {
   const { user } = useUser();
@@ -52,16 +54,19 @@ function AuthSync() {
           if (data.entityId && !entityId) setEntityId(data.entityId);
         }
       }, (error) => {
-        console.error("Error syncing user profile:", error);
+        console.warn("AuthSync: User profile sync delayed or restricted:", error.message);
       });
 
-      // Fetch all available properties for this user (multi-tenancy)
+      // Fetch available properties for the switcher
       const unsubscribeProperties = onSnapshot(collection(db, "hotel_properties"), (snapshot) => {
         const properties = snapshot.docs.map(doc => ({
           id: doc.id,
           name: doc.data().name || "Unnamed Property"
         }));
         setAvailableProperties(properties);
+      }, (error) => {
+        // If this fails, it's usually a temporary permission sync issue during login
+        console.warn("AuthSync: Property list fetch restricted:", error.message);
       });
 
       return () => {
