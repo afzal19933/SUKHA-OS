@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { 
@@ -24,7 +23,6 @@ import {
   Cpu,
   ShieldAlert,
   Loader2,
-  Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -72,67 +70,109 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  
+  // Welcome State
   const [showWelcome, setShowWelcome] = useState(false);
   const [welcomeText, setWelcomeText] = useState("");
   const [isGlowActive, setIsGlowActive] = useState(false);
   const [isPulsing, setIsPulsing] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
   
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const welcomeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const welcomeTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const isAdmin = role === 'admin';
-  const isOwner = role === 'owner';
-  const hasGlobalAccess = assignedEntityId === 'all';
+  /**
+   * Closes the welcome overlay smoothly.
+   */
+  const dismissWelcome = useCallback(() => {
+    setIsExiting(true);
+    setIsGlowActive(false);
+    setIsPulsing(false);
+    
+    setTimeout(() => {
+      setShowWelcome(false);
+      setIsExiting(false);
+    }, 500); // Wait for exit animation
+  }, []);
 
-  // Generate Greeting Audio and show Overlay
+  /**
+   * Premium Welcome Sequence
+   * Strictly synchronized with TTS audio.
+   */
   useEffect(() => {
-    if (firebaseUser && !isUserLoading) {
-      const hasWelcomed = sessionStorage.getItem(`welcomed_${firebaseUser.uid}`);
+    if (firebaseUser && !isUserLoading && pathname === "/dashboard") {
+      const storageKey = `welcomed_v2_${firebaseUser.uid}`;
+      const hasWelcomed = sessionStorage.getItem(storageKey);
+      
       if (!hasWelcomed) {
         const hour = new Date().getHours();
         const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-        const fullName = firebaseUser.displayName || "Aslam";
+        const fullName = firebaseUser.displayName || "Valued User";
         
-        setWelcomeText(`${greeting}, ${fullName}. Welcome to Sukha OS.`);
-        setShowWelcome(true);
-        sessionStorage.setItem(`welcomed_${firebaseUser.uid}`, 'true');
+        setWelcomeText(`${greeting}, ${fullName}.`);
+        sessionStorage.setItem(storageKey, 'true');
 
-        // Fetch and play audio
+        // Preload Audio before showing UI
         generateGreetingAudio({ greeting, userName: fullName }).then(audioUri => {
           const audio = new Audio(audioUri);
-          audioRef.current = audio;
+          welcomeAudioRef.current = audio;
           
-          // Animation timing sync
-          setTimeout(() => {
-            audio.play().catch(e => console.warn("Audio playback blocked:", e));
+          // CRITICAL SYNC: Wait until audio is ready to play through
+          audio.oncanplaythrough = () => {
+            // Start both simultaneously
+            setShowWelcome(true);
+            audio.play().catch(e => {
+              console.warn("Audio playback blocked by browser. User interaction required.", e);
+              // If blocked, we still show the UI for the duration
+            });
             setIsGlowActive(true);
-          }, 500);
 
-          setTimeout(() => setIsPulsing(true), 1200);
-          setTimeout(() => setIsPulsing(false), 2200);
+            // Duration Logic: Max 3 seconds OR until playback ends
+            const maxDuration = 3000;
+            
+            // Pulse Effect Sync (Approximate name emphasis window)
+            setTimeout(() => setIsPulsing(true), 1000);
+            setTimeout(() => setIsPulsing(false), 2200);
 
-          // Cleanup overlay
-          setTimeout(() => {
-            setShowWelcome(false);
-            setIsGlowActive(false);
-          }, 3500);
+            // Timer for max duration
+            welcomeTimerRef.current = setTimeout(() => {
+              dismissWelcome();
+            }, maxDuration);
+
+            // Audio End listener
+            audio.onended = () => {
+              if (welcomeTimerRef.current) clearTimeout(welcomeTimerRef.current);
+              dismissWelcome();
+            };
+          };
+        }).catch(err => {
+          console.error("Welcome Greeting Failed:", err);
         });
       }
     }
-  }, [firebaseUser, isUserLoading]);
+
+    return () => {
+      if (welcomeTimerRef.current) clearTimeout(welcomeTimerRef.current);
+      if (welcomeAudioRef.current) {
+        welcomeAudioRef.current.pause();
+        welcomeAudioRef.current = null;
+      }
+    };
+  }, [firebaseUser, isUserLoading, pathname, dismissWelcome]);
 
   const filteredProperties = useMemo(() => {
-    if (isAdmin || hasGlobalAccess) return availableProperties;
+    if (role === 'admin' || assignedEntityId === 'all') return availableProperties;
     return availableProperties.filter(p => p.id === entityId);
-  }, [availableProperties, isAdmin, hasGlobalAccess, entityId]);
+  }, [availableProperties, role, assignedEntityId, entityId]);
 
   const filteredNavItems = useMemo(() => {
     return NAV_ITEMS.filter(item => {
       if (item.restricted && !item.restricted.includes(role || "")) return false;
       if (item.name === "Dashboard") return true;
-      if (isAdmin || isOwner) return true;
+      if (role === 'admin' || role === 'owner') return true;
       return permissions?.includes(item.name);
     });
-  }, [role, permissions, isAdmin, isOwner]);
+  }, [role, permissions]);
 
   useEffect(() => {
     if (_hasHydrated && !isUserLoading && !firebaseUser && pathname !== "/login") {
@@ -148,28 +188,32 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!firebaseUser) return null;
 
   const handleLogout = async () => {
-    sessionStorage.removeItem(`welcomed_${firebaseUser.uid}`);
+    sessionStorage.removeItem(`welcomed_v2_${firebaseUser.uid}`);
     await signOut(auth);
     router.push("/login");
   };
 
-  const canSwitchProperty = isAdmin || hasGlobalAccess;
+  const canSwitchProperty = role === 'admin' || assignedEntityId === 'all';
 
   return (
     <div className="flex h-screen bg-[#F8F9FD] overflow-hidden relative">
       {/* Premium Welcome Overlay */}
       {showWelcome && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/30 backdrop-blur-xl animate-in fade-in duration-500">
-          {/* Subtle diffused glow */}
+        <div className={cn(
+          "fixed inset-0 z-[999] flex items-center justify-center bg-black/30 backdrop-blur-xl transition-opacity duration-500",
+          isExiting ? "opacity-0" : "opacity-100"
+        )}>
+          {/* Subtle diffused emerald glow */}
           <div className={cn(
-            "absolute w-[400px] h-[400px] bg-emerald-500/20 blur-[100px] rounded-full transition-all duration-1000",
+            "absolute w-[400px] h-[400px] bg-emerald-500/20 blur-[100px] rounded-full transition-all duration-700",
             isGlowActive ? "opacity-100 scale-110" : "opacity-0 scale-90"
           )} />
           
           <div className={cn(
             "bg-white/80 border border-white/40 p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center gap-8 relative z-10 transition-all duration-500",
-            "animate-in zoom-in-95",
-            isPulsing && "scale-[1.02]"
+            "animate-in zoom-in-95 fade-in",
+            isPulsing && "scale-[1.03]",
+            isExiting && "scale-95 opacity-0"
           )}>
             <div className="bg-primary p-5 rounded-3xl shadow-2xl shadow-primary/30">
               <Building2 className="w-12 h-12 text-white" />
@@ -234,7 +278,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4">
-            {isOwner && (
+            {role === 'owner' && (
               <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-100 shadow-sm">
                 <ShieldAlert className="w-3.5 h-3.5" />
                 <span className="text-[9px] font-black uppercase tracking-widest">Property View Only</span>
@@ -246,7 +290,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   <div className="text-right hidden sm:block">
                     <p className="text-xs font-black uppercase leading-none text-slate-800">{firebaseUser?.displayName}</p>
                     <p className="text-[9px] text-muted-foreground capitalize font-black mt-1 uppercase">
-                      {isAdmin ? "Master Administrator" : isOwner ? "Property Owner (View Only)" : role}
+                      {role === 'admin' ? "Master Administrator" : role === 'owner' ? "Property Owner (View Only)" : role}
                     </p>
                   </div>
                   <Avatar className="h-10 w-10 ring-offset-2 ring-primary transition-all group-hover:ring-2 shadow-md">

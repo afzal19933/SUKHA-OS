@@ -57,7 +57,8 @@ const greetingTTSFlow = ai.defineFlow(
     outputSchema: z.object({ audioUri: z.string() }),
   },
   async (input) => {
-    const text = `${input.greeting}, ${input.userName}. Welcome to Sukha OS.`;
+    // Strictly formatted text for human-like greeting
+    const text = `${input.greeting}, ${input.userName}.`;
     
     const { media } = await ai.generate({
       model: googleAI.model('gemini-2.5-flash-preview-tts'),
@@ -65,7 +66,7 @@ const greetingTTSFlow = ai.defineFlow(
         responseModalities: ['AUDIO'],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Algenib' }, // Warm, professional voice
+            prebuiltVoiceConfig: { voiceName: 'Algenib' }, // Warm, professional voice with subtle smile
           },
         },
       },
