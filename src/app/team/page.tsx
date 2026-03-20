@@ -16,7 +16,8 @@ import {
   Lock,
   Eye,
   EyeOff,
-  Building2
+  Building2,
+  ShieldAlert
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
@@ -89,15 +90,16 @@ export default function TeamPage() {
     username: "", 
     role: "staff",
     password: "",
-    targetEntityId: entityId || ""
+    targetEntityId: entityId || (availableProperties.length > 0 ? availableProperties[0].id : "")
   });
   
   const [searchQuery, setSearchQuery] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResyncing, setIsResyncing] = useState(false);
 
-  const canEdit = currentUserRole === "admin";
-  const canView = ["owner", "admin"].includes(currentUserRole || "");
+  // Admin is the master who manages both entities and owners.
+  const isAdmin = currentUserRole === "admin";
+  const canEdit = isAdmin;
 
   useEffect(() => {
     if (!isEditOpen && !isPermissionsOpen && !isInviteOpen) {
@@ -108,10 +110,13 @@ export default function TeamPage() {
     }
   }, [isEditOpen, isPermissionsOpen, isInviteOpen]);
 
+  // Admin sees everyone across both properties if needed, or scoped.
   const teamQuery = useMemoFirebase(() => {
+    // If admin, show all registered users. If owner, show only their entity.
+    if (isAdmin) return query(collection(db, "user_profiles"));
     if (!entityId) return null;
     return query(collection(db, "user_profiles"), where("entityId", "==", entityId));
-  }, [db, entityId]);
+  }, [db, entityId, isAdmin]);
 
   const { data: teamMembers, isLoading } = useCollection(teamQuery);
 
@@ -138,7 +143,7 @@ export default function TeamPage() {
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canEdit) return;
+    if (!isAdmin) return;
     if (newMember.password.length < 6) {
       toast({ variant: "destructive", title: "Weak Password", description: "Minimum 6 characters required." });
       return;
@@ -163,16 +168,16 @@ export default function TeamPage() {
         isActive: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        permissions: SYSTEM_MODULES // Default to all, filtered by UI role
+        permissions: SYSTEM_MODULES
       };
 
       await setDoc(doc(db, "user_profiles", newUser.uid), memberData);
 
-      toast({ title: "Member Provisioned", description: `${newMember.name} can now log in.` });
+      toast({ title: "Account Created", description: `${newMember.name} is now a registered ${newMember.role}.` });
       setIsInviteOpen(false);
       setNewMember({ name: "", username: "", role: "staff", password: "", targetEntityId: entityId || "" });
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Provisioning Error", description: err.message || "Failed to create account." });
+      toast({ variant: "destructive", title: "Registration Error", description: err.message || "Failed to create account." });
     } finally {
       setIsSubmitting(false);
     }
@@ -180,7 +185,7 @@ export default function TeamPage() {
 
   const handleUpdateMember = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingMember || !canEdit) return;
+    if (!editingMember || !isAdmin) return;
     const memberRef = doc(db, "user_profiles", editingMember.id);
     updateDocumentNonBlocking(memberRef, {
       name: editingMember.name,
@@ -193,7 +198,7 @@ export default function TeamPage() {
   };
 
   const togglePermission = (userId: string, moduleName: string) => {
-    if (!canEdit) return;
+    if (!isAdmin) return;
     const member = teamMembers?.find(m => m.id === userId);
     if (!member) return;
 
@@ -215,9 +220,9 @@ export default function TeamPage() {
   };
 
   const handleDeleteMember = (member: any) => {
-    if (!canEdit) return;
+    if (!isAdmin) return;
     deleteDocumentNonBlocking(doc(db, "user_profiles", member.id));
-    toast({ title: "Profile record removed" });
+    toast({ title: "User removed" });
   };
 
   const filteredMembers = teamMembers?.filter(m => 
@@ -230,27 +235,27 @@ export default function TeamPage() {
       <div className="space-y-6 max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Team Registry</h1>
-            <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">Staff Roles & System Access Control</p>
+            <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Staff & Owner Registry</h1>
+            <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">System Administrator Control Panel</p>
           </div>
           
           <div className="flex items-center gap-2">
-            {!entityId && (
-              <Button variant="outline" size="sm" onClick={handleResync} disabled={isResyncing} className="h-10 px-4 rounded-xl">
-                <RefreshCw className={cn("w-3.5 h-3.5 mr-2", isResyncing && "animate-spin")} />
-                Resync Session
-              </Button>
+            {!isAdmin && (
+              <div className="px-3 py-1 bg-amber-50 text-amber-600 rounded-lg border border-amber-100 flex items-center gap-2">
+                <ShieldAlert className="w-3.5 h-3.5" />
+                <span className="text-[9px] font-black uppercase">Read Only Mode</span>
+              </div>
             )}
-            {canEdit && (
+            {isAdmin && (
               <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
                 <Button className="h-10 shadow-xl bg-primary hover:bg-primary/90 px-6 font-black text-[10px] uppercase tracking-widest text-white rounded-xl" onClick={() => setIsInviteOpen(true)}>
                   <UserPlus className="w-4 h-4 mr-2" />
-                  Register Member
+                  Add User / Owner
                 </Button>
                 <DialogContent className="sm:max-w-[400px] text-left rounded-[2rem]">
                   <DialogHeader>
-                    <DialogTitle className="text-lg font-black uppercase text-primary">New Team Member</DialogTitle>
-                    <DialogDescription className="text-[10px] font-bold uppercase">Provision a login and profile for your property staff.</DialogDescription>
+                    <DialogTitle className="text-lg font-black uppercase text-primary">New System User</DialogTitle>
+                    <DialogDescription className="text-[10px] font-bold uppercase">Provision an Admin, Owner, or Staff login.</DialogDescription>
                   </DialogHeader>
                   <form onSubmit={handleAddMember} className="space-y-4 pt-4">
                     <div className="space-y-1.5">
@@ -259,7 +264,7 @@ export default function TeamPage() {
                     </div>
                     
                     <div className="space-y-1.5">
-                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Assign Entity</Label>
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Assign Entity Access</Label>
                       <Select value={newMember.targetEntityId} onValueChange={(val) => setNewMember({...newMember, targetEntityId: val})}>
                         <SelectTrigger className="h-11 text-xs rounded-xl bg-secondary/30 border-none"><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -276,14 +281,13 @@ export default function TeamPage() {
                         <Input placeholder="johndoe" value={newMember.username} onChange={(e) => setNewMember({...newMember, username: e.target.value})} required className="h-11 text-xs rounded-xl bg-secondary/30 border-none" />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-black uppercase text-muted-foreground">Functional Role</Label>
+                        <Label className="text-[10px] font-black uppercase text-muted-foreground">Access Role</Label>
                         <Select value={newMember.role} onValueChange={(val) => setNewMember({...newMember, role: val})}>
                           <SelectTrigger className="h-11 text-xs rounded-xl bg-secondary/30 border-none"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="admin" className="text-xs font-bold">Admin (Full Access)</SelectItem>
-                            <SelectItem value="owner" className="text-xs font-bold">Owner (View Only Admin)</SelectItem>
+                            <SelectItem value="admin" className="text-xs font-bold">Admin (Master Access)</SelectItem>
+                            <SelectItem value="owner" className="text-xs font-bold">Owner (View Only)</SelectItem>
                             <SelectItem value="manager" className="text-xs font-bold">Manager</SelectItem>
-                            <SelectItem value="supervisor" className="text-xs font-bold">Supervisor</SelectItem>
                             <SelectItem value="staff" className="text-xs font-bold">Staff</SelectItem>
                           </SelectContent>
                         </Select>
@@ -312,7 +316,7 @@ export default function TeamPage() {
                       </div>
                     </div>
                     <Button type="submit" className="w-full h-12 text-[11px] font-black uppercase tracking-widest shadow-lg rounded-2xl mt-4" disabled={isSubmitting}>
-                      {isSubmitting ? "Provisioning..." : "Confirm & Create Login"}
+                      {isSubmitting ? "Provisioning..." : "Confirm & Create Account"}
                     </Button>
                   </form>
                 </DialogContent>
@@ -331,7 +335,7 @@ export default function TeamPage() {
             <TableHeader className="bg-primary">
               <TableRow className="hover:bg-transparent border-none">
                 <TableHead className="text-[10px] font-black uppercase h-12 pl-8 text-primary-foreground">Member</TableHead>
-                <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">ID / Username</TableHead>
+                <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Entity Access</TableHead>
                 <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Role</TableHead>
                 <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Status</TableHead>
                 <TableHead className="text-right text-[10px] font-black uppercase h-12 pr-8 text-primary-foreground">Actions</TableHead>
@@ -348,13 +352,20 @@ export default function TeamPage() {
                         <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary text-[11px] font-black">
                           {member.name?.charAt(0) || "U"}
                         </div>
-                        <span className="font-black text-[12px] uppercase tracking-tight">{member.name}</span>
+                        <div className="flex flex-col">
+                          <span className="font-black text-[12px] uppercase tracking-tight">{member.name}</span>
+                          <span className="text-[9px] font-mono text-muted-foreground">{member.email}</span>
+                        </div>
                       </div>
                     </TableCell>
-                    <TableCell><span className="text-[10px] font-mono bg-secondary px-2 py-1 rounded-lg text-muted-foreground font-bold">{member.email?.split('@')[0]}</span></TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={cn("capitalize font-black text-[9px] h-5 px-2 bg-white", member.role === 'owner' ? "border-amber-500 text-amber-600" : "border-primary/10 text-primary")}>
-                        {member.role === 'owner' ? "Owner (View Only)" : member.role?.replace('_', ' ') || "Staff"}
+                      <Badge variant="outline" className="text-[9px] font-bold bg-secondary/50 border-none">
+                        {availableProperties.find(p => p.id === member.entityId)?.name || "Global / Multiple"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cn("capitalize font-black text-[9px] h-5 px-2 bg-white", member.role === 'owner' ? "border-amber-500 text-amber-600" : member.role === 'admin' ? "border-indigo-500 text-indigo-600" : "border-primary/10 text-primary")}>
+                        {member.role === 'owner' ? "Owner (View Only)" : member.role === 'admin' ? "Admin (Master)" : member.role?.replace('_', ' ') || "Staff"}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -364,7 +375,7 @@ export default function TeamPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right pr-8">
-                      {canEdit && (
+                      {isAdmin && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-white hover:shadow-md rounded-xl">
@@ -376,7 +387,7 @@ export default function TeamPage() {
                               <Edit2 className="w-3.5 h-3.5 mr-3 text-primary" /> Edit Profile
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setEditingMember(member); setIsPermissionsOpen(true); }} className="text-[11px] font-black uppercase p-3 rounded-xl cursor-pointer">
-                              <Lock className="w-3.5 h-3.5 mr-3 text-amber-600" /> System Access
+                              <Lock className="w-3.5 h-3.5 mr-3 text-amber-600" /> Module Access
                             </DropdownMenuItem>
                             <DropdownMenuItem className="text-[11px] font-black uppercase p-3 rounded-xl cursor-pointer text-rose-600 hover:bg-rose-50" onClick={() => handleDeleteMember(member)}>
                               <Trash2 className="w-3.5 h-3.5 mr-3" /> Terminate Access
@@ -388,7 +399,7 @@ export default function TeamPage() {
                   </TableRow>
                 ))
               ) : (
-                <TableRow><TableCell colSpan={5} className="text-center py-24 text-[10px] font-black uppercase text-muted-foreground tracking-widest">No members matching current criteria</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-24 text-[10px] font-black uppercase text-muted-foreground tracking-widest">No members found</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -405,11 +416,11 @@ export default function TeamPage() {
                   <Input value={editingMember.name} onChange={(e) => setEditingMember({...editingMember, name: e.target.value})} required className="h-11 text-xs rounded-xl bg-secondary/30 border-none" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Assigned Role</Label>
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Functional Role</Label>
                   <Select value={editingMember.role} onValueChange={(val) => setEditingMember({...editingMember, role: val})}>
                     <SelectTrigger className="h-11 text-xs rounded-xl bg-secondary/30 border-none"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="admin" className="text-xs font-bold">Admin (Full)</SelectItem>
+                      <SelectItem value="admin" className="text-xs font-bold">Admin (Master)</SelectItem>
                       <SelectItem value="owner" className="text-xs font-bold">Owner (View Only)</SelectItem>
                       <SelectItem value="manager" className="text-xs font-bold">Manager</SelectItem>
                       <SelectItem value="staff" className="text-xs font-bold">Staff</SelectItem>
@@ -420,7 +431,7 @@ export default function TeamPage() {
                   <Checkbox id="active-edit" checked={editingMember.isActive} onCheckedChange={(val) => setEditingMember({...editingMember, isActive: !!val})} />
                   <Label htmlFor="active-edit" className="text-[10px] font-black uppercase cursor-pointer">Account Status: Active</Label>
                 </div>
-                <Button type="submit" className="w-full h-12 text-[11px] font-black uppercase tracking-widest shadow-xl rounded-2xl mt-4">Save Profile Changes</Button>
+                <Button type="submit" className="w-full h-12 text-[11px] font-black uppercase tracking-widest shadow-xl rounded-2xl mt-4">Save Changes</Button>
               </form>
             )}
           </DialogContent>

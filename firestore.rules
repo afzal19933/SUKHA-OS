@@ -3,8 +3,10 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * SUKHA OS - UNIFIED SECURITY RULES
-     * Enforces role-based access control and multi-tenancy.
+     * SUKHA OS - ROLE-BASED ACCESS CONTROL
+     * Admin: Global Master (Read/Write all)
+     * Owner: Entity-Specific (Read-Only)
+     * Staff/Manager: Entity-Specific (Scoped)
      */
 
     function isSignedIn() {
@@ -15,23 +17,21 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/user_profiles/$(request.auth.uid)).data;
     }
 
-    // Admins and View-Only Owners both count as "Admin View" authorized
-    function canViewAdmin() {
-      return isSignedIn() && (getUserData().role == 'owner' || getUserData().role == 'admin');
+    function isAdmin() {
+      return isSignedIn() && getUserData().role == 'admin';
     }
 
-    // Only Admin can perform write operations
-    function canWriteAdmin() {
-      return isSignedIn() && getUserData().role == 'admin';
+    function isOwner(entityId) {
+      return isSignedIn() && getUserData().role == 'owner' && getUserData().entityId == entityId;
     }
 
     /** 
      * @description User Profiles
-     * Users can read/write their own profile. Admins can manage all profiles.
+     * Admin can manage all. Users can read their own.
      */
     match /user_profiles/{userId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && (request.auth.uid == userId || canWriteAdmin());
+      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
       
       match /notifications/{notificationId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
@@ -42,21 +42,24 @@ service cloud.firestore {
      * @description Hotel Properties & Multi-tenancy
      */
     match /hotel_properties/{entityId} {
-      allow read: if isSignedIn() && (getUserData().entityId == entityId || canViewAdmin());
-      allow write: if canWriteAdmin();
+      // Admin sees all. Owner sees their entity only.
+      allow read: if isAdmin() || isOwner(entityId);
+      // Only Admin can modify property settings or root docs.
+      allow write: if isAdmin();
 
       match /{allSubcollections=**} {
-        // Multi-tenant check: User must belong to this entity or be an authorized cross-entity admin
-        allow read: if isSignedIn() && (getUserData().entityId == entityId || canViewAdmin());
-        allow write: if isSignedIn() && getUserData().entityId == entityId && canWriteAdmin();
+        // Reads allowed for Admin and specific Owner
+        allow read: if isAdmin() || isOwner(entityId) || (isSignedIn() && getUserData().entityId == entityId);
+        // Writes strictly reserved for Admin (and Staff/Manager based on app logic, but Admin is master)
+        allow write: if isAdmin() || (isSignedIn() && getUserData().role != 'owner' && getUserData().entityId == entityId);
       }
     }
 
     /**
      * @description Global Configs
      */
-    match /laundry_items/{id} { allow read: if isSignedIn(); allow write: if canWriteAdmin(); }
-    match /inventory_stocks/{id} { allow read: if isSignedIn(); allow write: if canWriteAdmin(); }
+    match /laundry_items/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /inventory_stocks/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
 
   }
 }

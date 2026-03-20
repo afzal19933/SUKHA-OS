@@ -58,7 +58,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 
 const NAV_ITEMS = [
-  { name: "Command Center", href: "/command-center", icon: Monitor, restricted: ["owner", "admin", "manager"] },
+  { name: "Command Center", href: "/command-center", icon: Monitor, restricted: ["admin", "manager"] }, // Restricted for Owners
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "AI Insights", href: "/ai-insights", icon: Cpu, restricted: ["owner", "admin"] },
   { name: "Reservations", href: "/reservations", icon: CalendarDays },
@@ -68,7 +68,7 @@ const NAV_ITEMS = [
   { name: "Maintenance", href: "/maintenance", icon: Wrench },
   { name: "Laundry", href: "/laundry", icon: WashingMachine },
   { name: "Accounting", href: "/accounting", icon: Calculator },
-  { name: "Communications", href: "/communications", icon: MessageSquare, restricted: ["owner", "admin", "manager"] },
+  { name: "Communications", href: "/communications", icon: MessageSquare, restricted: ["admin", "manager"] },
   { name: "Team", href: "/team", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
@@ -82,77 +82,32 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  // Background Cleanup for Simulated Data (Runs once per admin login)
-  useEffect(() => {
-    if (firebaseUser && (role === 'owner' || role === 'admin') && entityId && _hasHydrated) {
-      const runCleanup = async () => {
-        const cleanupKey = `cleanup_sim_${entityId}`;
-        if (localStorage.getItem(cleanupKey)) return;
+  const isAdmin = role === 'admin';
+  const isOwner = role === 'owner';
 
-        const targetCollections = ["reservations", "housekeeping_tasks", "invoices", "guest_laundry_orders"];
-        try {
-          for (const collName of targetCollections) {
-            const collRef = collection(db, "hotel_properties", entityId, collName);
-            const q = query(collRef, where("isSimulated", "==", true));
-            const snapshot = await getDocs(q);
-            
-            if (!snapshot.empty) {
-              const batch = writeBatch(db);
-              snapshot.docs.forEach(d => batch.delete(d.ref));
-              await batch.commit();
-            }
-          }
-          localStorage.setItem(cleanupKey, 'true');
-        } catch (e) {
-          console.error("Simulation cleanup failed", e);
-        }
-      };
-      runCleanup();
+  // Owners cannot switch entities if they are assigned to one.
+  const filteredProperties = useMemo(() => {
+    if (isAdmin) return availableProperties;
+    if (isOwner && entityId) {
+      return availableProperties.filter(p => p.id === entityId);
     }
-  }, [firebaseUser, role, entityId, db, _hasHydrated]);
-
-  const notificationsQuery = useMemoFirebase(() => {
-    if (!firebaseUser) return null;
-    return query(
-      collection(db, "user_profiles", firebaseUser.uid, "notifications"),
-      orderBy("createdAt", "desc"),
-      limit(10)
-    );
-  }, [db, firebaseUser]);
-
-  const { data: notifications } = useCollection(notificationsQuery);
-  const unreadCount = notifications?.filter(n => n.status === 'unread').length || 0;
-
-  const markAsRead = (id: string) => {
-    if (!firebaseUser) return;
-    updateDocumentNonBlocking(
-      doc(db, "user_profiles", firebaseUser.uid, "notifications", id),
-      { status: 'read', updatedAt: new Date().toISOString() }
-    );
-  };
-
-  const markAllAsRead = () => {
-    if (!firebaseUser || !notifications) return;
-    notifications.forEach(n => {
-      if (n.status === 'unread') {
-        markAsRead(n.id);
-      }
-    });
-  };
+    return availableProperties;
+  }, [availableProperties, isAdmin, isOwner, entityId]);
 
   const filteredNavItems = useMemo(() => {
     return NAV_ITEMS.filter(item => {
+      // Owners see read-only versions of almost everything except specific command modules
       if (item.restricted && !item.restricted.includes(role || "")) {
         return false;
       }
       if (item.name === "Dashboard") return true;
-      if (role === 'owner' || role === 'admin') return true;
+      if (isAdmin || isOwner) return true;
       if (permissions && permissions.length > 0) {
         return permissions.includes(item.name);
       }
       return false;
     });
-  }, [role, permissions]);
+  }, [role, permissions, isAdmin, isOwner]);
 
   useEffect(() => {
     if (_hasHydrated && !isUserLoading && !firebaseUser && pathname !== "/login") {
@@ -220,15 +175,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <Menu className="w-4 h-4" />
             </Button>
 
-            {availableProperties.length > 0 && pathname !== '/command-center' && (
+            {filteredProperties.length > 0 && pathname !== '/command-center' && (
               <div className="hidden md:flex items-center gap-2 px-2.5 py-1 bg-secondary/50 rounded-lg border border-border/50">
                 <Building2 className="w-3.5 h-3.5 text-primary" />
-                <Select value={entityId || ""} onValueChange={(val) => setEntityId(val)}>
+                <Select 
+                  value={entityId || ""} 
+                  onValueChange={(val) => setEntityId(val)}
+                  disabled={isOwner && filteredProperties.length === 1} // Owner cannot switch away from their entity
+                >
                   <SelectTrigger className="w-[150px] h-7 border-none bg-transparent p-0 focus:ring-0 shadow-none font-semibold text-[11px]">
                     <SelectValue placeholder="Property" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableProperties.map((prop) => (
+                    {filteredProperties.map((prop) => (
                       <SelectItem key={prop.id} value={prop.id} className="text-[11px]">
                         {prop.name}
                       </SelectItem>
@@ -237,86 +196,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </Select>
               </div>
             )}
-            {pathname === '/command-center' && (
-              <div className="hidden md:flex items-center gap-2 px-2.5 py-1 bg-primary/5 rounded-lg border border-primary/10">
-                <Monitor className="w-3.5 h-3.5 text-primary" />
-                <span className="text-[11px] font-black uppercase text-primary tracking-widest">Command Center Mode</span>
-              </div>
-            )}
           </div>
 
           <div className="flex items-center gap-3">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 relative" suppressHydrationWarning>
-                  <Bell className="w-4 h-4 text-muted-foreground" />
-                  {unreadCount > 0 && (
-                    <span className="absolute top-1.5 right-1.5 w-3.5 h-3.5 bg-primary text-[9px] text-white flex items-center justify-center rounded-full border-2 border-background">
-                      {unreadCount}
-                    </span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-72 p-0 overflow-hidden rounded-xl border-none shadow-xl" align="end">
-                <div className="p-3 bg-primary text-primary-foreground flex items-center justify-between">
-                  <h4 className="text-xs font-bold flex items-center gap-2">
-                    Notifications
-                    {unreadCount > 0 && <Badge variant="secondary" className="bg-white/20 text-white text-[9px] h-4 px-1">{unreadCount} New</Badge>}
-                  </h4>
-                  {unreadCount > 0 && (
-                    <Button 
-                      variant="ghost" 
-                      className="h-6 text-[9px] text-white hover:bg-white/10 p-1"
-                      onClick={markAllAsRead}
-                    >
-                      Mark all read
-                    </Button>
-                  )}
-                </div>
-                <ScrollArea className="h-[300px]">
-                  {notifications && notifications.length > 0 ? (
-                    <div className="divide-y">
-                      {notifications.map((n) => (
-                        <div 
-                          key={n.id} 
-                          onClick={() => n.status === 'unread' && markAsRead(n.id)}
-                          className={cn(
-                            "p-3 transition-colors relative group cursor-pointer",
-                            n.status === 'unread' ? "bg-primary/5 hover:bg-primary/10" : "bg-white hover:bg-secondary/20"
-                          )}
-                        >
-                          <div className="flex justify-between items-start gap-2">
-                            <div className="space-y-0.5 flex-1">
-                              <div className="flex items-center gap-1.5">
-                                {n.status === 'unread' && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
-                                <p className="text-[11px] font-bold leading-none">{n.title}</p>
-                              </div>
-                              <p className="text-[10px] text-muted-foreground leading-tight mt-1">{n.message}</p>
-                              <div className="flex items-center gap-1 pt-1.5 text-[8px] text-muted-foreground">
-                                <Clock className="w-2 h-2" />
-                                {formatAppTime(n.createdAt)}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-10 text-center flex flex-col items-center justify-center">
-                      <p className="text-[10px] text-muted-foreground">No updates.</p>
-                    </div>
-                  )}
-                </ScrollArea>
-              </PopoverContent>
-            </Popover>
-            
-            <div className="flex items-center gap-3 pl-3 border-l">
+            <div className="flex items-center gap-3 pl-3">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div className="flex items-center gap-2.5 cursor-pointer group">
                     <div className="text-right hidden sm:block">
-                      <p className="text-xs font-semibold leading-none">{firebaseUser?.displayName || "Admin"}</p>
-                      <p className="text-[10px] text-muted-foreground capitalize">{role || "Staff"}</p>
+                      <p className="text-xs font-semibold leading-none">{firebaseUser?.displayName || "User"}</p>
+                      <p className="text-[10px] text-muted-foreground capitalize font-black">{role || "Staff"}</p>
                     </div>
                     <Avatar className="h-8 w-8 ring-offset-2 ring-primary transition-all group-hover:ring-2">
                       <AvatarFallback className="bg-primary text-primary-foreground text-xs">
