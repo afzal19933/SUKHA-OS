@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
@@ -77,6 +78,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isGlowActive, setIsGlowActive] = useState(false);
   const [isPulsing, setIsPulsing] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
+  const [isAudioReady, setIsAudioReady] = useState(false);
   
   const welcomeAudioRef = useRef<HTMLAudioElement | null>(null);
   const welcomeTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -101,52 +103,54 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
    */
   useEffect(() => {
     if (firebaseUser && !isUserLoading && pathname === "/dashboard") {
-      const storageKey = `welcomed_v2_${firebaseUser.uid}`;
+      const storageKey = `welcomed_v3_${firebaseUser.uid}`;
       const hasWelcomed = sessionStorage.getItem(storageKey);
+      
+      // Get name directly from firebaseUser or use a placeholder while sync finishes
+      const displayName = firebaseUser.displayName || "Administrator";
       
       if (!hasWelcomed) {
         const hour = new Date().getHours();
         const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-        const fullName = firebaseUser.displayName || "Valued User";
         
-        setWelcomeText(`${greeting}, ${fullName}.`);
+        // Strictly use Mr format as requested
+        const formattedName = displayName.includes("Mr") ? displayName : `Mr ${displayName}`;
+        setWelcomeText(`${greeting}, ${formattedName}.`);
         sessionStorage.setItem(storageKey, 'true');
 
-        // Preload Audio before showing UI
-        generateGreetingAudio({ greeting, userName: fullName }).then(audioUri => {
+        // Immediately show the backdrop blur to hide the dashboard
+        setShowWelcome(true);
+
+        // Preload Audio
+        generateGreetingAudio({ greeting, userName: formattedName }).then(audioUri => {
           const audio = new Audio(audioUri);
           welcomeAudioRef.current = audio;
           
-          // CRITICAL SYNC: Wait until audio is ready to play through
           audio.oncanplaythrough = () => {
-            // Start both simultaneously
-            setShowWelcome(true);
-            audio.play().catch(e => {
-              console.warn("Audio playback blocked by browser. User interaction required.", e);
-              // If blocked, we still show the UI for the duration
-            });
+            setIsAudioReady(true);
             setIsGlowActive(true);
-
-            // Duration Logic: Max 3 seconds OR until playback ends
-            const maxDuration = 3000;
             
-            // Pulse Effect Sync (Approximate name emphasis window)
-            setTimeout(() => setIsPulsing(true), 1000);
-            setTimeout(() => setIsPulsing(false), 2200);
+            audio.play().catch(e => {
+              console.warn("Audio playback blocked", e);
+            });
 
-            // Timer for max duration
-            welcomeTimerRef.current = setTimeout(() => {
-              dismissWelcome();
-            }, maxDuration);
+            // Sync pulse effect with name mention
+            setTimeout(() => setIsPulsing(true), 800);
+            setTimeout(() => setIsPulsing(false), 2000);
 
-            // Audio End listener
+            // Audio End listener or fallback timeout
             audio.onended = () => {
-              if (welcomeTimerRef.current) clearTimeout(welcomeTimerRef.current);
               dismissWelcome();
             };
+
+            // Safeguard timeout
+            welcomeTimerRef.current = setTimeout(() => {
+              dismissWelcome();
+            }, 3000);
           };
         }).catch(err => {
           console.error("Welcome Greeting Failed:", err);
+          dismissWelcome();
         });
       }
     }
@@ -188,7 +192,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!firebaseUser) return null;
 
   const handleLogout = async () => {
-    sessionStorage.removeItem(`welcomed_v2_${firebaseUser.uid}`);
+    sessionStorage.removeItem(`welcomed_v3_${firebaseUser.uid}`);
     await signOut(auth);
     router.push("/login");
   };
@@ -200,27 +204,27 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Premium Welcome Overlay */}
       {showWelcome && (
         <div className={cn(
-          "fixed inset-0 z-[999] flex items-center justify-center bg-black/30 backdrop-blur-xl transition-opacity duration-500",
+          "fixed inset-0 z-[999] flex items-center justify-center bg-black/40 backdrop-blur-[40px] transition-opacity duration-500",
           isExiting ? "opacity-0" : "opacity-100"
         )}>
-          {/* Subtle diffused emerald glow */}
+          {/* Subtle diffused emerald glow - triggers only when audio starts */}
           <div className={cn(
-            "absolute w-[400px] h-[400px] bg-emerald-500/20 blur-[100px] rounded-full transition-all duration-700",
+            "absolute w-[500px] h-[500px] bg-emerald-500/20 blur-[120px] rounded-full transition-all duration-700",
             isGlowActive ? "opacity-100 scale-110" : "opacity-0 scale-90"
           )} />
           
           <div className={cn(
-            "bg-white/80 border border-white/40 p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center gap-8 relative z-10 transition-all duration-500",
-            "animate-in zoom-in-95 fade-in",
-            isPulsing && "scale-[1.03]",
-            isExiting && "scale-95 opacity-0"
+            "bg-white border border-white/40 p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center gap-8 relative z-10 transition-all duration-500",
+            !isAudioReady ? "scale-95 opacity-0" : "scale-100 opacity-100 animate-in zoom-in-95",
+            isPulsing && "scale-[1.04]",
+            isExiting && "scale-90 opacity-0"
           )}>
-            <div className="bg-primary p-5 rounded-3xl shadow-2xl shadow-primary/30">
+            <div className="bg-emerald-600 p-5 rounded-3xl shadow-2xl shadow-emerald-600/30">
               <Building2 className="w-12 h-12 text-white" />
             </div>
             <div className="text-center space-y-4">
-              <h2 className="text-4xl font-black text-primary uppercase tracking-[0.3em]">SUKHA OS</h2>
-              <div className="h-0.5 w-16 bg-primary/20 mx-auto" />
+              <h2 className="text-4xl font-black text-emerald-600 uppercase tracking-[0.4em]">SUKHA OS</h2>
+              <div className="h-0.5 w-16 bg-emerald-600/20 mx-auto" />
               <p className="text-2xl font-bold text-slate-800 tracking-tight leading-snug max-w-sm">
                 {welcomeText}
               </p>
