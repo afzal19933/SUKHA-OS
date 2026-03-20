@@ -32,13 +32,13 @@ export default function LoginPage() {
     const user = userCredential.user;
 
     await updateProfile(user, { 
-      displayName: "Administrator" 
+      displayName: "Master Administrator" 
     });
 
     // 2. Setup ID/Property context
     const hotelId = crypto.randomUUID();
 
-    // 3. Create User Profile FIRST to establish role for rules
+    // 3. Create User Profile
     const userProfileRef = doc(db, "user_profiles", user.uid);
     const userProfileData = {
       id: user.uid,
@@ -46,7 +46,7 @@ export default function LoginPage() {
       name: "Administrator",
       email: internalEmail,
       isActive: true,
-      role: "admin", 
+      role: "admin", // STRICTLY ADMIN
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       permissions: ["Reservations", "Rooms", "Inventory", "Housekeeping", "Maintenance", "Laundry", "Accounting", "Team", "Settings"]
@@ -56,25 +56,21 @@ export default function LoginPage() {
 
     // 4. Create Property
     const propertyRef = doc(db, "hotel_properties", hotelId);
-    const propertyData = {
+    await setDoc(propertyRef, {
       id: hotelId,
       entityId: hotelId,
       name: "Sukha Retreats",
-      address: "Property Address TBD",
+      address: "Administrator Main Office",
       phone: "9999999999",
       email: internalEmail,
       isActive: true,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      gstin: "TBD",
-      pan: "TBD"
-    };
-    
-    await setDoc(propertyRef, propertyData);
+      updatedAt: new Date().toISOString()
+    });
 
     toast({
       title: "System Initialized",
-      description: "Administrator account and property have been successfully created.",
+      description: "Master Administrator account created with global access.",
     });
   };
 
@@ -88,26 +84,16 @@ export default function LoginPage() {
       await signInWithEmailAndPassword(auth, internalEmail, password);
       router.push("/dashboard");
     } catch (error: any) {
-      // If default admin login fails (doesn't exist yet), try to initialize
-      if (username === "admin" && password === "sukha123" && (error.code === "auth/user-not-found" || error.code === "auth/invalid-credential" || error.code === "auth/invalid-login-credentials")) {
+      if (username === "admin" && password === "sukha123" && (error.code === "auth/user-not-found" || error.code === "auth/invalid-credential")) {
         try {
           await initializeDefaultAdmin(internalEmail);
           router.push("/dashboard");
           return;
         } catch (initError: any) {
-          console.error("Initialization failed", initError);
-          toast({
-            variant: "destructive",
-            title: "Initialization Failed",
-            description: initError.message,
-          });
+          toast({ variant: "destructive", title: "Init Failed", description: initError.message });
         }
       } else {
-        toast({
-          variant: "destructive",
-          title: "Login Failed",
-          description: "Invalid username or password.",
-        });
+        toast({ variant: "destructive", title: "Login Failed", description: "Invalid credentials." });
       }
     } finally {
       setLoading(false);
@@ -116,56 +102,54 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#F3F3F8] p-4">
-      <Card className="w-full max-w-md shadow-xl border-none">
-        <CardHeader className="space-y-1 text-center">
+      <Card className="w-full max-w-md shadow-2xl border-none rounded-[2rem] overflow-hidden">
+        <CardHeader className="space-y-1 text-center bg-white pt-10">
           <div className="flex justify-center mb-4">
-            <div className="bg-primary p-3 rounded-2xl">
+            <div className="bg-primary p-4 rounded-2xl shadow-xl shadow-primary/20">
               <Building2 className="w-8 h-8 text-white" />
             </div>
           </div>
-          <CardTitle className="text-3xl font-bold tracking-tight text-primary">SUKHA OS</CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Enter your credentials to access the PMS
+          <CardTitle className="text-3xl font-black tracking-tighter text-primary uppercase">SUKHA OS</CardTitle>
+          <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
+            Professional Property Management
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6 bg-white">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Username</Label>
               <div className="relative">
                 <Input
-                  id="username"
                   placeholder="admin"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
-                  className="h-11 pl-10"
+                  className="h-12 pl-11 rounded-2xl bg-secondary/50 border-none text-sm font-bold"
                 />
-                <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                <User className="absolute left-4 top-3.5 w-4 h-4 text-primary" />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Password</Label>
               <div className="relative">
                 <Input
-                  id="password"
                   type="password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="h-11 pl-10"
+                  className="h-12 pl-11 rounded-2xl bg-secondary/50 border-none text-sm font-bold"
                 />
-                <KeyRound className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                <KeyRound className="absolute left-4 top-3.5 w-4 h-4 text-primary" />
               </div>
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full h-11 font-semibold text-lg" disabled={loading}>
-              {loading ? "Processing..." : "Sign In"}
+          <CardFooter className="flex flex-col gap-4 bg-white pb-10">
+            <Button type="submit" className="w-full h-14 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-primary/20" disabled={loading}>
+              {loading ? "Authenticating..." : "Authorize Access"}
             </Button>
-            <p className="text-xs text-center text-muted-foreground px-4">
-              Access restricted to authorized personnel only. Contact your property manager for credentials.
+            <p className="text-[9px] text-center text-muted-foreground font-black uppercase tracking-tighter px-4">
+              Access restricted to authorized personnel. Data audited in real-time.
             </p>
           </CardFooter>
         </form>
