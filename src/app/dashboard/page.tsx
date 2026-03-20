@@ -17,16 +17,24 @@ import {
   Loader2,
   AlertCircle,
   TrendingUp,
-  Sparkles
+  Sparkles,
+  ChevronRight,
+  History,
+  Building2,
+  DoorOpen,
+  ArrowRight
 } from "lucide-react";
 
-import { cn, formatAppTime } from "@/lib/utils";
+import { cn, formatAppTime, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
 import { collection, query, where, orderBy, limit } from "firebase/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 /* ------------------------------ */
 /* Dashboard Content Component    */
@@ -45,7 +53,8 @@ function DashboardContent() {
   const { entityId } = useAuthStore();
   const db = useFirestore();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  
+  const [detailView, setDetailView] = useState<string | null>(null);
 
   /* ------------------------------ */
   /* Firestore Queries              */
@@ -90,17 +99,20 @@ function DashboardContent() {
   /* Stats Aggregation              */
   /* ------------------------------ */
 
+  const todayStr = new Date().toISOString().split('T')[0];
+
   const stats = useMemo(() => ({
     total: rooms?.length || 0,
     occupied: rooms?.filter(r => r.status.includes('occupied')).length || 0,
     vacantReady: rooms?.filter(r => r.status === 'available').length || 0,
     dirty: rooms?.filter(r => r.status === 'dirty' || r.status === 'occupied_dirty').length || 0,
     cleaning: rooms?.filter(r => r.status.includes('cleaning')).length || 0,
+    todayInvoices: invoices?.filter(inv => inv.createdAt?.startsWith(todayStr)) || [],
     revenue: invoices?.reduce((acc, inv) => {
-      const isToday = inv.createdAt?.startsWith(new Date().toISOString().split('T')[0]);
+      const isToday = inv.createdAt?.startsWith(todayStr);
       return isToday ? acc + (inv.totalAmount || 0) : acc;
     }, 0) || 0
-  }), [rooms, invoices]);
+  }), [rooms, invoices, todayStr]);
 
   if (roomsLoading) {
     return (
@@ -136,10 +148,42 @@ function DashboardContent() {
 
       {/* MAIN KPI GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard label="Rooms Occupied" value={stats.occupied} sub={`${stats.total ? Math.round((stats.occupied/stats.total)*100) : 0}% Occupancy`} icon={Bed} color="text-blue-600" bg="bg-blue-50" />
-        <KPICard label="Vacant Ready" value={stats.vacantReady} sub="Immediate Availability" icon={ShieldCheck} color="text-emerald-600" bg="bg-emerald-50" />
-        <KPICard label="Today's Revenue" value={`₹${stats.revenue.toLocaleString()}`} sub="Current Settlements" icon={IndianRupee} color="text-primary" bg="bg-primary/5" />
-        <KPICard label="Dirty Units" value={stats.dirty} sub="Housekeeping Required" icon={AlertTriangle} color="text-orange-600" bg="bg-orange-50" />
+        <KPICard 
+          label="Rooms Occupied" 
+          value={stats.occupied} 
+          sub={`${stats.total ? Math.round((stats.occupied/stats.total)*100) : 0}% Occupancy`} 
+          icon={Bed} 
+          color="text-blue-600" 
+          bg="bg-blue-50" 
+          onClick={() => setDetailView('occupied')}
+        />
+        <KPICard 
+          label="Vacant Ready" 
+          value={stats.vacantReady} 
+          sub="Immediate Availability" 
+          icon={ShieldCheck} 
+          color="text-emerald-600" 
+          bg="bg-emerald-50" 
+          onClick={() => setDetailView('vacant')}
+        />
+        <KPICard 
+          label="Today's Revenue" 
+          value={`₹${stats.revenue.toLocaleString()}`} 
+          sub="Current Settlements" 
+          icon={IndianRupee} 
+          color="text-primary" 
+          bg="bg-primary/5" 
+          onClick={() => setDetailView('revenue')}
+        />
+        <KPICard 
+          label="Dirty Units" 
+          value={stats.dirty} 
+          sub="Housekeeping Required" 
+          icon={AlertTriangle} 
+          color="text-orange-600" 
+          bg="bg-orange-50" 
+          onClick={() => setDetailView('dirty')}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -234,23 +278,149 @@ function DashboardContent() {
             </div>
           </section>
         </div>
-
       </div>
+
+      {/* DRILL DOWN DIALOGS */}
+      <Dialog open={!!detailView} onOpenChange={(o) => !o && setDetailView(null)}>
+        <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden rounded-[2.5rem]">
+          <div className={cn(
+            "p-8 text-white space-y-2",
+            detailView === 'occupied' ? "bg-blue-600" :
+            detailView === 'vacant' ? "bg-emerald-600" :
+            detailView === 'revenue' ? "bg-primary" :
+            "bg-orange-600"
+          )}>
+            <DialogTitle className="text-2xl font-black uppercase flex items-center gap-3">
+              {detailView === 'occupied' && <Bed className="w-7 h-7" />}
+              {detailView === 'vacant' && <ShieldCheck className="w-7 h-7" />}
+              {detailView === 'revenue' && <IndianRupee className="w-7 h-7" />}
+              {detailView === 'dirty' && <AlertTriangle className="w-7 h-7" />}
+              {detailView?.replace(/^\w/, (c) => c.toUpperCase())} Units Detail
+            </DialogTitle>
+            <DialogDescription className="text-white/70 font-bold uppercase text-[10px] tracking-widest">
+              Factual operational audit for {formatAppDate(new Date().toISOString())}
+            </DialogDescription>
+          </div>
+
+          <ScrollArea className="max-h-[60vh]">
+            <div className="p-6">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="text-[10px] font-black uppercase">Room</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase">
+                      {detailView === 'revenue' ? 'Guest / Invoice' : 'Guest Name'}
+                    </TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-right">
+                      {detailView === 'revenue' ? 'Amount' : 'Status'}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {detailView === 'occupied' && (
+                    rooms?.filter(r => r.status.includes('occupied')).map(room => {
+                      const res = checkedInReservations?.find(res => res.roomNumber?.toString() === room.roomNumber?.toString());
+                      return (
+                        <TableRow key={room.id}>
+                          <TableCell className="font-black text-blue-600">#{room.roomNumber}</TableCell>
+                          <TableCell className="font-bold text-[11px] uppercase">{res?.guestName || "Processing..."}</TableCell>
+                          <TableCell className="text-right">
+                            <Badge className="bg-blue-50 text-blue-600 border-blue-100 text-[8px] font-black uppercase">In-House</Badge>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
+
+                  {detailView === 'vacant' && (
+                    rooms?.filter(r => r.status === 'available').map(room => (
+                      <TableRow key={room.id}>
+                        <TableCell className="font-black text-emerald-600">#{room.roomNumber}</TableCell>
+                        <TableCell className="text-[10px] font-bold text-muted-foreground uppercase">Floor {room.floor} • {room.roomTypeId}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge className="bg-emerald-50 text-emerald-600 border-emerald-100 text-[8px] font-black uppercase">Ready</Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+
+                  {detailView === 'dirty' && (
+                    rooms?.filter(r => r.status === 'dirty' || r.status === 'occupied_dirty').map(room => (
+                      <TableRow key={room.id}>
+                        <TableCell className="font-black text-orange-600">#{room.roomNumber}</TableCell>
+                        <TableCell className="text-[10px] font-bold text-muted-foreground uppercase">
+                          {room.status === 'dirty' ? 'Vacant - Requires Service' : 'Occupied - Requires Service'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge className="bg-orange-50 text-orange-600 border-orange-100 text-[8px] font-black uppercase">Priority</Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+
+                  {detailView === 'revenue' && (
+                    stats.todayInvoices.map((inv: any) => (
+                      <TableRow key={inv.id}>
+                        <TableCell className="font-black text-primary">#{inv.roomNumber || inv.stayDetails?.roomNumber || "N/A"}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-[11px] uppercase">{inv.guestDetails?.name || inv.guestName}</span>
+                            <span className="text-[8px] font-mono text-muted-foreground">{inv.invoiceNumber}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-black text-primary">₹{inv.totalAmount?.toLocaleString()}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+
+                  {((detailView === 'revenue' && stats.todayInvoices.length === 0) || 
+                    (detailView === 'occupied' && rooms?.filter(r => r.status.includes('occupied')).length === 0) ||
+                    (detailView === 'dirty' && rooms?.filter(r => r.status.includes('dirty')).length === 0)) && (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center py-12 text-[10px] font-black uppercase text-muted-foreground">
+                        No active records for this category today
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </ScrollArea>
+          
+          <div className="p-6 bg-secondary/20 border-t flex justify-between items-center">
+            <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+              <History className="w-3 h-3" /> Live Audit Log
+            </p>
+            <Button variant="ghost" className="text-[10px] font-black uppercase text-primary" onClick={() => setDetailView(null)}>
+              Close Audit
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function KPICard({ label, value, sub, icon: Icon, color, bg }: any) {
+function KPICard({ label, value, sub, icon: Icon, color, bg, onClick }: any) {
   return (
-    <Card className="border-none shadow-sm overflow-hidden bg-white rounded-[2rem]">
-      <CardContent className="p-6 flex items-center gap-5">
+    <Card 
+      className={cn(
+        "border-none shadow-sm overflow-hidden bg-white rounded-[2rem] cursor-pointer transition-all hover:shadow-xl hover:scale-[1.02] group",
+        onClick && "active:scale-95"
+      )}
+      onClick={onClick}
+    >
+      <CardContent className="p-6 flex items-center gap-5 relative">
         <div className={cn("p-4 rounded-2xl shrink-0 shadow-inner", bg)}>
           <Icon className={cn("w-6 h-6", color)} />
         </div>
-        <div>
+        <div className="flex-1">
           <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">{label}</p>
           <h3 className="text-2xl font-black mt-0.5 tracking-tight">{value}</h3>
           <p className="text-[10px] font-bold text-muted-foreground mt-1 opacity-70">{sub}</p>
+        </div>
+        <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <ArrowRight className={cn("w-4 h-4", color)} />
         </div>
       </CardContent>
     </Card>
