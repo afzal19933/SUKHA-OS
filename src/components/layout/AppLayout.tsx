@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { 
@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/select";
 import { useAuth, useUser } from "@/firebase";
 import { signOut } from "firebase/auth";
+import { generateGreetingAudio } from "@/ai/flows/greeting-tts-flow";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -69,27 +70,56 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeText, setWelcomeText] = useState("");
+  const [isGlowActive, setIsGlowActive] = useState(false);
+  const [isPulsing, setIsPulsing] = useState(false);
+  
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const isAdmin = role === 'admin';
   const isOwner = role === 'owner';
   const hasGlobalAccess = assignedEntityId === 'all';
 
-  // Show welcome message only once per session mount
+  // Generate Greeting Audio and show Overlay
   useEffect(() => {
     if (firebaseUser && !isUserLoading) {
       const hasWelcomed = sessionStorage.getItem(`welcomed_${firebaseUser.uid}`);
       if (!hasWelcomed) {
+        const hour = new Date().getHours();
+        const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+        const fullName = firebaseUser.displayName || "Aslam";
+        
+        setWelcomeText(`${greeting}, ${fullName}. Welcome to Sukha OS.`);
         setShowWelcome(true);
         sessionStorage.setItem(`welcomed_${firebaseUser.uid}`, 'true');
-        const timer = setTimeout(() => setShowWelcome(false), 3000);
-        return () => clearTimeout(timer);
+
+        // Fetch and play audio
+        generateGreetingAudio({ greeting, userName: fullName }).then(audioUri => {
+          const audio = new Audio(audioUri);
+          audioRef.current = audio;
+          
+          // Animation timing sync
+          setTimeout(() => {
+            audio.play().catch(e => console.warn("Audio playback blocked:", e));
+            setIsGlowActive(true);
+          }, 500);
+
+          setTimeout(() => setIsPulsing(true), 1200);
+          setTimeout(() => setIsPulsing(false), 2200);
+
+          // Cleanup overlay
+          setTimeout(() => {
+            setShowWelcome(false);
+            setIsGlowActive(false);
+          }, 3500);
+        });
       }
     }
   }, [firebaseUser, isUserLoading]);
 
-  // Admin or Global users see all properties. Specific staff see only their assigned entity.
   const filteredProperties = useMemo(() => {
     if (isAdmin || hasGlobalAccess) return availableProperties;
     return availableProperties.filter(p => p.id === entityId);
@@ -127,18 +157,28 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-[#F8F9FD] overflow-hidden relative">
-      {/* Welcome Overlay */}
+      {/* Premium Welcome Overlay */}
       {showWelcome && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center pointer-events-none bg-black/10 backdrop-blur-md">
-          <div className="bg-white border-4 border-primary/10 p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-500">
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/30 backdrop-blur-xl animate-in fade-in duration-500">
+          {/* Subtle diffused glow */}
+          <div className={cn(
+            "absolute w-[400px] h-[400px] bg-emerald-500/20 blur-[100px] rounded-full transition-all duration-1000",
+            isGlowActive ? "opacity-100 scale-110" : "opacity-0 scale-90"
+          )} />
+          
+          <div className={cn(
+            "bg-white/80 border border-white/40 p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center gap-8 relative z-10 transition-all duration-500",
+            "animate-in zoom-in-95",
+            isPulsing && "scale-[1.02]"
+          )}>
             <div className="bg-primary p-5 rounded-3xl shadow-2xl shadow-primary/30">
               <Building2 className="w-12 h-12 text-white" />
             </div>
-            <div className="text-center space-y-2">
-              <h2 className="text-4xl font-black text-primary uppercase tracking-[0.2em]">SUKHA OS</h2>
-              <div className="h-px w-20 bg-primary/20 mx-auto my-4" />
-              <p className="text-2xl font-bold text-slate-800 tracking-tight">
-                Welcome Mr {firebaseUser.displayName || 'Aslam'}
+            <div className="text-center space-y-4">
+              <h2 className="text-4xl font-black text-primary uppercase tracking-[0.3em]">SUKHA OS</h2>
+              <div className="h-0.5 w-16 bg-primary/20 mx-auto" />
+              <p className="text-2xl font-bold text-slate-800 tracking-tight leading-snug max-w-sm">
+                {welcomeText}
               </p>
             </div>
           </div>
