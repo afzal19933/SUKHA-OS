@@ -65,7 +65,7 @@ export default function InventoryPage() {
   const db = useFirestore();
   const { toast } = useToast();
 
-  const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
+  const canEdit = currentUserRole === "admin";
 
   const [isPurchaseOpen, setIsPurchaseOpen] = useState(false);
   const [isConsumeOpen, setIsConsumptionOpen] = useState(false);
@@ -110,7 +110,7 @@ export default function InventoryPage() {
 
   const handleAddPurchase = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId || !isAdmin) return;
+    if (!entityId || !canEdit) return;
 
     const qty = parseFloat(newPurchase.quantity);
     
@@ -147,7 +147,7 @@ export default function InventoryPage() {
 
   const handleLogConsumption = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId) return;
+    if (!entityId || !canEdit) return;
 
     const qty = parseFloat(newConsumption.quantity);
     const stock = stocks?.find(s => s.id === newConsumption.itemId);
@@ -181,12 +181,16 @@ export default function InventoryPage() {
             <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-[0.2em] mt-0.5">Stock Levels & Consumption Audit</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="h-9 text-[10px] font-black uppercase rounded-xl" onClick={() => setIsConsumptionOpen(true)}>
-              <ArrowDownToLine className="w-3.5 h-3.5 mr-1.5" /> Log Consumption
-            </Button>
-            <Button className="h-9 text-[10px] font-black uppercase rounded-xl shadow-lg" onClick={() => setIsPurchaseOpen(true)}>
-              <ShoppingCart className="w-3.5 h-3.5 mr-1.5" /> Log Purchase
-            </Button>
+            {canEdit && (
+              <>
+                <Button variant="outline" className="h-9 text-[10px] font-black uppercase rounded-xl" onClick={() => setIsConsumptionOpen(true)}>
+                  <ArrowDownToLine className="w-3.5 h-3.5 mr-1.5" /> Log Consumption
+                </Button>
+                <Button className="h-9 text-[10px] font-black uppercase rounded-xl shadow-lg" onClick={() => setIsPurchaseOpen(true)}>
+                  <ShoppingCart className="w-3.5 h-3.5 mr-1.5" /> Log Purchase
+                </Button>
+              </>
+            )}
           </div>
         </header>
 

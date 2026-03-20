@@ -63,7 +63,7 @@ export default function LoginPage() {
       name: "Administrator",
       email: internalEmail,
       isActive: true,
-      role: "owner",
+      role: "admin", // Initial user is now admin (full access)
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

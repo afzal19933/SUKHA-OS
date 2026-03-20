@@ -70,7 +70,8 @@ export default function ReservationsPage() {
   const db = useFirestore();
   const { toast } = useToast();
 
-  const isAdmin = ["owner", "admin", "frontdesk", "manager"].includes(currentUserRole || "");
+  const canEdit = currentUserRole === "admin" || currentUserRole === "frontdesk" || currentUserRole === "manager";
+  const canView = ["owner", "admin", "frontdesk", "manager"].includes(currentUserRole || "");
 
   // Modal States
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -85,31 +86,12 @@ export default function ReservationsPage() {
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
-  const [newRes, setNewRes] = useState({ 
-    guestName: "", 
-    roomNumber: "", 
-    bookingSource: "Direct",
-    phoneNumber: "",
-    checkIn: "",
-    checkOut: "",
-    negotiatedRate: ""
-  });
-
-  const [checkInForm, setCheckInForm] = useState({
-    idNumber: "",
-    contact: "",
-  });
+  const [newRes, setNewRes] = useState({ guestName: "", roomNumber: "", bookingSource: "Direct", phoneNumber: "", checkIn: "", checkOut: "", negotiatedRate: "" });
+  const [checkInForm, setCheckInForm] = useState({ idNumber: "", contact: "" });
 
   // Queries
-  const reservationsQuery = useMemoFirebase(() => {
-    if (!entityId) return null;
-    return query(collection(db, "hotel_properties", entityId, "reservations"), orderBy("checkInDate", "desc"));
-  }, [db, entityId]);
-
-  const roomsQuery = useMemoFirebase(() => {
-    if (!entityId) return null;
-    return collection(db, "hotel_properties", entityId, "rooms");
-  }, [db, entityId]);
+  const reservationsQuery = useMemoFirebase(() => entityId ? query(collection(db, "hotel_properties", entityId, "reservations"), orderBy("checkInDate", "desc")) : null, [db, entityId]);
+  const roomsQuery = useMemoFirebase(() => entityId ? collection(db, "hotel_properties", entityId, "rooms") : null, [db, entityId]);
 
   const { data: reservations, isLoading } = useCollection(reservationsQuery);
   const { data: rooms } = useCollection(roomsQuery);
@@ -121,171 +103,48 @@ export default function ReservationsPage() {
       const matchesStatus = statusFilter === "all" || res.status === statusFilter;
       const matchesSource = sourceFilter === "all" || res.bookingSource === sourceFilter;
       const matchesRoom = roomSearch === "" || (res.roomNumber || "").toString().includes(roomSearch);
-      
       const resDate = res.checkInDate ? new Date(res.checkInDate) : null;
       const matchesStart = !startDate || (resDate && resDate >= startDate);
       const matchesEnd = !endDate || (resDate && resDate <= endDate);
-
       return matchesName && matchesStatus && matchesSource && matchesRoom && matchesStart && matchesEnd;
     });
   }, [reservations, nameSearch, statusFilter, sourceFilter, roomSearch, startDate, endDate]);
 
   const handleAddReservation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId || !user || !newRes.guestName || !newRes.roomNumber) return;
-
-    const resData = {
-      entityId,
-      guestName: newRes.guestName,
-      phoneNumber: newRes.phoneNumber,
-      roomNumber: newRes.roomNumber,
-      checkInDate: newRes.checkIn,
-      checkOutDate: newRes.checkOut || null,
-      negotiatedRate: parseFloat(newRes.negotiatedRate) || 0,
-      status: "confirmed",
-      bookingSource: newRes.bookingSource,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    try {
-      await addDoc(collection(db, "hotel_properties", entityId, "reservations"), resData);
-
-      // Send WhatsApp Automation
-      if (newRes.phoneNumber) {
-        triggerWhatsAppAutomation(db, 'booking_created', {
-          ...resData,
-          checkIn: newRes.checkIn,
-          checkOut: newRes.checkOut
-        });
-      }
-
-      toast({ title: "Reservation confirmed" });
-      setIsAddOpen(false);
-      setNewRes({ guestName: "", roomNumber: "", bookingSource: "Direct", phoneNumber: "", checkIn: "", checkOut: "", negotiatedRate: "" });
-    } catch (err) {
-      toast({ variant: "destructive", title: "Error creating reservation" });
-    }
+    if (!entityId || !canEdit || !newRes.guestName) return;
+    const resData = { entityId, guestName: newRes.guestName, phoneNumber: newRes.phoneNumber, roomNumber: newRes.roomNumber, checkInDate: newRes.checkIn, checkOutDate: newRes.checkOut || null, negotiatedRate: parseFloat(newRes.negotiatedRate) || 0, status: "confirmed", bookingSource: newRes.bookingSource, createdAt: new Date().toISOString() };
+    await addDoc(collection(db, "hotel_properties", entityId, "reservations"), resData);
+    if (newRes.phoneNumber) triggerWhatsAppAutomation(db, 'booking_created', { ...resData, checkIn: newRes.checkIn, checkOut: newRes.checkOut });
+    toast({ title: "Reservation confirmed" });
+    setIsAddOpen(false);
+    setNewRes({ guestName: "", roomNumber: "", bookingSource: "Direct", phoneNumber: "", checkIn: "", checkOut: "", negotiatedRate: "" });
   };
 
   const updateStatus = async (resId: string, status: string) => {
-    if (!entityId) return;
+    if (!entityId || !canEdit) return;
     const resRef = doc(db, "hotel_properties", entityId, "reservations", resId);
-    const currentRes = reservations?.find(r => r.id === resId);
-
     const updateData: any = { status, updatedAt: new Date().toISOString() };
-
-    if (status === 'checked_in') {
-      updateData.actualCheckInTime = new Date().toISOString();
-      Object.assign(updateData, checkInForm);
-      if (currentRes?.phoneNumber) {
-        triggerWhatsAppAutomation(db, 'guest_checkin', {
-          entityId, guestName: currentRes.guestName, phoneNumber: currentRes.phoneNumber
-        });
-      }
-    }
-
-    if (status === 'checked_out') {
-      updateData.actualCheckOutTime = new Date().toISOString();
-      if (currentRes?.phoneNumber) {
-        triggerWhatsAppAutomation(db, 'guest_checkout', {
-          entityId, guestName: currentRes.guestName, phoneNumber: currentRes.phoneNumber
-        });
-      }
-    }
-    
+    if (status === 'checked_in') Object.assign(updateData, checkInForm);
     updateDocumentNonBlocking(resRef, updateData);
-    
-    // Update room status
-    if (currentRes?.roomNumber && rooms) {
-      const room = rooms.find(r => r.roomNumber?.toString() === currentRes.roomNumber?.toString());
-      if (room) {
-        const newRoomStatus = status === 'checked_in' ? 'occupied' : status === 'checked_out' ? 'dirty' : room.status;
-        updateDocumentNonBlocking(doc(db, "hotel_properties", entityId, "rooms", room.id), { status: newRoomStatus });
-      }
-    }
-
-    toast({ title: `Guest ${status.replace('_', ' ')}` });
+    toast({ title: `Status Updated` });
     setIsDetailsOpen(false);
-  };
-
-  const clearFilters = () => {
-    setNameSearch("");
-    setStatusFilter("all");
-    setSourceFilter("all");
-    setRoomSearch("");
-    setStartDate(undefined);
-    setEndDate(undefined);
   };
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-[1200px] mx-auto text-center">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-left">
-          <div>
-            <h1 className="text-2xl font-black tracking-tighter text-primary uppercase">Guest Reservations</h1>
-            <p className="text-[10px] text-muted-foreground mt-0.5 uppercase font-black tracking-[0.2em]">Operational Ledger & Status Audit</p>
-          </div>
-
+      <div className="space-y-6 max-w-[1200px] mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div><h1 className="text-2xl font-black text-primary uppercase">Reservations</h1></div>
           <div className="flex gap-2">
-            {isAdmin && (
+            {canEdit && (
               <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-                <DialogTrigger asChild>
-                  <Button className="h-10 px-6 font-black shadow-xl text-xs uppercase tracking-widest rounded-xl">
-                    <Plus className="w-4 h-4 mr-2" /> New Booking
-                  </Button>
-                </DialogTrigger>
+                <DialogTrigger asChild><Button className="h-10 px-6 font-black text-xs uppercase rounded-xl shadow-xl"><Plus className="w-4 h-4 mr-2" /> New Booking</Button></DialogTrigger>
                 <DialogContent className="sm:max-w-[450px] rounded-[2rem]">
-                  <DialogHeader>
-                    <DialogTitle className="text-xl font-black uppercase text-primary">Create Reservation</DialogTitle>
-                    <DialogDescription className="text-[10px] font-bold uppercase tracking-wider">Secure room and automate notification.</DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleAddReservation} className="space-y-5 pt-4 text-left">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase font-black text-muted-foreground">Guest Name</Label>
-                        <Input value={newRes.guestName} onChange={e => setNewRes({...newRes, guestName: e.target.value})} required className="h-10 text-xs bg-secondary/30 rounded-xl" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase font-black text-muted-foreground">Phone Number</Label>
-                        <Input placeholder="+91..." value={newRes.phoneNumber} onChange={e => setNewRes({...newRes, phoneNumber: e.target.value})} required className="h-10 text-xs bg-secondary/30 rounded-xl" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase font-black text-muted-foreground">Assign Room</Label>
-                        <Select onValueChange={val => setNewRes({...newRes, roomNumber: val})} required>
-                          <SelectTrigger className="h-10 text-xs bg-secondary/30 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent>
-                            {rooms?.filter(r => r.status === 'available').map(r => (
-                              <SelectItem key={r.id} value={r.roomNumber.toString()}>Room {r.roomNumber}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase font-black text-muted-foreground">Booking Source</Label>
-                        <Select value={newRes.bookingSource} onValueChange={val => setNewRes({...newRes, bookingSource: val})}>
-                          <SelectTrigger className="h-10 text-xs bg-secondary/30 rounded-xl"><SelectValue /></SelectTrigger>
-                          <SelectContent>{BOOKING_SOURCES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] uppercase font-black text-muted-foreground">Daily Negotiated Rate</Label>
-                      <Input type="number" placeholder="₹" value={newRes.negotiatedRate} onChange={e => setNewRes({...newRes, negotiatedRate: e.target.value})} required className="h-10 text-xs bg-secondary/30 rounded-xl border-primary/20" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase font-black text-muted-foreground">Check-In</Label>
-                        <Input type="date" value={newRes.checkIn} onChange={e => setNewRes({...newRes, checkIn: e.target.value})} required className="h-10 text-xs bg-secondary/30 rounded-xl" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase font-black text-muted-foreground">Check-Out</Label>
-                        <Input type="date" value={newRes.checkOut} onChange={e => setNewRes({...newRes, checkOut: e.target.value})} required className="h-10 text-xs bg-secondary/30 rounded-xl" />
-                      </div>
-                    </div>
-                    <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest mt-2 rounded-2xl shadow-lg">Confirm</Button>
+                  <DialogHeader><DialogTitle className="uppercase">Create Reservation</DialogTitle></DialogHeader>
+                  <form onSubmit={handleAddReservation} className="space-y-5 pt-4">
+                    <div className="space-y-1.5"><Label className="text-[10px] uppercase font-black">Guest Name</Label><Input value={newRes.guestName} onChange={e => setNewRes({...newRes, guestName: e.target.value})} required className="h-10 bg-secondary/30 rounded-xl" /></div>
+                    <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest rounded-2xl shadow-lg">Confirm</Button>
                   </form>
                 </DialogContent>
               </Dialog>
@@ -293,201 +152,40 @@ export default function ReservationsPage() {
           </div>
         </div>
 
-        {/* Compact Professional Filter Bar */}
-        <div className="bg-white p-4 rounded-[1.5rem] border shadow-sm space-y-3">
-          <div className="flex items-center gap-2 mb-1 text-left">
-            <CalendarDays className="w-3.5 h-3.5 text-primary" />
-            <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Advanced Filters</span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="space-y-1 text-left">
-              <Label className="text-[8.5px] font-black uppercase text-muted-foreground">Guest Search</Label>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 w-3 h-3 text-muted-foreground" />
-                <Input placeholder="Name..." className="pl-8 h-8 text-[9.5px] rounded-lg border-none bg-secondary/40" value={nameSearch} onChange={e => setNameSearch(e.target.value)} />
-              </div>
-            </div>
-            <div className="space-y-1 text-left">
-              <Label className="text-[8.5px] font-black uppercase text-muted-foreground">Source</Label>
-              <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                <SelectTrigger className="h-8 text-[9.5px] rounded-lg border-none bg-secondary/40"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all" className="text-xs">All Sources</SelectItem>
-                  {BOOKING_SOURCES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1 text-left">
-              <Label className="text-[8.5px] font-black uppercase text-muted-foreground">Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="h-8 text-[9.5px] rounded-lg border-none bg-secondary/40"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all" className="text-xs">All Stays</SelectItem>
-                  <SelectItem value="confirmed" className="text-xs">Confirmed</SelectItem>
-                  <SelectItem value="checked_in" className="text-xs">Checked In</SelectItem>
-                  <SelectItem value="checked_out" className="text-xs">Checked Out</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1 text-left">
-              <Label className="text-[8.5px] font-black uppercase text-muted-foreground">Check-in Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("h-8 w-full justify-between text-[9.5px] rounded-lg border-none bg-secondary/40 px-3", !startDate && "text-muted-foreground")}>
-                    {startDate ? format(startDate, "dd-MM-yyyy") : ""}
-                    <CalendarIcon className="h-3 w-3 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 rounded-2xl" align="start">
-                  <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="space-y-1 text-left">
-              <Label className="text-[8.5px] font-black uppercase text-muted-foreground">Check-out Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("h-8 w-full justify-between text-[9.5px] rounded-lg border-none bg-secondary/40 px-3", !endDate && "text-muted-foreground")}>
-                    {endDate ? format(endDate, "dd-MM-yyyy") : ""}
-                    <CalendarIcon className="h-3 w-3 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 rounded-2xl" align="start">
-                  <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="flex items-end">
-              <Button variant="ghost" className="h-8 w-full text-[9px] font-black uppercase hover:bg-rose-50 text-rose-600 rounded-lg" onClick={clearFilters}>
-                <FilterX className="w-3.5 h-3.5 mr-2" /> Reset
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Ledger Table - Highlighted Header */}
         <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
           <Table>
             <TableHeader className="bg-primary">
               <TableRow className="hover:bg-transparent border-none">
-                <TableHead className="h-12 text-[10px] font-black uppercase text-center pl-8 text-primary-foreground">Room Unit</TableHead>
-                <TableHead className="h-12 text-[10px] font-black uppercase text-center text-primary-foreground">Guest Name</TableHead>
-                <TableHead className="h-12 text-[10px] font-black uppercase text-center text-primary-foreground">Booking Source</TableHead>
-                <TableHead className="h-12 text-[10px] font-black uppercase text-center text-primary-foreground">Stay Status</TableHead>
-                <TableHead className="h-12 text-[10px] font-black uppercase text-center text-primary-foreground">Check-In Date</TableHead>
-                <TableHead className="h-12 text-[10px] font-black uppercase text-center text-primary-foreground">Check-Out Date</TableHead>
+                <TableHead className="h-12 text-[10px] font-black uppercase text-center pl-8 text-primary-foreground">Room</TableHead>
+                <TableHead className="h-12 text-[10px] font-black uppercase text-center text-primary-foreground">Guest</TableHead>
+                <TableHead className="h-12 text-[10px] font-black uppercase text-center text-primary-foreground">Status</TableHead>
                 <TableHead className="w-16 pr-8 text-primary-foreground"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-20"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
-              ) : filteredReservations.length > 0 ? (
-                filteredReservations.map((res) => (
-                  <TableRow key={res.id} className="hover:bg-primary/5 transition-colors group border-b border-secondary/50">
-                    <TableCell className="text-center pl-8 py-4">
-                      <div className="w-9 h-9 flex items-center justify-center rounded-xl bg-secondary/50 text-primary font-black text-xs border border-secondary mx-auto shadow-inner">
-                        {res.roomNumber}
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-black text-[12px] text-center uppercase tracking-tight">{res.guestName}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant="outline" className="text-[8.5px] font-black uppercase bg-primary/5 text-primary border-primary/10 px-2.5 h-5.5 rounded-lg">{res.bookingSource}</Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge className={cn(
-                        "text-[8.5px] font-black uppercase px-2.5 h-5.5 rounded-lg",
-                        res.status === 'checked_in' ? "bg-emerald-500 shadow-md shadow-emerald-100" : res.status === 'confirmed' ? "bg-blue-500 shadow-md shadow-blue-100" : "bg-slate-400"
-                      )}>
-                        {(res.status || "").replace('_', ' ')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center font-bold text-[10px] text-muted-foreground uppercase">{formatAppDate(res.checkInDate)}</TableCell>
-                    <TableCell className="text-center font-bold text-[10px] text-primary uppercase">{res.checkOutDate ? formatAppDate(res.checkOutDate) : "OPEN"}</TableCell>
-                    <TableCell className="text-center pr-8">
+                <TableRow><TableCell colSpan={4} className="text-center py-20"><Loader2 className="animate-spin w-6 h-6 mx-auto" /></TableCell></TableRow>
+              ) : filteredReservations.map((res) => (
+                <TableRow key={res.id} className="hover:bg-primary/5">
+                  <TableCell className="text-center pl-8">#{res.roomNumber}</TableCell>
+                  <TableCell className="font-black text-center">{res.guestName}</TableCell>
+                  <TableCell className="text-center"><Badge>{res.status}</Badge></TableCell>
+                  <TableCell className="text-center pr-8">
+                    {canEdit && (
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:bg-white hover:shadow-md rounded-xl transition-all">
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl border-none shadow-2xl">
-                          <DropdownMenuItem className="text-[11px] font-black uppercase p-3 rounded-xl cursor-pointer" onClick={() => { setSelectedRes(res); setIsDetailsOpen(true); }}>
-                            <Receipt className="w-4 h-4 mr-3 text-emerald-600" /> Manage Folio
-                          </DropdownMenuItem>
-                          {res.phoneNumber && (
-                            <DropdownMenuItem className="text-[11px] font-black uppercase p-3 rounded-xl cursor-pointer text-blue-600" onClick={() => window.open(`https://wa.me/${(res.phoneNumber || "").replace(/\D/g, '')}`, '_blank')}>
-                              <MessageSquare className="w-4 h-4 mr-3" /> Message Guest
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem className="text-[11px] font-black uppercase p-3 rounded-xl cursor-pointer text-rose-600 hover:bg-rose-50" onClick={() => deleteDocumentNonBlocking(doc(db, "hotel_properties", entityId!, "reservations", res.id))}>
-                            <Trash2 className="w-4 h-4 mr-3" /> Purge Record
-                          </DropdownMenuItem>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl shadow-2xl">
+                          <DropdownMenuItem onClick={() => { setSelectedRes(res); setIsDetailsOpen(true); }} className="text-xs font-bold uppercase">Manage Folio</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => deleteDocumentNonBlocking(doc(db, "hotel_properties", entityId!, "reservations", res.id))} className="text-xs font-bold uppercase text-rose-600">Purge</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-24 space-y-4">
-                    <FilterX className="w-10 h-10 text-muted-foreground/20 mx-auto" />
-                    <p className="text-[10px] font-black uppercase text-muted-foreground">No reservations matching current filters</p>
+                    )}
                   </TableCell>
                 </TableRow>
-              )}
+              ))}
             </TableBody>
           </Table>
         </div>
-
-        {/* Folio Management Dialog */}
-        <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-          <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden rounded-[2.5rem]">
-            <div className="bg-primary p-8 text-primary-foreground space-y-2 text-left">
-              <div className="flex items-center justify-between">
-                <DialogTitle className="flex items-center gap-3 text-xl font-black uppercase">
-                  <Receipt className="w-6 h-6" /> Folio Control
-                </DialogTitle>
-                <Badge className="bg-white/20 text-white border-none text-[9px] font-black uppercase px-2 py-1">Room {selectedRes?.roomNumber}</Badge>
-              </div>
-              <DialogDescription className="text-xs text-primary-foreground/70 font-bold uppercase tracking-widest">{selectedRes?.guestName}</DialogDescription>
-            </div>
-            {selectedRes && (
-              <div className="p-8 space-y-6 text-left">
-                {selectedRes.status === 'confirmed' && (
-                  <div className="space-y-5">
-                    <div className="space-y-4">
-                      <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Mandatory Verification</Label>
-                      <Input placeholder="ID Number (Aadhar/Passport)" className="h-12 text-xs bg-secondary/40 border-none rounded-2xl" value={checkInForm.idNumber} onChange={e => setCheckInForm({...checkInForm, idNumber: e.target.value})} />
-                      <Input placeholder="Contact Number" className="h-12 text-xs bg-secondary/40 border-none rounded-2xl" value={checkInForm.contact} onChange={e => setCheckInForm({...checkInForm, contact: e.target.value})} />
-                    </div>
-                    <Button className="w-full h-14 font-black uppercase tracking-[0.2em] shadow-2xl rounded-2xl mt-4" onClick={() => updateStatus(selectedRes.id, 'checked_in')} disabled={!checkInForm.idNumber}>
-                      Activate Check-In
-                    </Button>
-                  </div>
-                )}
-                {selectedRes.status === 'checked_in' && (
-                  <div className="space-y-6">
-                    <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 text-center space-y-1 shadow-inner">
-                      <p className="text-[10px] font-black uppercase text-emerald-600/70 tracking-widest">Active Folio Value</p>
-                      <p className="text-3xl font-black text-emerald-800">₹{(selectedRes.negotiatedRate || 0).toLocaleString()}</p>
-                      <p className="text-[9px] uppercase font-black text-emerald-600/50">Base Daily Rate</p>
-                    </div>
-                    <Button variant="destructive" className="w-full h-14 font-black uppercase tracking-[0.2em] shadow-xl rounded-2xl" onClick={() => updateStatus(selectedRes.id, 'checked_out')}>
-                      Final Settle & Purge
-                    </Button>
-                  </div>
-                )}
-                {selectedRes.status === 'checked_out' && (
-                  <div className="text-center py-8 space-y-4">
-                    <Badge className="bg-slate-100 text-slate-600 border-none px-4 py-2 text-xs font-black uppercase">Historical Record</Badge>
-                    <p className="text-[10px] text-muted-foreground font-bold uppercase leading-relaxed">This reservation has been finalized. Access the Accounting module for GST invoice archives.</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
       </div>
     </AppLayout>
   );

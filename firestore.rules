@@ -15,8 +15,14 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/user_profiles/$(request.auth.uid)).data;
     }
 
-    function isAdmin() {
+    // Admins and View-Only Owners both count as "Admin View" authorized
+    function canViewAdmin() {
       return isSignedIn() && (getUserData().role == 'owner' || getUserData().role == 'admin');
+    }
+
+    // Only Admin can perform write operations
+    function canWriteAdmin() {
+      return isSignedIn() && getUserData().role == 'admin';
     }
 
     /** 
@@ -25,7 +31,7 @@ service cloud.firestore {
      */
     match /user_profiles/{userId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isSignedIn() && (request.auth.uid == userId || canWriteAdmin());
       
       match /notifications/{notificationId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
@@ -36,19 +42,21 @@ service cloud.firestore {
      * @description Hotel Properties & Multi-tenancy
      */
     match /hotel_properties/{entityId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow read: if isSignedIn() && (getUserData().entityId == entityId || canViewAdmin());
+      allow write: if canWriteAdmin();
 
       match /{allSubcollections=**} {
-        allow read, write: if isSignedIn();
+        // Multi-tenant check: User must belong to this entity or be an authorized cross-entity admin
+        allow read: if isSignedIn() && (getUserData().entityId == entityId || canViewAdmin());
+        allow write: if isSignedIn() && getUserData().entityId == entityId && canWriteAdmin();
       }
     }
 
     /**
      * @description Global Configs
      */
-    match /laundry_items/{id} { allow read, write: if isSignedIn(); }
-    match /inventory_stocks/{id} { allow read, write: if isSignedIn(); }
+    match /laundry_items/{id} { allow read: if isSignedIn(); allow write: if canWriteAdmin(); }
+    match /inventory_stocks/{id} { allow read: if isSignedIn(); allow write: if canWriteAdmin(); }
 
   }
 }

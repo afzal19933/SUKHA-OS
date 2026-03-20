@@ -95,7 +95,8 @@ export default function AccountingPage() {
   const [customStart, setCustomStart] = useState<Date | undefined>(undefined);
   const [customEnd, setCustomEnd] = useState<Date | undefined>(undefined);
 
-  const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
+  const canEdit = currentUserRole === "admin";
+  const canView = ["owner", "admin"].includes(currentUserRole || "");
 
   // Data fetching
   const invoiceQuery = useMemoFirebase(() => {
@@ -221,7 +222,7 @@ export default function AccountingPage() {
 
   const handleUpdateGst = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!gstRef || !isAdmin) return;
+    if (!gstRef || !canEdit) return;
     
     const updateData = {
       ...gstForm,
@@ -645,7 +646,7 @@ export default function AccountingPage() {
                 </div>
               )}
 
-              {activeView === 'reports' && isAdmin && (
+              {activeView === 'reports' && canView && (
                 <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
                   <div className="space-y-1">
                     <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Analytics Reports</h1>
@@ -708,7 +709,7 @@ export default function AccountingPage() {
                 </div>
               )}
 
-              {activeView === 'settings' && isAdmin && (
+              {activeView === 'settings' && canView && (
                 <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
                   <div className="space-y-1">
                     <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Tax & SAC Settings</h1>
@@ -720,11 +721,11 @@ export default function AccountingPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                           <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">GSTIN Number</Label>
-                          <Input className="h-11 rounded-2xl border-primary/10 bg-secondary/30 text-xs font-bold" placeholder="Enter GSTIN" value={gstForm.gstin} onChange={e => setGstForm({...gstForm, gstin: e.target.value})} />
+                          <Input className="h-11 rounded-2xl border-primary/10 bg-secondary/30 text-xs font-bold" placeholder="Enter GSTIN" value={gstForm.gstin} onChange={e => setGstForm({...gstForm, gstin: e.target.value})} disabled={!canEdit} />
                         </div>
                         <div className="space-y-2">
                           <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">SAC Code (Accommodation)</Label>
-                          <Input className="h-11 rounded-2xl border-primary/10 bg-secondary/30 text-xs font-bold" placeholder="9963" value={gstForm.sacCode} onChange={e => setGstForm({...gstForm, sacCode: e.target.value})} />
+                          <Input className="h-11 rounded-2xl border-primary/10 bg-secondary/30 text-xs font-bold" placeholder="9963" value={gstForm.sacCode} onChange={e => setGstForm({...gstForm, sacCode: e.target.value})} disabled={!canEdit} />
                         </div>
                       </div>
 
@@ -736,15 +737,15 @@ export default function AccountingPage() {
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="space-y-2">
                               <Label className="text-[9px] font-black uppercase text-muted-foreground">Total Rate (%)</Label>
-                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-primary/5 text-xs" value={gstForm.roomGstRate} onChange={e => setGstForm({...gstForm, roomGstRate: e.target.value})} />
+                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-primary/5 text-xs" value={gstForm.roomGstRate} onChange={e => setGstForm({...gstForm, roomGstRate: e.target.value})} disabled={!canEdit} />
                             </div>
                             <div className="space-y-2">
                               <Label className="text-[9px] font-black uppercase text-muted-foreground">CGST (%)</Label>
-                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-primary/5 text-xs" value={gstForm.roomCgstRate} onChange={e => setGstForm({...gstForm, roomCgstRate: e.target.value})} />
+                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-primary/5 text-xs" value={gstForm.roomCgstRate} onChange={e => setGstForm({...gstForm, roomCgstRate: e.target.value})} disabled={!canEdit} />
                             </div>
                             <div className="space-y-2">
                               <Label className="text-[9px] font-black uppercase text-muted-foreground">SGST (%)</Label>
-                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-primary/5 text-xs" value={gstForm.roomSgstRate} onChange={e => setGstForm({...gstForm, roomSgstRate: e.target.value})} />
+                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-primary/5 text-xs" value={gstForm.roomSgstRate} onChange={e => setGstForm({...gstForm, roomSgstRate: e.target.value})} disabled={!canEdit} />
                             </div>
                           </div>
                         </div>
@@ -756,29 +757,31 @@ export default function AccountingPage() {
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="space-y-2">
                               <Label className="text-[9px] font-black uppercase text-muted-foreground">Total Rate (%)</Label>
-                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-emerald-100 text-xs" value={gstForm.serviceGstRate} onChange={e => setGstForm({...gstForm, serviceGstRate: e.target.value})} />
+                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-emerald-100 text-xs" value={gstForm.serviceGstRate} onChange={e => setGstForm({...gstForm, serviceGstRate: e.target.value})} disabled={!canEdit} />
                             </div>
                             <div className="space-y-2">
                               <Label className="text-[9px] font-black uppercase text-muted-foreground">CGST (%)</Label>
-                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-emerald-100 text-xs" value={gstForm.serviceCgstRate} onChange={e => setGstForm({...gstForm, serviceCgstRate: e.target.value})} />
+                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-emerald-100 text-xs" value={gstForm.serviceCgstRate} onChange={e => setGstForm({...gstForm, serviceCgstRate: e.target.value})} disabled={!canEdit} />
                             </div>
                             <div className="space-y-2">
                               <Label className="text-[9px] font-black uppercase text-muted-foreground">SGST (%)</Label>
-                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-emerald-100 text-xs" value={gstForm.serviceSgstRate} onChange={e => setGstForm({...gstForm, serviceSgstRate: e.target.value})} />
+                              <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-emerald-100 text-xs" value={gstForm.serviceSgstRate} onChange={e => setGstForm({...gstForm, serviceSgstRate: e.target.value})} disabled={!canEdit} />
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      <Button type="submit" className="w-full h-12 rounded-2xl shadow-xl shadow-primary/20 font-black uppercase tracking-widest text-xs">
-                        <Save className="w-4 h-4 mr-2" /> Commit Tax Configuration
-                      </Button>
+                      {canEdit && (
+                        <Button type="submit" className="w-full h-12 rounded-2xl shadow-xl shadow-primary/20 font-black uppercase tracking-widest text-xs">
+                          <Save className="w-4 h-4 mr-2" /> Commit Tax Configuration
+                        </Button>
+                      )}
                     </form>
                   </div>
                 </div>
               )}
 
-              {((activeView === 'reports' || activeView === 'settings') && !isAdmin) && (
+              {((activeView === 'reports' || activeView === 'settings') && !canView) && (
                 <div className="flex flex-col items-center justify-center py-32 text-center space-y-4">
                   <div className="p-6 bg-secondary/50 rounded-full">
                     <Settings2 className="w-12 h-12 text-muted-foreground/30" />
