@@ -15,9 +15,20 @@ const GreetingTTSInputSchema = z.object({
   userName: z.string().describe("The name of the user to greet"),
 });
 
+/**
+ * Generates high-quality greeting audio.
+ * Includes a safety wrapper to handle AI quota exhaustion gracefully.
+ */
 export async function generateGreetingAudio(input: { greeting: string, userName: string }): Promise<string> {
-  const result = await greetingTTSFlow(input);
-  return result.audioUri;
+  try {
+    const result = await greetingTTSFlow(input);
+    return result.audioUri;
+  } catch (error: any) {
+    // If quota is exhausted (429) or another error occurs, return empty string.
+    // The client will handle this by showing the UI without sound.
+    console.error("AI Greeting Audio Generation Failed:", error.message);
+    return "";
+  }
 }
 
 /**
@@ -66,7 +77,7 @@ const greetingTTSFlow = ai.defineFlow(
         responseModalities: ['AUDIO'],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Algenib' }, // Warm, professional voice with subtle smile
+            prebuiltVoiceConfig: { voiceName: 'Algenib' }, // Warm, professional voice
           },
         },
       },

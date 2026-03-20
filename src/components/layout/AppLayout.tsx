@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
@@ -80,11 +79,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isExiting, setIsExiting] = useState(false);
   const [isAudioReady, setIsAudioReady] = useState(false);
   
+  // Flash Prevention: Dashboard is hidden until welcome sequence concludes or is bypassed
+  const [isDashboardVisible, setIsDashboardVisible] = useState(pathname !== "/dashboard");
+  
   const welcomeAudioRef = useRef<HTMLAudioElement | null>(null);
   const welcomeTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   /**
-   * Closes the welcome overlay smoothly.
+   * Closes the welcome overlay smoothly and reveals the dashboard.
    */
   const dismissWelcome = useCallback(() => {
     setIsExiting(true);
@@ -94,6 +96,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setTimeout(() => {
       setShowWelcome(false);
       setIsExiting(false);
+      setIsDashboardVisible(true);
     }, 500); // Wait for exit animation
   }, []);
 
@@ -102,55 +105,70 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
    * Strictly synchronized with TTS audio and real profile name.
    */
   useEffect(() => {
-    // Only trigger greeting when we have a real profile name and are on dashboard
+    // We strictly wait for the userName from the Firestore profile sync
     if (firebaseUser && !isUserLoading && userName && pathname === "/dashboard") {
-      const storageKey = `welcomed_v4_${firebaseUser.uid}`;
+      const storageKey = `welcomed_v5_${firebaseUser.uid}`;
       const hasWelcomed = sessionStorage.getItem(storageKey);
       
-      if (!hasWelcomed) {
-        const hour = new Date().getHours();
-        const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-        
-        // Strictly use Mr format as requested
-        const formattedName = userName.includes("Mr") ? userName : `Mr ${userName}`;
-        setWelcomeText(`${greeting}, ${formattedName}.`);
-        sessionStorage.setItem(storageKey, 'true');
-
-        // Immediately show the backdrop blur to hide the dashboard
-        setShowWelcome(true);
-
-        // Preload Audio
-        generateGreetingAudio({ greeting, userName: formattedName }).then(audioUri => {
-          const audio = new Audio(audioUri);
-          welcomeAudioRef.current = audio;
-          
-          audio.oncanplaythrough = () => {
-            setIsAudioReady(true);
-            setIsGlowActive(true);
-            
-            audio.play().catch(e => {
-              console.warn("Audio playback blocked", e);
-            });
-
-            // Sync pulse effect with name mention
-            setTimeout(() => setIsPulsing(true), 800);
-            setTimeout(() => setIsPulsing(false), 2000);
-
-            // Audio End listener or fallback timeout
-            audio.onended = () => {
-              dismissWelcome();
-            };
-
-            // Safeguard timeout
-            welcomeTimerRef.current = setTimeout(() => {
-              dismissWelcome();
-            }, 3000);
-          };
-        }).catch(err => {
-          console.error("Welcome Greeting Failed:", err);
-          dismissWelcome();
-        });
+      if (hasWelcomed) {
+        setIsDashboardVisible(true);
+        return;
       }
+
+      const hour = new Date().getHours();
+      const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+      
+      // Use profile name with Mr prefix
+      const formattedName = userName.includes("Mr") ? userName : `Mr ${userName}`;
+      setWelcomeText(`${greeting}, ${formattedName}.`);
+      sessionStorage.setItem(storageKey, 'true');
+
+      // Immediately trigger overlay
+      setShowWelcome(true);
+
+      // Preload Audio from Server Action
+      generateGreetingAudio({ greeting, userName: formattedName }).then(audioUri => {
+        if (!audioUri) {
+          // Fallback: If AI TTS fails (Quota exceeded), show UI for 3 seconds silently
+          setIsAudioReady(true);
+          setIsGlowActive(true);
+          welcomeTimerRef.current = setTimeout(dismissWelcome, 3000);
+          return;
+        }
+
+        const audio = new Audio(audioUri);
+        welcomeAudioRef.current = audio;
+        
+        audio.oncanplaythrough = () => {
+          setIsAudioReady(true);
+          setIsGlowActive(true);
+          
+          audio.play().catch(e => {
+            console.warn("Audio playback blocked by browser policy.", e);
+          });
+
+          // Visual sync with name emphasis
+          setTimeout(() => setIsPulsing(true), 1000);
+          setTimeout(() => setIsPulsing(false), 2200);
+
+          // Race logic: Dismiss when voice ends OR at 3 seconds max
+          audio.onended = () => {
+            dismissWelcome();
+          };
+
+          welcomeTimerRef.current = setTimeout(() => {
+            dismissWelcome();
+          }, 3000);
+        };
+      }).catch(err => {
+        console.error("Welcome Sequence Initiation Failed:", err);
+        dismissWelcome();
+      });
+    } else if (firebaseUser && !isUserLoading && !userName && pathname === "/dashboard") {
+      // Keep dashboard hidden while we wait for the profile name to sync
+      setIsDashboardVisible(false);
+    } else if (pathname !== "/dashboard") {
+      setIsDashboardVisible(true);
     }
 
     return () => {
@@ -190,7 +208,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!firebaseUser) return null;
 
   const handleLogout = async () => {
-    sessionStorage.removeItem(`welcomed_v4_${firebaseUser.uid}`);
+    sessionStorage.removeItem(`welcomed_v5_${firebaseUser.uid}`);
     await signOut(auth);
     router.push("/login");
   };
@@ -199,13 +217,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-[#F8F9FD] overflow-hidden relative">
-      {/* Premium Welcome Overlay */}
+      {/* Premium Welcome Overlay (Full Backdrop Sync) */}
       {showWelcome && (
         <div className={cn(
           "fixed inset-0 z-[999] flex items-center justify-center bg-black/40 backdrop-blur-[40px] transition-opacity duration-500",
           isExiting ? "opacity-0" : "opacity-100"
         )}>
-          {/* Subtle diffused emerald glow - triggers only when audio starts */}
           <div className={cn(
             "absolute w-[500px] h-[500px] bg-emerald-500/20 blur-[120px] rounded-full transition-all duration-700",
             isGlowActive ? "opacity-100 scale-110" : "opacity-0 scale-90"
@@ -258,7 +275,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 bg-white border-b flex items-center justify-between px-6 shrink-0 z-10 shadow-sm">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl" onClick={() => setSidebarOpen(!sidebarOpen)} suppressHydrationWarning>
+            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl" onClick={() => setSidebarOpen(!sidebarOpen)}>
               <Menu className="w-5 h-5" />
             </Button>
 
@@ -280,12 +297,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4">
-            {role === 'owner' && (
-              <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-100 shadow-sm">
-                <ShieldAlert className="w-3.5 h-3.5" />
-                <span className="text-[9px] font-black uppercase tracking-widest">Property View Only</span>
-              </div>
-            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <div className="flex items-center gap-3 cursor-pointer group">
@@ -317,7 +328,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
         <main className={cn(
           "flex-1 overflow-y-auto p-8 transition-opacity duration-500",
-          showWelcome ? "opacity-0 pointer-events-none" : "opacity-100"
+          isDashboardVisible ? "opacity-100" : "opacity-0 pointer-events-none"
         )}>
           {children}
         </main>
