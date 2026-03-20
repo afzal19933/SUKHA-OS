@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect } from "react";
@@ -8,9 +9,12 @@ import { useAuthStore } from "@/store/authStore";
 import { Toaster } from "@/components/ui/toaster";
 import { useUser } from "@/firebase";
 import { doc, onSnapshot, collection } from "firebase/firestore";
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
+/**
+ * AuthSync Component
+ * Synchronizes Firebase Auth state with the global Zustand store and Firestore Profile.
+ * Implements a Sovereignty Guard for the Master Admin.
+ */
 function AuthSync() {
   const { user } = useUser();
   const db = useFirestore();
@@ -27,11 +31,7 @@ function AuthSync() {
   // Apply theme to document root
   useEffect(() => {
     const root = window.document.documentElement;
-    
-    // Remove all theme classes
     root.classList.remove('theme-emerald', 'theme-rose', 'theme-amber', 'theme-slate');
-    
-    // Add active theme class
     if (theme && theme !== 'default') {
       root.classList.add(`theme-${theme}`);
     }
@@ -41,7 +41,12 @@ function AuthSync() {
     if (user) {
       // Sync basic user state
       user.getIdTokenResult(true).then((idTokenResult) => {
-        setUser(user, idTokenResult.claims);
+        // Sovereignty Guard: Ensure admin@sukha.os is ALWAYS an admin
+        const claims = { ...idTokenResult.claims };
+        if (user.email === 'admin@sukha.os') {
+          claims.role = 'admin';
+        }
+        setUser(user, claims);
       });
 
       // Source of truth: Firestore User Profile
@@ -49,15 +54,21 @@ function AuthSync() {
         if (snapshot.exists()) {
           const data = snapshot.data();
           if (data.permissions) setPermissions(data.permissions);
-          if (data.role) setRole(data.role);
-          // Only set initial entityId if none is active in store
+          
+          // Sovereignty Guard: Override role from DB if it's the master account
+          let assignedRole = data.role;
+          if (user.email === 'admin@sukha.os') {
+            assignedRole = 'admin';
+          }
+          
+          if (assignedRole) setRole(assignedRole);
           if (data.entityId && !entityId) setEntityId(data.entityId);
         }
       }, (error) => {
-        console.warn("AuthSync: User profile sync delayed or restricted:", error.message);
+        console.warn("AuthSync: User profile sync delayed:", error.message);
       });
 
-      // Fetch available properties for the switcher
+      // Fetch available properties
       const unsubscribeProperties = onSnapshot(collection(db, "hotel_properties"), (snapshot) => {
         const properties = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -65,7 +76,6 @@ function AuthSync() {
         }));
         setAvailableProperties(properties);
       }, (error) => {
-        // If this fails, it's usually a temporary permission sync issue during login
         console.warn("AuthSync: Property list fetch restricted:", error.message);
       });
 

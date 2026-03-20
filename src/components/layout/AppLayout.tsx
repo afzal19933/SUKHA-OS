@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -21,7 +22,8 @@ import {
   MessageSquare,
   Package,
   Cpu,
-  ShieldAlert
+  ShieldAlert,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -39,7 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAuth, useUser, useFirestore } from "@/firebase";
+import { useAuth, useUser } from "@/firebase";
 import { signOut } from "firebase/auth";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -79,7 +81,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   const filteredNavItems = useMemo(() => {
     return NAV_ITEMS.filter(item => {
-      // Role-based visibility
       if (item.restricted && !item.restricted.includes(role || "")) return false;
       if (item.name === "Dashboard") return true;
       if (isAdmin || isOwner) return true;
@@ -159,7 +160,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             {isOwner && (
               <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-100 shadow-sm">
                 <ShieldAlert className="w-3.5 h-3.5" />
-                <span className="text-[9px] font-black uppercase tracking-widest">View Only Mode</span>
+                <span className="text-[9px] font-black uppercase tracking-widest">Property View Only</span>
               </div>
             )}
             <DropdownMenu>
@@ -168,7 +169,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   <div className="text-right hidden sm:block">
                     <p className="text-xs font-black uppercase leading-none text-slate-800">{firebaseUser?.displayName}</p>
                     <p className="text-[9px] text-muted-foreground capitalize font-black mt-1 uppercase">
-                      {isOwner ? "Owner (Scoped)" : isAdmin ? "Global Admin" : role}
+                      {isAdmin ? "Master Administrator" : isOwner ? "Property Owner" : role}
                     </p>
                   </div>
                   <Avatar className="h-10 w-10 ring-offset-2 ring-primary transition-all group-hover:ring-2 shadow-md">
@@ -180,7 +181,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl shadow-2xl border-none">
                 <DropdownMenuItem onClick={() => router.push('/settings')} className="text-xs font-bold uppercase p-3 rounded-xl cursor-pointer">
-                  <Settings className="mr-3 h-4 w-4" /> Account Settings
+                  <Settings className="mr-3 h-4 w-4" /> System Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="my-2" />
                 <DropdownMenuItem onClick={handleLogout} className="text-xs font-bold uppercase p-3 rounded-xl cursor-pointer text-rose-600 hover:bg-rose-50">
@@ -196,13 +197,5 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
     </div>
-  );
-}
-
-function Loader2(props: any) {
-  return (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-    </svg>
   );
 }

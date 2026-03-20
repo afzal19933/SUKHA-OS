@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -12,6 +13,11 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { useToast } from "@/hooks/use-toast";
 import { Building2, KeyRound, User } from "lucide-react";
 
+/**
+ * LoginPage
+ * Handles authentication and initial system provisioning.
+ * Ensures the first administrator has absolute read/write authority.
+ */
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -23,22 +29,26 @@ export default function LoginPage() {
   const { toast } = useToast();
 
   const getEmailFromUsername = (u: string) => {
-    return `${u.toLowerCase().trim()}@sukha.os`;
+    const clean = u.toLowerCase().trim();
+    if (clean.includes('@')) return clean;
+    return `${clean}@sukha.os`;
   };
 
+  /**
+   * Provision the Master Admin account if it doesn't exist.
+   */
   const initializeDefaultAdmin = async (internalEmail: string) => {
-    // 1. Create Auth User
     const userCredential = await createUserWithEmailAndPassword(auth, internalEmail, password);
     const user = userCredential.user;
 
     await updateProfile(user, { 
-      displayName: "Master Administrator" 
+      displayName: "Administrator" 
     });
 
-    // 2. Setup ID/Property context
-    const hotelId = crypto.randomUUID();
+    // Create default property context
+    const hotelId = "property-001";
 
-    // 3. Create User Profile
+    // Create Master Admin Profile (Full Read/Write)
     const userProfileRef = doc(db, "user_profiles", user.uid);
     const userProfileData = {
       id: user.uid,
@@ -46,7 +56,7 @@ export default function LoginPage() {
       name: "Administrator",
       email: internalEmail,
       isActive: true,
-      role: "admin", // STRICTLY ADMIN
+      role: "admin", // GLOBAL MASTER
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       permissions: ["Reservations", "Rooms", "Inventory", "Housekeeping", "Maintenance", "Laundry", "Accounting", "Team", "Settings"]
@@ -54,14 +64,14 @@ export default function LoginPage() {
 
     await setDoc(userProfileRef, userProfileData);
 
-    // 4. Create Property
+    // Create Initial Property
     const propertyRef = doc(db, "hotel_properties", hotelId);
     await setDoc(propertyRef, {
       id: hotelId,
       entityId: hotelId,
       name: "Sukha Retreats",
-      address: "Administrator Main Office",
-      phone: "9999999999",
+      address: "Property Management Head Office",
+      phone: "919895556667",
       email: internalEmail,
       isActive: true,
       createdAt: new Date().toISOString(),
@@ -70,7 +80,7 @@ export default function LoginPage() {
 
     toast({
       title: "System Initialized",
-      description: "Master Administrator account created with global access.",
+      description: "Master Administrator account created with Global Rights.",
     });
   };
 
@@ -84,6 +94,7 @@ export default function LoginPage() {
       await signInWithEmailAndPassword(auth, internalEmail, password);
       router.push("/dashboard");
     } catch (error: any) {
+      // Auto-Provisioning logic for first-time setup
       if (username === "admin" && password === "sukha123" && (error.code === "auth/user-not-found" || error.code === "auth/invalid-credential")) {
         try {
           await initializeDefaultAdmin(internalEmail);
@@ -93,7 +104,7 @@ export default function LoginPage() {
           toast({ variant: "destructive", title: "Init Failed", description: initError.message });
         }
       } else {
-        toast({ variant: "destructive", title: "Login Failed", description: "Invalid credentials." });
+        toast({ variant: "destructive", title: "Authentication Failed", description: "The system did not recognize these credentials." });
       }
     } finally {
       setLoading(false);
@@ -146,10 +157,10 @@ export default function LoginPage() {
           </CardContent>
           <CardFooter className="flex flex-col gap-4 bg-white pb-10">
             <Button type="submit" className="w-full h-14 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-primary/20" disabled={loading}>
-              {loading ? "Authenticating..." : "Authorize Access"}
+              {loading ? "Authorizing..." : "Login to SUKHA OS"}
             </Button>
             <p className="text-[9px] text-center text-muted-foreground font-black uppercase tracking-tighter px-4">
-              Access restricted to authorized personnel. Data audited in real-time.
+              Restricted Access. All transactions audited in real-time.
             </p>
           </CardFooter>
         </form>

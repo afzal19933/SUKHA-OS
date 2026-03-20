@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -92,13 +93,14 @@ export default function TeamPage() {
   const isAdmin = currentUserRole === "admin";
 
   useEffect(() => {
+    // Restore pointer events manually if a dialog gets stuck
     if (!isEditOpen && !isPermissionsOpen && !isInviteOpen) {
       setTimeout(() => { document.body.style.pointerEvents = "auto"; }, 300);
     }
   }, [isEditOpen, isPermissionsOpen, isInviteOpen]);
 
   const teamQuery = useMemoFirebase(() => {
-    // Master Admins see everyone to manage cross-entity owners
+    // Master Admins see everyone
     if (isAdmin) return query(collection(db, "user_profiles"));
     // Owners/Managers see only their assigned staff
     return query(collection(db, "user_profiles"), where("entityId", "==", entityId));
@@ -108,7 +110,7 @@ export default function TeamPage() {
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAdmin) return; // Only Master Admin can provision accounts
+    if (!isAdmin) return; 
     
     setIsSubmitting(true);
     try {
@@ -217,7 +219,7 @@ export default function TeamPage() {
                         <SelectTrigger className="h-11 text-xs rounded-xl bg-secondary/30 border-none"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {availableProperties.map(p => (
-                            <SelectItem key={p.id} value={p.id} className="text-xs font-bold">{p.name}</SelectItem>
+                            <SelectItem key={p.id} value={p.id} className="text-[11px] font-bold uppercase">{p.name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -229,14 +231,14 @@ export default function TeamPage() {
                         <Input placeholder="login_id" value={newMember.username} onChange={(e) => setNewMember({...newMember, username: e.target.value})} required className="h-11 text-xs rounded-xl bg-secondary/30 border-none" />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-black uppercase text-muted-foreground">Master Role</Label>
+                        <Label className="text-[10px] font-black uppercase text-muted-foreground">Functional Role</Label>
                         <Select value={newMember.role} onValueChange={(val) => setNewMember({...newMember, role: val})}>
                           <SelectTrigger className="h-11 text-xs rounded-xl bg-secondary/30 border-none"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="admin" className="text-xs font-bold">Admin (Global Master)</SelectItem>
                             <SelectItem value="owner" className="text-xs font-bold">Owner (View Only)</SelectItem>
                             <SelectItem value="manager" className="text-xs font-bold">Manager</SelectItem>
-                            <SelectItem value="staff" className="text-xs font-bold">Staff</SelectItem>
+                            <SelectItem value="staff" className="text-xs font-bold">Operational Staff</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -258,7 +260,7 @@ export default function TeamPage() {
                       </div>
                     </div>
                     <Button type="submit" className="w-full h-12 text-[11px] font-black uppercase tracking-widest shadow-xl rounded-2xl mt-4" disabled={isSubmitting}>
-                      {isSubmitting ? "Generating Login..." : "Finalize & Provision"}
+                      {isSubmitting ? "Generating Login..." : "Provision Account"}
                     </Button>
                   </form>
                 </DialogContent>
@@ -302,7 +304,7 @@ export default function TeamPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-[9px] font-bold bg-secondary/50 border-none px-2.5 py-1 rounded-lg">
-                        {availableProperties.find(p => p.id === member.entityId)?.name || "Global / Multiple"}
+                        {availableProperties.find(p => p.id === member.entityId)?.name || "Global Access"}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -311,7 +313,7 @@ export default function TeamPage() {
                         member.role === 'admin' ? "border-indigo-500 text-indigo-600" : 
                         member.role === 'owner' ? "border-amber-500 text-amber-600" : "border-primary/10 text-primary"
                       )}>
-                        {member.role === 'admin' ? "Global Master" : member.role === 'owner' ? "Owner (View Only)" : member.role?.replace('_', ' ')}
+                        {member.role === 'admin' ? "Master Admin" : member.role === 'owner' ? "Owner (View Only)" : member.role?.replace('_', ' ')}
                       </Badge>
                     </TableCell>
                     <TableCell>
