@@ -118,7 +118,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!firebaseUser) return null;
 
   const handleLogout = async () => {
-    // Clear welcome flag on logout so it shows again on next login
     sessionStorage.removeItem(`welcomed_${firebaseUser.uid}`);
     await signOut(auth);
     router.push("/login");
@@ -130,14 +129,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen bg-[#F8F9FD] overflow-hidden relative">
       {/* Welcome Overlay */}
       {showWelcome && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center pointer-events-none">
-          <div className="bg-white/80 backdrop-blur-xl border-2 border-primary/20 p-10 rounded-[3rem] shadow-2xl flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-500">
-            <div className="bg-primary p-4 rounded-2xl shadow-xl shadow-primary/30">
-              <Sparkles className="w-8 h-8 text-white animate-pulse" />
+        <div className="fixed inset-0 z-[999] flex items-center justify-center pointer-events-none bg-black/10 backdrop-blur-md">
+          <div className="bg-white border-4 border-primary/10 p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-500">
+            <div className="bg-primary p-5 rounded-3xl shadow-2xl shadow-primary/30">
+              <Building2 className="w-12 h-12 text-white" />
             </div>
-            <div className="text-center space-y-1">
-              <h2 className="text-2xl font-black text-primary uppercase tracking-tight">System Authorized</h2>
-              <p className="text-lg font-bold text-slate-700">Welcome, Mr. {firebaseUser.displayName || 'Aslam'}</p>
+            <div className="text-center space-y-2">
+              <h2 className="text-4xl font-black text-primary uppercase tracking-[0.2em]">SUKHA OS</h2>
+              <div className="h-px w-20 bg-primary/20 mx-auto my-4" />
+              <p className="text-2xl font-bold text-slate-800 tracking-tight">
+                Welcome Mr {firebaseUser.displayName || 'Aslam'}
+              </p>
             </div>
           </div>
         </div>
