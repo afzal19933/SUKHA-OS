@@ -17,7 +17,9 @@ import {
   EyeOff,
   Lock,
   Building2,
-  UserCheck
+  UserCheck,
+  ShieldCheck,
+  AlertTriangle
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
@@ -33,7 +35,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
 import { collection, query, where, doc, setDoc } from "firebase/firestore";
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { firebaseConfig } from "@/firebase/config";
 import { 
@@ -41,7 +43,8 @@ import {
   DialogContent, 
   DialogDescription, 
   DialogHeader, 
-  DialogTitle 
+  DialogTitle,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { 
@@ -62,8 +65,8 @@ import { deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase
 import { useToast } from "@/hooks/use-toast";
 
 const SYSTEM_MODULES = [
-  "Reservations", "Rooms", "Inventory", "Housekeeping", "Maintenance", 
-  "Laundry", "Accounting", "Team", "Settings"
+  "Dashboard", "Reservations", "Rooms", "Inventory", "Housekeeping", "Maintenance", 
+  "Laundry", "Accounting", "Communications", "Team", "Settings"
 ];
 
 export default function TeamPage() {
@@ -91,9 +94,16 @@ export default function TeamPage() {
   // isAdmin strictly refers to Global Master
   const isAdmin = currentUserRole === "admin";
 
+  // Critical Fix: Ensure pointer-events are always restored after any dialog closes
   useEffect(() => {
     if (!isEditOpen && !isPermissionsOpen && !isInviteOpen) {
-      setTimeout(() => { document.body.style.pointerEvents = "auto"; }, 300);
+      const restoreEvents = () => {
+        document.body.style.pointerEvents = "auto";
+      };
+      restoreEvents();
+      // Secondary check for Radix UI residual overlays
+      const timer = setTimeout(restoreEvents, 300);
+      return () => clearTimeout(timer);
     }
   }, [isEditOpen, isPermissionsOpen, isInviteOpen]);
 
@@ -109,9 +119,10 @@ export default function TeamPage() {
     if (!isAdmin) return; 
     
     setIsSubmitting(true);
+    let secondaryApp;
     try {
       const secondaryAppName = `Provisioner-${Date.now()}`;
-      const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+      secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
       const secondaryAuth = getAuth(secondaryApp);
       
       const internalEmail = `${newMember.username.toLowerCase().trim()}@sukha.os`;
@@ -132,12 +143,13 @@ export default function TeamPage() {
 
       await setDoc(doc(db, "user_profiles", newUser.uid), memberData);
 
-      toast({ title: "Account Created", description: `${newMember.name} provisioned as ${newMember.role}.` });
+      toast({ title: "Account Created", description: `${newMember.name} provisioned successfully.` });
       setIsInviteOpen(false);
       setNewMember({ name: "", username: "", role: "staff", password: "", targetEntityId: entityId || "" });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Provisioning Error", description: err.message });
     } finally {
+      if (secondaryApp) deleteApp(secondaryApp).catch(console.error);
       setIsSubmitting(false);
     }
   };
@@ -145,12 +157,15 @@ export default function TeamPage() {
   const handleUpdateMember = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingMember || !isAdmin) return;
+    
     updateDocumentNonBlocking(doc(db, "user_profiles", editingMember.id), {
       name: editingMember.name,
       role: editingMember.role,
       isActive: editingMember.isActive,
+      entityId: editingMember.entityId,
       updatedAt: new Date().toISOString()
     });
+    
     toast({ title: "Profile updated" });
     setIsEditOpen(false);
   };
@@ -169,168 +184,111 @@ export default function TeamPage() {
       permissions: newPermissions,
       updatedAt: new Date().toISOString() 
     });
-    toast({ title: "Access updated" });
+    toast({ title: `${moduleName} Access Updated` });
   };
 
-  const filteredMembers = teamMembers?.filter(m => 
-    m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    m.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredMembers = useMemo(() => {
+    if (!teamMembers) return [];
+    return teamMembers.filter(m => 
+      m.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      m.email?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [teamMembers, searchQuery]);
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-6xl mx-auto">
+      <div className="space-y-6 max-w-6xl mx-auto pb-20">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Staff & Owner Registry</h1>
-            <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">Master Administrative Control Panel</p>
+            <h1 className="text-3xl font-black tracking-tight text-primary uppercase">Staff & Owner Registry</h1>
+            <p className="text-muted-foreground text-[11px] font-black uppercase tracking-[0.2em] mt-1">Master Administrative Control Panel</p>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {!isAdmin && (
-              <div className="px-3 py-1.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-100 flex items-center gap-2 shadow-sm">
-                <ShieldAlert className="w-3.5 h-3.5" />
-                <span className="text-[9px] font-black uppercase tracking-wider">Restricted View Only</span>
+              <div className="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl border border-amber-100 flex items-center gap-2 shadow-sm">
+                <ShieldAlert className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-widest">Restricted View Only</span>
               </div>
             )}
             {isAdmin && (
-              <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
-                <Button className="h-10 shadow-xl bg-primary hover:bg-primary/90 px-6 font-black text-[10px] uppercase tracking-widest text-white rounded-xl" onClick={() => setIsInviteOpen(true)}>
-                  <UserPlus className="w-4 h-4 mr-2" /> Register New Account
-                </Button>
-                <DialogContent className="sm:max-w-[400px] text-left rounded-[2.5rem]">
-                  <DialogHeader>
-                    <DialogTitle className="text-lg font-black uppercase text-primary">Provision Member</DialogTitle>
-                    <DialogDescription className="text-[10px] font-bold uppercase">Assign properties and functional roles.</DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleAddMember} className="space-y-4 pt-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Full Name</Label>
-                      <Input placeholder="Member Name" value={newMember.name} onChange={(e) => setNewMember({...newMember, name: e.target.value})} required className="h-11 text-xs rounded-xl bg-secondary/30 border-none" />
-                    </div>
-                    
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Entity Access</Label>
-                      <Select value={newMember.targetEntityId} onValueChange={(val) => setNewMember({...newMember, targetEntityId: val})}>
-                        <SelectTrigger className="h-11 text-xs rounded-xl bg-secondary/30 border-none"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all" className="text-[11px] font-black text-primary uppercase">Global Access (All Entities)</SelectItem>
-                          {availableProperties.map(p => (
-                            <SelectItem key={p.id} value={p.id} className="text-[11px] font-bold uppercase">{p.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] font-black uppercase text-muted-foreground">Username</Label>
-                        <Input placeholder="login_id" value={newMember.username} onChange={(e) => setNewMember({...newMember, username: e.target.value})} required className="h-11 text-xs rounded-xl bg-secondary/30 border-none" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] font-black uppercase text-muted-foreground">Functional Role</Label>
-                        <Select value={newMember.role} onValueChange={(val) => setNewMember({...newMember, role: val})}>
-                          <SelectTrigger className="h-11 text-xs rounded-xl bg-secondary/30 border-none"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="admin" className="text-xs font-bold">Admin (Global Master)</SelectItem>
-                            <SelectItem value="owner" className="text-xs font-bold">Owner (View Only)</SelectItem>
-                            <SelectItem value="manager" className="text-xs font-bold">Manager</SelectItem>
-                            <SelectItem value="staff" className="text-xs font-bold">Operational Staff</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Access Password</Label>
-                      <div className="relative">
-                        <Input 
-                          type={showPassword ? "text" : "password"} 
-                          placeholder="Min 6 characters" 
-                          value={newMember.password} 
-                          onChange={(e) => setNewMember({...newMember, password: e.target.value})} 
-                          required 
-                          className="h-11 text-xs rounded-xl bg-secondary/30 border-none pr-10" 
-                        />
-                        <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1 h-9 w-9" onClick={() => setShowPassword(!showPassword)}>
-                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </Button>
-                      </div>
-                    </div>
-                    <Button type="submit" className="w-full h-12 text-[11px] font-black uppercase tracking-widest shadow-xl rounded-2xl mt-4" disabled={isSubmitting}>
-                      {isSubmitting ? "Generating Login..." : "Provision Account"}
-                    </Button>
-                  </form>
-                </DialogContent>
-              </Dialog>
+              <Button className="h-11 shadow-2xl bg-primary hover:bg-primary/90 px-8 font-black text-[11px] uppercase tracking-[0.2em] text-white rounded-xl" onClick={() => setIsInviteOpen(true)}>
+                <UserPlus className="w-4 h-4 mr-2" /> Register New Account
+              </Button>
             )}
           </div>
         </div>
 
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
-          <Input placeholder="Filter registry by name or email..." className="pl-10 h-10 text-xs bg-white rounded-xl border-none shadow-sm" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+        <div className="relative max-w-md">
+          <Search className="absolute left-4 top-3.5 w-4 h-4 text-muted-foreground" />
+          <Input 
+            placeholder="Filter registry by name or system email..." 
+            className="pl-11 h-11 text-xs bg-white rounded-xl border-none shadow-sm font-bold" 
+            value={searchQuery} 
+            onChange={(e) => setSearchQuery(e.target.value)} 
+          />
         </div>
 
         <div className="bg-white rounded-[2.5rem] shadow-sm border overflow-hidden">
           <Table>
             <TableHeader className="bg-primary">
               <TableRow className="hover:bg-transparent border-none">
-                <TableHead className="text-[10px] font-black uppercase h-12 pl-8 text-primary-foreground">Member Account</TableHead>
-                <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Entity Access</TableHead>
-                <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Assigned Role</TableHead>
-                <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Status</TableHead>
-                <TableHead className="text-right text-[10px] font-black uppercase h-12 pr-8 text-primary-foreground">Actions</TableHead>
+                <TableHead className="text-[10px] font-black uppercase h-14 pl-10 text-primary-foreground">Member Account</TableHead>
+                <TableHead className="text-[10px] font-black uppercase h-14 text-primary-foreground">Entity Access</TableHead>
+                <TableHead className="text-[10px] font-black uppercase h-14 text-primary-foreground">Assigned Role</TableHead>
+                <TableHead className="text-[10px] font-black uppercase h-14 text-primary-foreground">Status</TableHead>
+                <TableHead className="text-right text-[10px] font-black uppercase h-14 pr-10 text-primary-foreground">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
-              ) : filteredMembers && filteredMembers.length > 0 ? (
+                <TableRow><TableCell colSpan={5} className="text-center py-24"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></TableCell></TableRow>
+              ) : filteredMembers.length > 0 ? (
                 filteredMembers.map((member) => (
                   <TableRow key={member.id} className="group border-b border-secondary/50 hover:bg-primary/5 transition-colors">
-                    <TableCell className="pl-8 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary text-[12px] font-black shadow-inner">
+                    <TableCell className="pl-10 py-5">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary text-sm font-black shadow-inner">
                           {member.name?.charAt(0) || "U"}
                         </div>
                         <div className="flex flex-col">
-                          <span className="font-black text-[12px] uppercase tracking-tight">{member.name}</span>
-                          <span className="text-[9px] font-mono text-muted-foreground">{member.email}</span>
+                          <span className="font-black text-sm uppercase tracking-tight text-slate-800">{member.name}</span>
+                          <span className="text-[10px] font-mono text-muted-foreground">{member.email}</span>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn(
-                        "text-[9px] font-black h-6 px-2.5 rounded-lg border-none",
-                        member.entityId === 'all' ? "bg-indigo-50 text-indigo-600" : "bg-secondary/50 text-muted-foreground"
+                        "text-[10px] font-black h-7 px-3 rounded-xl border-none",
+                        member.entityId === 'all' ? "bg-indigo-100 text-indigo-700" : "bg-secondary/80 text-slate-600"
                       )}>
                         {member.entityId === 'all' ? "GLOBAL ACCESS" : (availableProperties.find(p => p.id === member.entityId)?.name || "Restricted")}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn(
-                        "font-black text-[9px] h-5 px-2 bg-white",
+                        "font-black text-[10px] h-6 px-2.5 bg-white uppercase",
                         member.role === 'admin' ? "border-indigo-500 text-indigo-600" : 
                         member.role === 'owner' ? "border-amber-500 text-amber-600" : "border-primary/10 text-primary"
                       )}>
-                        {member.role === 'admin' ? "Master Admin" : member.role === 'owner' ? "Owner (View Only)" : member.role?.replace('_', ' ')}
+                        {member.role === 'admin' ? "Master Admin" : member.role === 'owner' ? "Property Owner" : member.role?.replace('_', ' ')}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2">
                         {member.isActive ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <XCircle className="w-4 h-4 text-rose-500" />}
-                        <span className="text-[10px] font-black uppercase text-muted-foreground">{member.isActive ? "Active" : "Disabled"}</span>
+                        <span className="text-[10px] font-black uppercase text-slate-500">{member.isActive ? "Active" : "Disabled"}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right pr-8">
+                    <TableCell className="text-right pr-10">
                       {isAdmin && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-white hover:shadow-md rounded-xl">
+                            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:bg-white hover:shadow-md rounded-xl">
                               <MoreVertical className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl border-none shadow-2xl z-[150]">
+                          <DropdownMenuContent align="end" className="w-60 p-2 rounded-2xl border-none shadow-2xl z-[150]">
                             <DropdownMenuItem onClick={() => { setEditingMember(member); setIsEditOpen(true); }} className="text-[11px] font-black uppercase p-3 rounded-xl cursor-pointer">
                               <Edit2 className="w-3.5 h-3.5 mr-3 text-primary" /> Modify Profile
                             </DropdownMenuItem>
@@ -347,31 +305,150 @@ export default function TeamPage() {
                   </TableRow>
                 ))
               ) : (
-                <TableRow><TableCell colSpan={5} className="text-center py-24 text-[10px] font-black uppercase text-muted-foreground tracking-widest">Registry is currently empty</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-32 text-[11px] font-black uppercase text-muted-foreground tracking-widest">No matching registry records found</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
         </div>
 
-        {/* Permissions Dialog */}
-        <Dialog open={isPermissionsOpen} onOpenChange={setIsPermissionsOpen}>
-          <DialogContent className="sm:max-w-[360px] text-left rounded-[2.5rem]">
-            <DialogHeader>
-              <DialogTitle className="text-sm font-black uppercase text-primary">Module Access: {editingMember?.name}</DialogTitle>
-              <DialogDescription className="text-[10px] font-bold uppercase">Owners remain View-Only regardless of module access.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-2 py-4">
-              {SYSTEM_MODULES.map(moduleName => {
-                const hasAccess = editingMember?.permissions?.includes(moduleName);
-                return (
-                  <div key={moduleName} className="flex items-center justify-between p-3 bg-secondary/30 rounded-xl border border-transparent hover:border-primary/10 transition-colors">
-                    <Label htmlFor={`perm-${moduleName}`} className="text-[11px] font-black uppercase tracking-tight cursor-pointer">{moduleName}</Label>
-                    <Checkbox id={`perm-${moduleName}`} checked={hasAccess} onCheckedChange={() => togglePermission(editingMember.id, moduleName)} />
-                  </div>
-                );
-              })}
+        {/* Invite Dialog */}
+        <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
+          <DialogContent className="sm:max-w-[450px] text-left rounded-[3rem] p-0 overflow-hidden border-none shadow-2xl">
+            <div className="bg-primary p-10 text-white space-y-2">
+              <DialogTitle className="text-2xl font-black uppercase tracking-tight">Provision Account</DialogTitle>
+              <DialogDescription className="text-[11px] font-bold uppercase text-white/70 tracking-widest">System-level account creation.</DialogDescription>
             </div>
-            <Button onClick={() => setIsPermissionsOpen(false)} className="w-full h-12 text-[11px] font-black uppercase tracking-widest rounded-2xl bg-secondary text-primary">Close Control Panel</Button>
+            <form onSubmit={handleAddMember} className="p-10 space-y-6">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Full Name</Label>
+                <Input placeholder="Member Name" value={newMember.name} onChange={(e) => setNewMember({...newMember, name: e.target.value})} required className="h-12 text-xs rounded-2xl bg-secondary/50 border-none font-bold" />
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Entity Access Scope</Label>
+                <Select value={newMember.targetEntityId} onValueChange={(val) => setNewMember({...newMember, targetEntityId: val})}>
+                  <SelectTrigger className="h-12 text-xs rounded-2xl bg-secondary/50 border-none font-bold"><SelectValue /></SelectTrigger>
+                  <SelectContent className="rounded-2xl">
+                    <SelectItem value="all" className="text-[11px] font-black text-indigo-600 uppercase">GLOBAL ACCESS (ALL PROPERTIES)</SelectItem>
+                    {availableProperties.map(p => (
+                      <SelectItem key={p.id} value={p.id} className="text-[11px] font-bold uppercase">{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Username</Label>
+                  <Input placeholder="login_id" value={newMember.username} onChange={(e) => setNewMember({...newMember, username: e.target.value})} required className="h-12 text-xs rounded-2xl bg-secondary/50 border-none font-bold" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">System Role</Label>
+                  <Select value={newMember.role} onValueChange={(val) => setNewMember({...newMember, role: val})}>
+                    <SelectTrigger className="h-12 text-xs rounded-2xl bg-secondary/50 border-none font-bold"><SelectValue /></SelectTrigger>
+                    <SelectContent className="rounded-2xl">
+                      <SelectItem value="admin" className="text-xs font-bold uppercase">Admin (Full Control)</SelectItem>
+                      <SelectItem value="owner" className="text-xs font-bold uppercase">Owner (View Only)</SelectItem>
+                      <SelectItem value="manager" className="text-xs font-bold uppercase">Manager</SelectItem>
+                      <SelectItem value="staff" className="text-xs font-bold uppercase">Operational Staff</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Account Password</Label>
+                <div className="relative">
+                  <Input 
+                    type={showPassword ? "text" : "password"} 
+                    placeholder="Min 6 characters" 
+                    value={newMember.password} 
+                    onChange={(e) => setNewMember({...newMember, password: e.target.value})} 
+                    required 
+                    className="h-12 text-xs rounded-2xl bg-secondary/50 border-none font-bold pr-12" 
+                  />
+                  <Button type="button" variant="ghost" size="icon" className="absolute right-2 top-1.5 h-9 w-9 rounded-xl" onClick={() => setShowPassword(!showPassword)}>
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </Button>
+                </div>
+              </div>
+              <Button type="submit" className="w-full h-14 text-[11px] font-black uppercase tracking-[0.2em] shadow-2xl rounded-2xl mt-4" disabled={isSubmitting}>
+                {isSubmitting ? "Generating Login..." : "Provision Member"}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Dialog */}
+        <Dialog open={isEditOpen} onOpenChange={(o) => { if(!o) { setIsEditOpen(false); setEditingMember(null); } }}>
+          <DialogContent className="sm:max-w-[400px] text-left rounded-[3rem] p-0 overflow-hidden border-none">
+            <div className="bg-primary p-8 text-white"><DialogTitle className="text-lg font-black uppercase">Edit Member Profile</DialogTitle></div>
+            <form onSubmit={handleUpdateMember} className="p-8 space-y-5">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase">Display Name</Label>
+                <Input value={editingMember?.name || ""} onChange={(e) => setEditingMember({...editingMember, name: e.target.value})} required className="h-11 rounded-xl bg-secondary/50 border-none font-bold" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase">Entity Access</Label>
+                <Select value={editingMember?.entityId} onValueChange={(v) => setEditingMember({...editingMember, entityId: v})}>
+                  <SelectTrigger className="h-11 rounded-xl bg-secondary/50 border-none font-bold"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">GLOBAL ACCESS</SelectItem>
+                    {availableProperties.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase">Functional Role</Label>
+                <Select value={editingMember?.role} onValueChange={(v) => setEditingMember({...editingMember, role: v})}>
+                  <SelectTrigger className="h-11 rounded-xl bg-secondary/50 border-none font-bold"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="owner">Owner</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="staff">Staff</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-2xl mt-2">
+                <Label className="text-[10px] font-black uppercase">Account Active</Label>
+                <Checkbox checked={editingMember?.isActive} onCheckedChange={(v) => setEditingMember({...editingMember, isActive: !!v})} />
+              </div>
+              <Button type="submit" className="w-full h-12 text-[11px] font-black uppercase tracking-widest rounded-2xl shadow-xl mt-4">Save Changes</Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Permissions Dialog */}
+        <Dialog open={isPermissionsOpen} onOpenChange={(o) => { if(!o) { setIsPermissionsOpen(false); setEditingMember(null); } }}>
+          <DialogContent className="sm:max-w-[400px] text-left rounded-[3rem] p-0 overflow-hidden border-none">
+            <div className="bg-primary p-8 text-white space-y-1">
+              <DialogTitle className="text-lg font-black uppercase">Module Access Control</DialogTitle>
+              <p className="text-[10px] font-bold uppercase text-white/60">Managing: {editingMember?.name}</p>
+            </div>
+            <div className="p-8">
+              <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex gap-3 mb-6">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                <p className="text-[10px] font-bold leading-relaxed text-amber-700">Note: Users with the "Owner" role will remain View-Only across all selected modules regardless of access toggle.</p>
+              </div>
+              <div className="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                {SYSTEM_MODULES.map(moduleName => {
+                  const hasAccess = editingMember?.permissions?.includes(moduleName);
+                  return (
+                    <div key={moduleName} className={cn(
+                      "flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer group",
+                      hasAccess ? "bg-primary/5 border-primary/20" : "bg-slate-50 border-transparent hover:border-slate-200"
+                    )} onClick={() => togglePermission(editingMember.id, moduleName)}>
+                      <Label className={cn(
+                        "text-[11px] font-black uppercase tracking-tight cursor-pointer",
+                        hasAccess ? "text-primary" : "text-slate-500"
+                      )}>{moduleName}</Label>
+                      <Checkbox checked={hasAccess} onCheckedChange={() => togglePermission(editingMember.id, moduleName)} />
+                    </div>
+                  );
+                })}
+              </div>
+              <Button onClick={() => setIsPermissionsOpen(false)} className="w-full h-12 text-[11px] font-black uppercase tracking-widest rounded-2xl bg-secondary text-primary mt-6">Close Access Manager</Button>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
