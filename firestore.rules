@@ -11,15 +11,21 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function getUserData() {
+      return get(/databases/$(database)/documents/user_profiles/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (getUserData().role == 'owner' || getUserData().role == 'admin');
+    }
+
     /** 
      * @description User Profiles
-     * Users can read/write their own profile.
+     * Users can read/write their own profile. Admins can manage all profiles.
      */
     match /user_profiles/{userId} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
-      
-      // Allow admins to see team members for the same entity
-      allow list: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       
       match /notifications/{notificationId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
@@ -28,11 +34,10 @@ service cloud.firestore {
 
     /**
      * @description Hotel Properties & Multi-tenancy
-     * Data is isolated by entityId.
      */
     match /hotel_properties/{entityId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn(); // Restrict to admin roles in production
+      allow write: if isAdmin();
 
       match /{allSubcollections=**} {
         allow read, write: if isSignedIn();
@@ -40,14 +45,10 @@ service cloud.firestore {
     }
 
     /**
-     * @description Legacy/Schema Compatibility
-     * Matches paths defined in backend.json IR.
+     * @description Global Configs
      */
-    match /inventory_items/{id} { allow read, write: if isSignedIn(); }
-    match /suppliers/{id} { allow read, write: if isSignedIn(); }
-    match /purchase_orders/{id} { allow read, write: if isSignedIn(); }
-    match /purchase_order_items/{id} { allow read, write: if isSignedIn(); }
-    match /stock_transactions/{id} { allow read, write: if isSignedIn(); }
+    match /laundry_items/{id} { allow read, write: if isSignedIn(); }
+    match /inventory_stocks/{id} { allow read, write: if isSignedIn(); }
 
   }
 }
