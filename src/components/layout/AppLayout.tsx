@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -22,7 +23,8 @@ import {
   Package,
   Cpu,
   ShieldAlert,
-  Loader2
+  Loader2,
+  Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -68,10 +70,24 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
 
   const isAdmin = role === 'admin';
   const isOwner = role === 'owner';
   const hasGlobalAccess = assignedEntityId === 'all';
+
+  // Show welcome message only once per session mount
+  useEffect(() => {
+    if (firebaseUser && !isUserLoading) {
+      const hasWelcomed = sessionStorage.getItem(`welcomed_${firebaseUser.uid}`);
+      if (!hasWelcomed) {
+        setShowWelcome(true);
+        sessionStorage.setItem(`welcomed_${firebaseUser.uid}`, 'true');
+        const timer = setTimeout(() => setShowWelcome(false), 3000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [firebaseUser, isUserLoading]);
 
   // Admin or Global users see all properties. Specific staff see only their assigned entity.
   const filteredProperties = useMemo(() => {
@@ -102,6 +118,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!firebaseUser) return null;
 
   const handleLogout = async () => {
+    // Clear welcome flag on logout so it shows again on next login
+    sessionStorage.removeItem(`welcomed_${firebaseUser.uid}`);
     await signOut(auth);
     router.push("/login");
   };
@@ -109,7 +127,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const canSwitchProperty = isAdmin || hasGlobalAccess;
 
   return (
-    <div className="flex h-screen bg-[#F8F9FD] overflow-hidden">
+    <div className="flex h-screen bg-[#F8F9FD] overflow-hidden relative">
+      {/* Welcome Overlay */}
+      {showWelcome && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center pointer-events-none">
+          <div className="bg-white/80 backdrop-blur-xl border-2 border-primary/20 p-10 rounded-[3rem] shadow-2xl flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-500">
+            <div className="bg-primary p-4 rounded-2xl shadow-xl shadow-primary/30">
+              <Sparkles className="w-8 h-8 text-white animate-pulse" />
+            </div>
+            <div className="text-center space-y-1">
+              <h2 className="text-2xl font-black text-primary uppercase tracking-tight">System Authorized</h2>
+              <p className="text-lg font-bold text-slate-700">Welcome, Mr. {firebaseUser.displayName || 'Aslam'}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <aside className={cn("bg-white border-r transition-all duration-300 flex flex-col", sidebarOpen ? "w-64" : "w-20")}>
         <div className="p-6 flex items-center gap-3">
           <div className="bg-primary h-9 w-9 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
@@ -187,7 +220,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="my-2" />
                 <DropdownMenuItem onClick={handleLogout} className="text-xs font-bold uppercase p-3 rounded-xl cursor-pointer text-rose-600 hover:bg-rose-50">
-                  <LogOut className="mr-3 h-4 w-4" /> Terminate Session
+                  <LogOut className="mr-3 h-4 w-4" /> Logout
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
