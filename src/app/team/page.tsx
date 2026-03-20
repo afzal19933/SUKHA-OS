@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { 
@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase";
 import { collection, query, where, doc, getDoc, setDoc } from "firebase/firestore";
-import { initializeApp, getApp, getApps } from "firebase/app";
+import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { firebaseConfig } from "@/firebase/config";
 import { 
@@ -39,8 +39,7 @@ import {
   DialogContent, 
   DialogDescription, 
   DialogHeader, 
-  DialogTitle, 
-  DialogTrigger 
+  DialogTitle 
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { 
@@ -95,6 +94,16 @@ export default function TeamPage() {
 
   const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
 
+  // Safety Valve: Ensure body pointer-events are restored if Radix gets stuck
+  useEffect(() => {
+    if (!isEditOpen && !isPermissionsOpen && !isInviteOpen) {
+      const timer = setTimeout(() => {
+        document.body.style.pointerEvents = "auto";
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isEditOpen, isPermissionsOpen, isInviteOpen]);
+
   const teamQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return query(collection(db, "user_profiles"), where("entityId", "==", entityId));
@@ -132,21 +141,15 @@ export default function TeamPage() {
     }
 
     setIsSubmitting(true);
-    let secondaryApp;
-
     try {
-      // 1. Initialize secondary app to create user without logging out current admin
       const secondaryAppName = `Provisioner-${Date.now()}`;
-      secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+      const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
       const secondaryAuth = getAuth(secondaryApp);
       
       const internalEmail = `${newMember.username.toLowerCase().trim()}@sukha.os`;
-      
-      // 2. Create Auth Record
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, internalEmail, newMember.password);
       const newUser = userCredential.user;
 
-      // 3. Create Firestore Profile
       const memberData = {
         id: newUser.uid,
         entityId: entityId,
@@ -169,13 +172,6 @@ export default function TeamPage() {
       toast({ variant: "destructive", title: "Provisioning Error", description: err.message || "Failed to create account." });
     } finally {
       setIsSubmitting(false);
-      if (secondaryApp) {
-        // Clean up the secondary app instance
-        try {
-          // Firebase doesn't allow direct deletion in some environments easily, 
-          // but we ensure it's not the primary app.
-        } catch(e) {}
-      }
     }
   };
 
@@ -191,7 +187,7 @@ export default function TeamPage() {
     });
     toast({ title: "Profile updated" });
     setIsEditOpen(false);
-    setEditingMember(null);
+    // Don't set editingMember to null instantly to allow Dialog to close cleanly
   };
 
   const togglePermission = (userId: string, moduleName: string) => {
@@ -249,12 +245,10 @@ export default function TeamPage() {
             )}
             {isAdmin && (
               <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
-                <DialogTrigger asChild>
-                  <Button className="h-10 shadow-xl bg-primary hover:bg-primary/90 px-6 font-black text-[10px] uppercase tracking-widest text-white rounded-xl">
-                    <UserPlus className="w-4 h-4 mr-2" />
-                    Register Member
-                  </Button>
-                </DialogTrigger>
+                <Button className="h-10 shadow-xl bg-primary hover:bg-primary/90 px-6 font-black text-[10px] uppercase tracking-widest text-white rounded-xl" onClick={() => setIsInviteOpen(true)}>
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Register Member
+                </Button>
                 <DialogContent className="sm:max-w-[400px] text-left rounded-[2rem]">
                   <DialogHeader>
                     <DialogTitle className="text-lg font-black uppercase text-primary">New Team Member</DialogTitle>
@@ -365,7 +359,7 @@ export default function TeamPage() {
                               <MoreVertical className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl border-none shadow-2xl">
+                          <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl border-none shadow-2xl z-[150]">
                             <DropdownMenuItem onClick={() => { setEditingMember(member); setIsEditOpen(true); }} className="text-[11px] font-black uppercase p-3 rounded-xl cursor-pointer">
                               <Edit2 className="w-3.5 h-3.5 mr-3 text-primary" /> Edit Profile
                             </DropdownMenuItem>
@@ -389,7 +383,7 @@ export default function TeamPage() {
         </div>
 
         {/* Edit Member Dialog */}
-        <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <Dialog open={isEditOpen} onOpenChange={(open) => { setIsEditOpen(open); if(!open) setTimeout(() => setEditingMember(null), 200); }}>
           <DialogContent className="sm:max-w-[340px] text-left rounded-[2rem]">
             <DialogHeader><DialogTitle className="text-sm font-black uppercase text-primary">Modify Member</DialogTitle></DialogHeader>
             {editingMember && (
@@ -420,7 +414,7 @@ export default function TeamPage() {
         </Dialog>
 
         {/* Permissions Dialog */}
-        <Dialog open={isPermissionsOpen} onOpenChange={setIsPermissionsOpen}>
+        <Dialog open={isPermissionsOpen} onOpenChange={(open) => { setIsPermissionsOpen(open); if(!open) setTimeout(() => setEditingMember(null), 200); }}>
           <DialogContent className="sm:max-w-[340px] text-left rounded-[2rem]">
             <DialogHeader>
               <DialogTitle className="text-sm font-black uppercase text-primary">Module Authorization</DialogTitle>
