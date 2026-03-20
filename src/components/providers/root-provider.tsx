@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect } from "react";
@@ -13,7 +12,7 @@ import { doc, onSnapshot, collection } from "firebase/firestore";
 /**
  * AuthSync Component
  * Synchronizes Firebase Auth state with the global Zustand store and Firestore Profile.
- * Implements a Sovereignty Guard for the Master Admin.
+ * Implements a Sovereignty Guard for the Master Admin and handles Global Access users.
  */
 function AuthSync() {
   const { user } = useUser();
@@ -23,8 +22,11 @@ function AuthSync() {
     setPermissions, 
     setRole, 
     setEntityId, 
+    setAssignedEntityId,
     setAvailableProperties, 
     entityId,
+    assignedEntityId,
+    availableProperties,
     theme 
   } = useAuthStore();
 
@@ -62,7 +64,14 @@ function AuthSync() {
           }
           
           if (assignedRole) setRole(assignedRole);
-          if (data.entityId && !entityId) setEntityId(data.entityId);
+          
+          if (data.entityId) {
+            setAssignedEntityId(data.entityId);
+            // If user has 'all' access and no active entityId, wait for properties to load
+            if (data.entityId !== 'all' && !entityId) {
+              setEntityId(data.entityId);
+            }
+          }
         }
       }, (error) => {
         console.warn("AuthSync: User profile sync delayed:", error.message);
@@ -88,9 +97,17 @@ function AuthSync() {
       setPermissions(null);
       setRole(null);
       setEntityId(null);
+      setAssignedEntityId(null);
       setAvailableProperties([]);
     }
-  }, [user, setUser, setPermissions, setRole, setEntityId, setAvailableProperties, db, entityId]);
+  }, [user, setUser, setPermissions, setRole, setEntityId, setAssignedEntityId, setAvailableProperties, db, entityId]);
+
+  // Handle initial session entity for Global Access users
+  useEffect(() => {
+    if (assignedEntityId === 'all' && !entityId && availableProperties.length > 0) {
+      setEntityId(availableProperties[0].id);
+    }
+  }, [assignedEntityId, entityId, availableProperties, setEntityId]);
 
   return null;
 }

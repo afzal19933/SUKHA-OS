@@ -7,6 +7,7 @@ service cloud.firestore {
      * Admin: Global Master (Read/Write all)
      * Owner: Entity-Specific (Read-Only)
      * Staff/Manager: Entity-Specific (Scoped Read/Write)
+     * Global Access: Profiles assigned to 'all' can access any entityId
      */
 
     function isSignedIn() {
@@ -25,9 +26,11 @@ service cloud.firestore {
     }
 
     function isAssignedToEntity(entityId) {
+      let profile = getUserProfile();
       return isSignedIn() && (
         isMasterAdmin() || 
-        getUserProfile().entityId == entityId
+        profile.entityId == entityId ||
+        profile.entityId == 'all'
       );
     }
 
@@ -54,10 +57,10 @@ service cloud.firestore {
       allow write: if isMasterAdmin();
 
       match /{allSubcollections=**} {
-        // Reads: Admin (Any), Owner (Assigned), Staff (Assigned)
+        // Reads: Admin (Any), Owner (Assigned/All), Staff (Assigned/All)
         allow read: if isAssignedToEntity(entityId);
         
-        // Writes: Admin (Any), Staff/Manager (Assigned), Owner (NEVER)
+        // Writes: Admin (Any), Staff/Manager (Assigned/All), Owner (NEVER)
         allow write: if isMasterAdmin() || (
           isAssignedToEntity(entityId) && 
           getUserProfile().role != 'owner'

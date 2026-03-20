@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -64,7 +63,7 @@ const NAV_ITEMS = [
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user: firebaseUser, isUserLoading } = useUser();
-  const { _hasHydrated, role, permissions, entityId, setEntityId, availableProperties } = useAuthStore();
+  const { _hasHydrated, role, permissions, entityId, assignedEntityId, setEntityId, availableProperties } = useAuthStore();
   const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -72,12 +71,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   const isAdmin = role === 'admin';
   const isOwner = role === 'owner';
+  const hasGlobalAccess = assignedEntityId === 'all';
 
-  // Admin sees all properties. Owner/Staff see only their assigned entity.
+  // Admin or Global users see all properties. Specific staff see only their assigned entity.
   const filteredProperties = useMemo(() => {
-    if (isAdmin) return availableProperties;
+    if (isAdmin || hasGlobalAccess) return availableProperties;
     return availableProperties.filter(p => p.id === entityId);
-  }, [availableProperties, isAdmin, entityId]);
+  }, [availableProperties, isAdmin, hasGlobalAccess, entityId]);
 
   const filteredNavItems = useMemo(() => {
     return NAV_ITEMS.filter(item => {
@@ -105,6 +105,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     await signOut(auth);
     router.push("/login");
   };
+
+  const canSwitchProperty = isAdmin || hasGlobalAccess;
 
   return (
     <div className="flex h-screen bg-[#F8F9FD] overflow-hidden">
@@ -142,7 +144,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             {filteredProperties.length > 0 && (
               <div className="flex items-center gap-2 px-3 py-1.5 bg-secondary/50 rounded-xl border border-primary/5">
                 <Building2 className="w-4 h-4 text-primary" />
-                <Select value={entityId || ""} onValueChange={setEntityId} disabled={isOwner && filteredProperties.length <= 1}>
+                <Select value={entityId || ""} onValueChange={setEntityId} disabled={!canSwitchProperty && filteredProperties.length <= 1}>
                   <SelectTrigger className="w-[180px] h-8 border-none bg-transparent p-0 focus:ring-0 shadow-none font-black text-[11px] uppercase tracking-wider text-primary">
                     <SelectValue placeholder="Property" />
                   </SelectTrigger>
@@ -169,7 +171,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   <div className="text-right hidden sm:block">
                     <p className="text-xs font-black uppercase leading-none text-slate-800">{firebaseUser?.displayName}</p>
                     <p className="text-[9px] text-muted-foreground capitalize font-black mt-1 uppercase">
-                      {isAdmin ? "Master Administrator" : isOwner ? "Property Owner" : role}
+                      {isAdmin ? "Master Administrator" : isOwner ? "Property Owner (View Only)" : role}
                     </p>
                   </div>
                   <Avatar className="h-10 w-10 ring-offset-2 ring-primary transition-all group-hover:ring-2 shadow-md">

@@ -12,7 +12,8 @@ interface PropertyInfo {
 interface AuthState {
   user: User | null;
   role: string | null;
-  entityId: string | null;
+  entityId: string | null; // Currently active session entity
+  assignedEntityId: string | null; // Entity ID from profile (could be 'all')
   permissions: string[] | null;
   theme: string | null;
   availableProperties: PropertyInfo[];
@@ -20,6 +21,7 @@ interface AuthState {
   setUser: (user: User | null, claims?: Record<string, any>) => void;
   setRole: (role: string | null) => void;
   setEntityId: (entityId: string | null) => void;
+  setAssignedEntityId: (id: string | null) => void;
   setPermissions: (permissions: string[] | null) => void;
   setTheme: (theme: string | null) => void;
   setAvailableProperties: (properties: PropertyInfo[]) => void;
@@ -32,6 +34,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       role: null,
       entityId: null,
+      assignedEntityId: null,
       permissions: null,
       theme: 'default',
       availableProperties: [],
@@ -48,6 +51,7 @@ export const useAuthStore = create<AuthState>()(
       },
       setRole: (role) => set({ role }),
       setEntityId: (entityId) => set({ entityId }),
+      setAssignedEntityId: (assignedEntityId) => set({ assignedEntityId }),
       setPermissions: (permissions) => set({ permissions }),
       setTheme: (theme) => set({ theme }),
       setAvailableProperties: (availableProperties) => set({ availableProperties }),

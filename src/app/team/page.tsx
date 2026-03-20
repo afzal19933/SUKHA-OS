@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -93,16 +92,13 @@ export default function TeamPage() {
   const isAdmin = currentUserRole === "admin";
 
   useEffect(() => {
-    // Restore pointer events manually if a dialog gets stuck
     if (!isEditOpen && !isPermissionsOpen && !isInviteOpen) {
       setTimeout(() => { document.body.style.pointerEvents = "auto"; }, 300);
     }
   }, [isEditOpen, isPermissionsOpen, isInviteOpen]);
 
   const teamQuery = useMemoFirebase(() => {
-    // Master Admins see everyone
     if (isAdmin) return query(collection(db, "user_profiles"));
-    // Owners/Managers see only their assigned staff
     return query(collection(db, "user_profiles"), where("entityId", "==", entityId));
   }, [db, entityId, isAdmin]);
 
@@ -205,7 +201,7 @@ export default function TeamPage() {
                 <DialogContent className="sm:max-w-[400px] text-left rounded-[2.5rem]">
                   <DialogHeader>
                     <DialogTitle className="text-lg font-black uppercase text-primary">Provision Member</DialogTitle>
-                    <DialogDescription className="text-[10px] font-bold uppercase">Assign a specific entity and functional role.</DialogDescription>
+                    <DialogDescription className="text-[10px] font-bold uppercase">Assign properties and functional roles.</DialogDescription>
                   </DialogHeader>
                   <form onSubmit={handleAddMember} className="space-y-4 pt-4">
                     <div className="space-y-1.5">
@@ -214,10 +210,11 @@ export default function TeamPage() {
                     </div>
                     
                     <div className="space-y-1.5">
-                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Assign Entity Access</Label>
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Entity Access</Label>
                       <Select value={newMember.targetEntityId} onValueChange={(val) => setNewMember({...newMember, targetEntityId: val})}>
                         <SelectTrigger className="h-11 text-xs rounded-xl bg-secondary/30 border-none"><SelectValue /></SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="all" className="text-[11px] font-black text-primary uppercase">Global Access (All Entities)</SelectItem>
                           {availableProperties.map(p => (
                             <SelectItem key={p.id} value={p.id} className="text-[11px] font-bold uppercase">{p.name}</SelectItem>
                           ))}
@@ -303,8 +300,11 @@ export default function TeamPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-[9px] font-bold bg-secondary/50 border-none px-2.5 py-1 rounded-lg">
-                        {availableProperties.find(p => p.id === member.entityId)?.name || "Global Access"}
+                      <Badge variant="outline" className={cn(
+                        "text-[9px] font-black h-6 px-2.5 rounded-lg border-none",
+                        member.entityId === 'all' ? "bg-indigo-50 text-indigo-600" : "bg-secondary/50 text-muted-foreground"
+                      )}>
+                        {member.entityId === 'all' ? "GLOBAL ACCESS" : (availableProperties.find(p => p.id === member.entityId)?.name || "Restricted")}
                       </Badge>
                     </TableCell>
                     <TableCell>
