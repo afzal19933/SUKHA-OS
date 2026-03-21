@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
@@ -102,12 +103,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   /**
-   * Optimized Welcome Sequence
+   * Optimized Welcome Sequence with Strict User Binding
    */
   useEffect(() => {
+    // Only run on dashboard and only once per session
     if (!firebaseUser || isUserLoading || pathname !== "/dashboard" || welcomeStartedRef.current) return;
 
-    const storageKey = `welcomed_v6_${firebaseUser.uid}`;
+    // We must wait for the actual profile name to load to avoid "Administrator" or "User" greeting
+    // If the name is null, RootProvider is still syncing with Firestore. We wait for it.
+    if (!userName && !firebaseUser.displayName) return;
+
+    const storageKey = `welcomed_v7_${firebaseUser.uid}`;
     const hasWelcomed = sessionStorage.getItem(storageKey);
     
     if (hasWelcomed) {
@@ -115,26 +121,26 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Determine Greeting & Name
     const hour = new Date().getHours();
     const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
     
-    // Aggressive Name Resolution: Store > Auth > Default
-    const rawName = userName || firebaseUser.displayName || "User";
-    const formattedName = rawName.includes("Mr") || rawName.includes("Ms") ? rawName : `Mr ${rawName}`;
+    // Resolve specific user name
+    const rawName = userName || firebaseUser.displayName || "Administrator";
+    const formattedName = rawName.toLowerCase().includes("mr") || rawName.toLowerCase().includes("ms") 
+      ? rawName 
+      : `Mr ${rawName}`;
     
     setWelcomeText(`${greeting}, ${formattedName}.`);
     sessionStorage.setItem(storageKey, 'true');
     welcomeStartedRef.current = true;
 
-    // Immediately Show Backdrop
+    // Immediately Show Backdrop and Hide Dashboard
     setShowWelcome(true);
     setIsDashboardVisible(false);
 
     // Preload Audio & Trigger Sequence
     generateGreetingAudio({ greeting, userName: formattedName }).then(audioUri => {
       if (!audioUri) {
-        // Fallback: Silent Mode
         setIsAudioReady(true);
         setIsGlowActive(true);
         welcomeTimerRef.current = setTimeout(dismissWelcome, 2500);
@@ -144,13 +150,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       const audio = new Audio(audioUri);
       welcomeAudioRef.current = audio;
       
-      // We don't wait for 'oncanplaythrough' to show the UI anymore, 
-      // but we wait for it to start the voice sync
-      setIsAudioReady(true);
-      
+      audio.oncanplaythrough = () => {
+        setIsAudioReady(true);
+        audio.play().catch(e => {
+          console.warn("Audio autoplay blocked or failed:", e);
+          setIsGlowActive(true);
+          welcomeTimerRef.current = setTimeout(dismissWelcome, 2500);
+        });
+      };
+
       audio.onplay = () => {
         setIsGlowActive(true);
-        // Visual pulse during name emphasis (offset by ~1s based on greeting text)
         setTimeout(() => setIsPulsing(true), 800);
         setTimeout(() => setIsPulsing(false), 2000);
       };
@@ -159,16 +169,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         dismissWelcome();
       };
 
-      audio.play().catch(e => {
-        console.warn("Audio autoplay blocked or failed:", e);
-        setIsGlowActive(true);
-        welcomeTimerRef.current = setTimeout(dismissWelcome, 2500);
-      });
-
-      // Safety timeout
+      // Safety timeout in case audio never starts
       welcomeTimerRef.current = setTimeout(() => {
-        dismissWelcome();
-      }, 3500);
+        if (!isExiting) dismissWelcome();
+      }, 4000);
     }).catch(err => {
       console.error("Welcome Audio Call Failed:", err);
       dismissWelcome();
@@ -181,7 +185,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         welcomeAudioRef.current = null;
       }
     };
-  }, [firebaseUser, isUserLoading, userName, pathname, dismissWelcome]);
+  }, [firebaseUser, isUserLoading, userName, pathname, dismissWelcome, isExiting]);
 
   // Handle path changes after initial login
   useEffect(() => {
@@ -218,7 +222,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!firebaseUser) return null;
 
   const handleLogout = async () => {
-    sessionStorage.removeItem(`welcomed_v6_${firebaseUser.uid}`);
+    sessionStorage.removeItem(`welcomed_v7_${firebaseUser.uid}`);
     await signOut(auth);
     router.push("/login");
   };
@@ -230,16 +234,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Optimized Welcome Overlay */}
       {showWelcome && (
         <div className={cn(
-          "fixed inset-0 z-[999] flex items-center justify-center bg-black/40 backdrop-blur-[50px] transition-opacity duration-500",
+          "fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-[100px] transition-opacity duration-500",
           isExiting ? "opacity-0" : "opacity-100"
         )}>
           <div className={cn(
-            "absolute w-[600px] h-[600px] bg-emerald-500/25 blur-[140px] rounded-full transition-all duration-700",
+            "absolute w-[600px] h-[600px] bg-emerald-500/30 blur-[140px] rounded-full transition-all duration-700",
             isGlowActive ? "opacity-100 scale-110" : "opacity-0 scale-90"
           )} />
           
           <div className={cn(
-            "bg-white/90 border border-white/40 p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center gap-8 relative z-10 transition-all duration-500",
+            "bg-white/95 border border-white/40 p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center gap-8 relative z-10 transition-all duration-500",
             !isAudioReady ? "scale-95 opacity-0" : "scale-100 opacity-100 animate-in zoom-in-95",
             isPulsing && "scale-[1.05]",
             isExiting && "scale-90 opacity-0"
