@@ -51,6 +51,7 @@ import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlo
 import { useToast } from "@/hooks/use-toast";
 import { cn, formatAppDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { broadcastNotification } from "@/firebase/notifications";
 
 const SUPPLY_CATEGORIES = [
   { label: "Cleaning Chemicals", items: ["Floor Cleaner", "Toilet Cleaner", "Room Freshner", "Glass Cleaner", "Surface Sanitizer"] },
@@ -113,12 +114,13 @@ export default function InventoryPage() {
     if (!entityId || !canEdit) return;
 
     const qty = parseFloat(newPurchase.quantity);
+    const cost = parseFloat(newPurchase.totalCost) || 0;
     
     // 1. Log Purchase
     addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "supply_purchases"), {
       ...newPurchase,
       quantity: qty,
-      totalCost: parseFloat(newPurchase.totalCost) || 0,
+      totalCost: cost,
       createdAt: new Date().toISOString(),
     });
 
@@ -139,6 +141,13 @@ export default function InventoryPage() {
         updatedAt: new Date().toISOString()
       });
     }
+
+    broadcastNotification(db, {
+      title: "New Inventory Purchase",
+      message: `New purchase of ${qty} ${newPurchase.unit} of ${newPurchase.itemName} recorded for ₹${cost.toLocaleString()}.`,
+      type: 'purchase',
+      entityId
+    });
 
     toast({ title: "Purchase Recorded", description: `Added ${qty} ${newPurchase.unit} to stock.` });
     setIsPurchaseOpen(false);
@@ -184,7 +193,7 @@ export default function InventoryPage() {
             {canEdit && (
               <>
                 <Button variant="outline" className="h-9 text-[10px] font-black uppercase rounded-xl" onClick={() => setIsConsumptionOpen(true)}>
-                  <ArrowDownToLine className="w-3.5 h-3.5 mr-1.5" /> Log Consumption
+                  <ArrowDownCircle className="w-3.5 h-3.5 mr-1.5" /> Log Consumption
                 </Button>
                 <Button className="h-9 text-[10px] font-black uppercase rounded-xl shadow-lg" onClick={() => setIsPurchaseOpen(true)}>
                   <ShoppingCart className="w-3.5 h-3.5 mr-1.5" /> Log Purchase
@@ -355,25 +364,4 @@ export default function InventoryPage() {
       </div>
     </AppLayout>
   );
-}
-
-function ArrowDownToLine(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 17V3" />
-      <path d="m6 11 6 6 6-6" />
-      <path d="M19 21H5" />
-    </svg>
-  )
 }

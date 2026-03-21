@@ -55,6 +55,7 @@ import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/no
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { broadcastNotification } from "@/firebase/notifications";
 
 const STATUS_CONFIG: any = {
   available: { icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-50", label: "Vacant Ready" },
@@ -162,8 +163,6 @@ export default function HousekeepingPage() {
     });
   }, [teamMembers]);
 
-  const isParadise = property?.name?.toLowerCase().includes("paradise");
-
   const stats = useMemo(() => {
     if (!rooms) return { total: 0, available: 0, cleaning: 0, occupied: 0, dirty: 0, maintenance: 0, occupied_dirty: 0, occupied_cleaning: 0, skipped: 0 };
     return rooms.reduce((acc: any, room: any) => {
@@ -201,6 +200,13 @@ export default function HousekeepingPage() {
           updatedAt: new Date().toISOString(),
           completedBy: user?.displayName || "Staff"
         });
+
+        broadcastNotification(db, {
+          title: "Housekeeping Completed",
+          message: `Room ${room.roomNumber} has been cleaned and is ready.`,
+          type: 'housekeeping',
+          entityId
+        });
       }
     }
 
@@ -217,6 +223,13 @@ export default function HousekeepingPage() {
           assignedStaffName: user?.displayName || "Housekeeping Staff",
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
+        });
+
+        broadcastNotification(db, {
+          title: "Cleaning Started",
+          message: `Housekeeping started for Room ${room.roomNumber}.`,
+          type: 'housekeeping',
+          entityId
         });
       }
     }
@@ -243,6 +256,13 @@ export default function HousekeepingPage() {
       updatedAt: new Date().toISOString()
     });
 
+    broadcastNotification(db, {
+      title: "Cleaning Skipped",
+      message: `Cleaning skipped for Room ${roomToSkip.roomNumber}. Reason: ${selectedSkipReason}`,
+      type: 'housekeeping',
+      entityId
+    });
+
     setSkipDialogOpen(false);
     setRoomToSkip(null);
     setSelectedSkipReason("");
@@ -264,6 +284,13 @@ export default function HousekeepingPage() {
       });
     }
 
+    broadcastNotification(db, {
+      title: "Bulk Assignment",
+      message: `Housekeeping team assigned to ${selectedRoomIds.length} rooms.`,
+      type: 'housekeeping',
+      entityId
+    });
+
     toast({ title: "Team Assigned", description: `${selectedRoomIds.length} units assigned.` });
     setBulkAssignOpen(false);
     setSelectedStaffIds([]);
@@ -275,6 +302,14 @@ export default function HousekeepingPage() {
     addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "housekeeping_tasks"), {
       entityId, roomId: areaName, isCommonArea: true, taskType: "cleaning", status: "in_progress", assignedStaffName: staffName, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
     });
+
+    broadcastNotification(db, {
+      title: "Area Task Assigned",
+      message: `${staffName} assigned to clean ${areaName}.`,
+      type: 'housekeeping',
+      entityId
+    });
+
     toast({ title: "Task Assigned" });
     setAreaAssignOpen(false);
   };
@@ -286,6 +321,14 @@ export default function HousekeepingPage() {
       updateDocumentNonBlocking(doc(db, "hotel_properties", entityId, "housekeeping_tasks", task.id), { 
         status: "completed", updatedAt: new Date().toISOString(), completedBy: user?.displayName || "Staff"
       });
+
+      broadcastNotification(db, {
+        title: "Area Cleaned",
+        message: `${areaName} cleaning task completed.`,
+        type: 'housekeeping',
+        entityId
+      });
+
       toast({ title: "Task Completed" });
     }
   };

@@ -20,6 +20,7 @@ import { signOut } from "firebase/auth";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { WelcomeGreeting } from "@/components/ui/WelcomeGreeting";
+import { NotificationManager } from "@/components/notifications/NotificationManager";
 
 const NAV_ITEMS = [
   { name: "Command Center", href: "/command-center", icon: Monitor, restricted: ["admin", "manager"] },
@@ -128,6 +129,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-[#F8F9FD] overflow-hidden relative" suppressHydrationWarning>
       <WelcomeGreeting userName={userName} />
+      <NotificationManager />
 
       {/* Mobile overlay */}
       {isMobile && sidebarOpen && (

@@ -60,6 +60,7 @@ import { format, startOfWeek, endOfWeek, isWithinInterval, addDays, isAfter } fr
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { triggerWhatsAppAutomation } from "@/services/whatsapp-service";
+import { broadcastNotification } from "@/firebase/notifications";
 
 const BOOKING_SOURCES = ["Direct", "Walkin", "MMT", "Agoda", "Airbnb", "Ayursiha", "Travel Agent", "Corporate"];
 
@@ -214,6 +215,15 @@ export default function ReservationsPage() {
 
     try {
       await addDoc(collection(db, "hotel_properties", targetId, "reservations"), resData);
+      
+      const propName = availableProperties.find(p => p.id === targetId)?.name || "Property";
+      broadcastNotification(db, {
+        title: "New Reservation",
+        message: `New booking confirmed for ${resForm.guestName} at ${propName}.`,
+        type: 'info',
+        entityId: targetId
+      });
+
       if (resForm.phoneNumber) {
         triggerWhatsAppAutomation(db, 'booking_created', { ...resData, checkIn: resForm.checkIn, checkOut: resForm.checkOut });
       }
@@ -245,6 +255,24 @@ export default function ReservationsPage() {
 
     try {
       await updateDoc(resRef, updateData);
+      
+      // Trigger specific check-in/out notifications
+      if (resForm.status === 'checked_in' && selectedRes.status !== 'checked_in') {
+        broadcastNotification(db, {
+          title: "Guest Checked In",
+          message: `Guest ${resForm.guestName} has checked into Room ${resForm.roomNumber}.`,
+          type: 'checkin',
+          entityId: activeEntityId
+        });
+      } else if (resForm.status === 'checked_out' && selectedRes.status !== 'checked_out') {
+        broadcastNotification(db, {
+          title: "Guest Checked Out",
+          message: `Guest ${resForm.guestName} has checked out from Room ${resForm.roomNumber}.`,
+          type: 'checkout',
+          entityId: activeEntityId
+        });
+      }
+
       toast({ title: "Reservation updated" });
       setIsEditOpen(false);
       setSelectedRes(null);
@@ -494,7 +522,6 @@ export default function ReservationsPage() {
                   <TableHead className="h-14 text-[10px] font-black uppercase text-primary-foreground">Guest Name</TableHead>
                   <TableHead className="h-14 text-[10px] font-black uppercase text-center text-primary-foreground">Check-in</TableHead>
                   <TableHead className="h-14 text-[10px] font-black uppercase text-center text-primary-foreground">Check-out</TableHead>
-                  <TableHead className="h-14 text-[10px] font-black uppercase text-center text-primary-foreground">Guests</TableHead>
                   <TableHead className="h-14 text-[10px] font-black uppercase text-center text-primary-foreground">Source</TableHead>
                   <TableHead className="h-14 text-[10px] font-black uppercase text-right text-primary-foreground">Rate</TableHead>
                   <TableHead className="h-14 text-[10px] font-black uppercase text-center text-primary-foreground">Status</TableHead>
@@ -503,7 +530,7 @@ export default function ReservationsPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={9} className="text-center py-24"><Loader2 className="animate-spin w-8 h-8 mx-auto text-primary" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center py-24"><Loader2 className="animate-spin w-8 h-8 mx-auto text-primary" /></TableCell></TableRow>
                 ) : filteredReservations.length > 0 ? (filteredReservations.map((res) => (
                   <TableRow 
                     key={res.id} 
@@ -530,12 +557,6 @@ export default function ReservationsPage() {
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <Users className="w-3 h-3 text-slate-400" />
-                        <span className="text-[11px] font-bold">{res.totalGuests || 1}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center">
                       <Badge variant="outline" className="text-[9px] font-black uppercase bg-secondary/50 border-none px-2.5 h-6">
                         {res.bookingSource}
                       </Badge>
@@ -559,7 +580,7 @@ export default function ReservationsPage() {
                   </TableRow>
                 ))) : (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-32">
+                    <TableCell colSpan={8} className="text-center py-32">
                       <div className="flex flex-col items-center gap-3 opacity-20">
                         <CalendarDays className="w-12 h-12" />
                         <p className="text-[11px] font-black uppercase tracking-widest">No matching reservations found</p>

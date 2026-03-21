@@ -61,7 +61,7 @@ import { useToast } from "@/hooks/use-toast";
 import { addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { sendNotification } from "@/firebase/notifications";
+import { broadcastNotification } from "@/firebase/notifications";
 
 const COMMON_AREAS = [
   "Front Area", "Cafeteria", "OP Area", "Reception", "Lobby", 
@@ -71,15 +71,6 @@ const COMMON_AREAS = [
   "Guest Bathroom - Female", "Guest Bathroom - Handicapped", 
   "Staff Bathrooms", "Generator", "Treatment Area", "Kitchen", 
   "Solar Panel", "Housekeeping Room"
-];
-
-const FREQUENCIES = [
-  { label: "Daily", value: "daily", days: 1 },
-  { label: "Weekly", value: "weekly", days: 7 },
-  { label: "Monthly", value: "monthly", days: 30 },
-  { label: "Quarterly", value: "quarterly", days: 90 },
-  { label: "Bi-Annually", value: "bi-annually", days: 180 },
-  { label: "Yearly", value: "yearly", days: 365 }
 ];
 
 export default function MaintenancePage() {
@@ -95,23 +86,41 @@ export default function MaintenancePage() {
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   
   const [newTask, setNewTask] = useState({ areaType: "room", roomNumber: "", commonArea: COMMON_AREAS[0], issue: "", priority: "medium" });
-  const [newSchedule, setNewSchedule] = useState({ itemName: "", frequency: "monthly", nextDue: new Date().toISOString().split('T')[0], notes: "" });
 
   // Queries
   const allTasksQuery = useMemoFirebase(() => entityId ? collection(db, "hotel_properties", entityId, "housekeeping_tasks") : null, [db, entityId]);
-  const schedulesQuery = useMemoFirebase(() => entityId ? query(collection(db, "hotel_properties", entityId, "maintenance_schedules"), orderBy("nextDue", "asc")) : null, [db, entityId]);
 
   const { data: allTasks, isLoading } = useCollection(allTasksQuery);
-  const { data: schedules, isLoading: schedLoading } = useCollection(schedulesQuery);
 
   const activeTasks = useMemo(() => allTasks?.filter(t => t.taskType === "repair" && t.status !== "completed").sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()) || [], [allTasks]);
 
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!entityId || !canEdit || !user) return;
+    
+    const location = newTask.areaType === "room" ? `Room ${newTask.roomNumber}` : newTask.commonArea;
+    
     addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "housekeeping_tasks"), {
-      entityId, roomId: newTask.areaType === "room" ? newTask.roomNumber : newTask.commonArea, isCommonArea: newTask.areaType === "common_area", taskType: "repair", notes: newTask.issue, priority: newTask.priority, status: "pending", requestedBy: user.displayName || "Admin", dueTime: new Date(Date.now() + 86400000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      entityId, 
+      roomId: newTask.areaType === "room" ? newTask.roomNumber : newTask.commonArea, 
+      isCommonArea: newTask.areaType === "common_area", 
+      taskType: "repair", 
+      notes: newTask.issue, 
+      priority: newTask.priority, 
+      status: "pending", 
+      requestedBy: user.displayName || "Admin", 
+      dueTime: new Date(Date.now() + 86400000).toISOString(), 
+      createdAt: new Date().toISOString(), 
+      updatedAt: new Date().toISOString(),
     });
+
+    broadcastNotification(db, {
+      title: "New Repair Request",
+      message: `Priority ${newTask.priority} repair reported at ${location}: ${newTask.issue}`,
+      type: 'maintenance',
+      entityId
+    });
+
     toast({ title: "Work Order Created" });
     setIsAddOpen(false);
     setNewTask({ areaType: "room", roomNumber: "", commonArea: COMMON_AREAS[0], issue: "", priority: "medium" });
@@ -120,6 +129,16 @@ export default function MaintenancePage() {
   const updateStatus = (task: any, status: string) => {
     if (!entityId || !canUpdateStatus || !user) return;
     updateDocumentNonBlocking(doc(db, "hotel_properties", entityId, "housekeeping_tasks", task.id), { status, updatedAt: new Date().toISOString(), completedAt: status === 'completed' ? new Date().toISOString() : null, completedBy: status === 'completed' ? user.displayName : null });
+    
+    if (status === 'completed') {
+      broadcastNotification(db, {
+        title: "Maintenance Resolved",
+        message: `Maintenance task at ${task.roomId} has been resolved by ${user.displayName}.`,
+        type: 'maintenance',
+        entityId
+      });
+    }
+
     toast({ title: "Task Updated" });
   };
 
@@ -131,7 +150,6 @@ export default function MaintenancePage() {
           <div className="flex gap-2">
             {canEdit && (
               <>
-                <Button variant="outline" size="sm" className="h-8 text-[10px] font-bold" onClick={() => setIsScheduleOpen(true)}><CalendarCheck className="w-3.5 h-3.5 mr-1.5" /> Routine Setup</Button>
                 <Button size="sm" className="h-8 text-[10px] font-bold shadow-md" onClick={() => setIsAddOpen(true)}><Plus className="w-3.5 h-3.5 mr-1.5" /> Repair Request</Button>
               </>
             )}
@@ -141,7 +159,6 @@ export default function MaintenancePage() {
         <Tabs defaultValue="active" className="space-y-4">
           <TabsList className="bg-white border p-1 rounded-xl h-9">
             <TabsTrigger value="active" className="rounded-lg h-7 px-4 text-[10px] font-bold">Active Repairs</TabsTrigger>
-            <TabsTrigger value="routine" className="rounded-lg h-7 px-4 text-[10px] font-bold">Routine Maintenance</TabsTrigger>
           </TabsList>
 
           <TabsContent value="active" className="space-y-4">
@@ -170,6 +187,48 @@ export default function MaintenancePage() {
             ) : (<div className="text-center py-12 bg-white rounded-2xl border border-dashed text-[10px] uppercase">No pending repairs</div>)}
           </TabsContent>
         </Tabs>
+
+        {/* Repair Request Dialog */}
+        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+          <DialogContent className="sm:max-w-[400px] rounded-[2rem]">
+            <DialogHeader><DialogTitle className="text-lg font-black uppercase">New Repair Request</DialogTitle></DialogHeader>
+            <form onSubmit={handleAddTask} className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">Area Type</Label>
+                <Select value={newTask.areaType} onValueChange={(v) => setNewTask({...newTask, areaType: v})}>
+                  <SelectTrigger className="h-11 rounded-xl bg-secondary/30 border-none text-xs font-bold"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="room">Guest Room</SelectItem><SelectItem value="common_area">Common Area</SelectItem></SelectContent>
+                </Select>
+              </div>
+              {newTask.areaType === 'room' ? (
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Room Number</Label>
+                  <Input placeholder="Ex: 101" value={newTask.roomNumber} onChange={e => setNewTask({...newTask, roomNumber: e.target.value})} required className="h-11 rounded-xl bg-secondary/30 border-none font-bold" />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Common Area</Label>
+                  <Select value={newTask.commonArea} onValueChange={v => setNewTask({...newTask, commonArea: v})}>
+                    <SelectTrigger className="h-11 rounded-xl bg-secondary/30 border-none text-xs font-bold"><SelectValue /></SelectTrigger>
+                    <SelectContent>{COMMON_AREAS.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">Issue Description</Label>
+                <Input placeholder="Describe the problem..." value={newTask.issue} onChange={e => setNewTask({...newTask, issue: e.target.value})} required className="h-11 rounded-xl bg-secondary/30 border-none font-bold" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">Priority</Label>
+                <Select value={newTask.priority} onValueChange={v => setNewTask({...newTask, priority: v})}>
+                  <SelectTrigger className="h-11 rounded-xl bg-secondary/30 border-none text-xs font-bold"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High (Urgent)</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest rounded-xl shadow-xl mt-2">Log Repair Request</Button>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
