@@ -2,8 +2,6 @@
 'use server';
 /**
  * @fileOverview AI Flow for generating human-like voice greetings.
- * 
- * - generateGreetingAudio - Generates audio URI for the user greeting.
  */
 
 import { ai } from '@/ai/genkit';
@@ -25,7 +23,6 @@ export async function generateGreetingAudio(input: { greeting: string, userName:
     return result.audioUri;
   } catch (error: any) {
     console.error("AI Greeting Audio Generation Failed:", error.message);
-    // Graceful fallback for quota exhaustion or API errors
     return "";
   }
 }
@@ -70,7 +67,7 @@ const greetingTTSFlow = ai.defineFlow(
     outputSchema: z.object({ audioUri: z.string() }),
   },
   async (input) => {
-    // Strictly formatted text as per Master Prompt: "Welcome {{user_name}}"
+    // Strictly formatted text: "Welcome {{user_name}}"
     const text = `${input.greeting} ${input.userName}.`;
     
     const { media } = await ai.generate({
@@ -79,7 +76,7 @@ const greetingTTSFlow = ai.defineFlow(
         responseModalities: ['AUDIO'],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Algenib' }, // Warm, professional voice
+            prebuiltVoiceConfig: { voiceName: 'Algenib' },
           },
         },
       },
@@ -90,9 +87,9 @@ const greetingTTSFlow = ai.defineFlow(
       throw new Error('Failed to generate audio greeting.');
     }
 
-    // Extract base64 and convert to WAV
-    // media.url format is expected to be data:audio/pcm;base64,...
-    const base64Data = media.url.split(',')[1];
+    const base64Parts = media.url.split(',');
+    const base64Data = base64Parts.length > 1 ? base64Parts[1] : base64Parts[0];
+    
     if (!base64Data) {
       throw new Error('Invalid audio media format');
     }

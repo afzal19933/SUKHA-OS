@@ -17,7 +17,7 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   const [status, setStatus] = useState<'hidden' | 'loading' | 'visible' | 'exiting'>('hidden');
   const nameToUse = userName || "User";
   
-  // Safeguard Refs to prevent duplicate execution and stale state issues
+  // Safeguard Refs
   const hasGreetedRef = useRef(false);
   const gatekeeperTriggeredRef = useRef(false);
   const isActiveRef = useRef(true);
@@ -25,7 +25,7 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   
-  // Timer Refs for precise duration and fallback management
+  // Timer Refs
   const watchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
   const maxDurationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const exitTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -33,19 +33,21 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   useEffect(() => {
     isActiveRef.current = true;
     
-    // Session Lock: Ensure greeting plays only once per browser session for this specific user
+    // Session Lock: Play only once per session for this specific user
     const sessionKey = `greeted_${nameToUse}`;
-    if (sessionStorage.getItem(sessionKey) || hasGreetedRef.current) {
+    if (typeof window !== 'undefined' && sessionStorage.getItem(sessionKey)) {
       return;
     }
+    
+    if (hasGreetedRef.current) return;
 
     const initGreeting = async () => {
+      // Start loading phase immediately to show backdrop/blur
       setStatus('loading');
       
       try {
         const response = await fetch(`/api/tts-greeting?name=${encodeURIComponent(nameToUse)}`);
         
-        // Handle API Failure or Quota Exhaustion gracefully
         if (!response.ok || response.status === 204) {
           triggerFallback();
           return;
@@ -77,19 +79,15 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
             const playPromise = audio.play();
             if (playPromise !== undefined) {
               playPromise.catch((err) => {
-                // Silently handle browser autoplay restrictions
-                console.warn("WelcomeGreeting: Autoplay restriction or audio error", err);
+                console.warn("WelcomeGreeting: Autoplay restriction", err);
               });
             }
             
-            // Set Max Duration Timeout (3 seconds) as per safety requirements
+            // Set Max Duration Timeout (3 seconds)
             maxDurationTimerRef.current = setTimeout(dismiss, 3000);
           }, 100);
         };
 
-        /**
-         * Dismissal Logic: Orchestrates the exit animation and state cleanup.
-         */
         const dismiss = () => {
           if (isExitingRef.current || !isActiveRef.current) return;
           isExitingRef.current = true;
@@ -106,29 +104,24 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
           }, 300);
         };
 
-        // Audio Event Listeners for precise control
+        // Attach listeners BEFORE setting src
         audio.oncanplaythrough = triggerGatekeeper;
         audio.onended = dismiss;
         audio.onerror = () => {
-          // If audio fails, we still want the user to see the welcome UI
           if (isActiveRef.current) triggerGatekeeper();
         };
 
-        // Initialize Audio Source
         audio.src = url;
         audio.load();
 
-        // 1.5s Watchdog Fallback: Force UI visibility if audio is slow
-        watchdogTimerRef.current = setTimeout(triggerGatekeeper, 1500);
+        // Watchdog Fallback: Force UI visibility if audio is slow
+        watchdogTimerRef.current = setTimeout(triggerGatekeeper, 1200);
 
       } catch (err) {
         triggerFallback();
       }
     };
 
-    /**
-     * Fallback for full API failure: Purely visual greeting.
-     */
     const triggerFallback = () => {
       if (!isActiveRef.current) return;
       setStatus('visible');
@@ -146,7 +139,6 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
 
     initGreeting();
 
-    // Aggressive Cleanup: Mandatory to prevent memory leaks and ghost playback
     return () => {
       isActiveRef.current = false;
       if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
@@ -167,24 +159,24 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
     };
   }, [nameToUse]);
 
-  if (status === 'hidden' || status === 'loading') return null;
+  if (status === 'hidden') return null;
 
   return (
     <div className={cn(
-      "fixed inset-0 z-[999] flex items-center justify-center transition-all duration-300",
-      status === 'visible' ? "opacity-100 backdrop-blur-md bg-black/20" : "opacity-0 backdrop-blur-0 bg-transparent pointer-events-none"
+      "fixed inset-0 z-[999] flex items-center justify-center transition-all duration-500",
+      (status === 'visible' || status === 'loading') ? "opacity-100 backdrop-blur-xl bg-black/30" : "opacity-0 backdrop-blur-0 bg-transparent pointer-events-none"
     )}>
       <div className={cn(
-        "bg-white p-12 rounded-[3.5rem] shadow-2xl border border-primary/5 transition-all duration-500 transform",
+        "bg-white p-12 rounded-[3.5rem] shadow-2xl border border-primary/10 transition-all duration-500 transform",
         status === 'visible' ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-8"
       )}>
-        <div className="flex flex-col items-center text-center space-y-4">
-          <div className="bg-primary h-14 w-14 rounded-[1.5rem] flex items-center justify-center shadow-2xl shadow-primary/30 mb-2 animate-pulse">
-            <span className="text-white font-black text-2xl">S</span>
+        <div className="flex flex-col items-center text-center space-y-6">
+          <div className="bg-primary h-16 w-16 rounded-[1.8rem] flex items-center justify-center shadow-2xl shadow-primary/40 mb-2 animate-pulse">
+            <span className="text-white font-black text-3xl">S</span>
           </div>
-          <div className="space-y-1">
-            <h2 className="text-[10px] font-black text-primary uppercase tracking-[0.3em]">SUKHA OS</h2>
-            <p className="text-3xl font-black text-slate-900 tracking-tight">Welcome {nameToUse}</p>
+          <div className="space-y-2">
+            <h2 className="text-[11px] font-black text-primary uppercase tracking-[0.4em]">SUKHA OS</h2>
+            <p className="text-4xl font-black text-slate-900 tracking-tight">Welcome {nameToUse}</p>
           </div>
         </div>
       </div>

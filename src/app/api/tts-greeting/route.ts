@@ -18,7 +18,8 @@ export async function GET(req: NextRequest) {
     }
     
     // Convert data URI back to binary buffer
-    const base64 = audioDataUri.split(',')[1];
+    const base64Parts = audioDataUri.split(',');
+    const base64 = base64Parts.length > 1 ? base64Parts[1] : base64Parts[0];
     const buffer = Buffer.from(base64, 'base64');
     
     return new Response(buffer, {
