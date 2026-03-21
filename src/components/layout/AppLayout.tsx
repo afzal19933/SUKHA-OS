@@ -70,16 +70,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   
   const [sidebarOpen, setSidebarOpen] = useState(true);
   
-  // Welcome State
+  // Welcome State Logic
   const [showWelcome, setShowWelcome] = useState(false);
   const [welcomeText, setWelcomeText] = useState("");
-  const [isGlowActive, setIsGlowActive] = useState(false);
+  const [isAudioReady, setIsAudioReady] = useState(false);
   const [isPulsing, setIsPulsing] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
-  const [isAudioReady, setIsAudioReady] = useState(false);
   
-  // Dashboard Visibility Control
-  const [isDashboardVisible, setIsDashboardVisible] = useState(pathname !== "/dashboard");
+  // Visibility Control to prevent dashboard flicker
+  const [isDashboardVisible, setIsDashboardVisible] = useState(false);
   
   const welcomeAudioRef = useRef<HTMLAudioElement | null>(null);
   const welcomeTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -91,8 +90,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const dismissWelcome = useCallback(() => {
     if (isExiting) return;
     setIsExiting(true);
-    setIsGlowActive(false);
-    setIsPulsing(false);
     
     if (welcomeAudioRef.current) {
       welcomeAudioRef.current.pause();
@@ -103,11 +100,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       setShowWelcome(false);
       setIsExiting(false);
       setIsDashboardVisible(true);
-    }, 500); 
+    }, 400); 
   }, [isExiting]);
 
   /**
-   * Side-effect for Authentication redirects
+   * Auth Redirect Logic (Moved to useEffect to avoid router-in-render error)
    */
   useEffect(() => {
     if (_hasHydrated && !isUserLoading && !firebaseUser && pathname !== "/login") {
@@ -116,13 +113,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, [_hasHydrated, isUserLoading, firebaseUser, pathname, router]);
 
   /**
-   * Premium Welcome Sequence logic
+   * High-Fidelity Greeting Sequence
    */
   useEffect(() => {
-    // Only run on dashboard and when user profile name is confirmed
-    if (!firebaseUser || isUserLoading || !userName || pathname !== "/dashboard" || welcomeStartedRef.current) return;
+    // Requirements: Instant, Correct Name, No Flicker
+    // 1. Dashboard check
+    if (pathname !== "/dashboard") {
+      setIsDashboardVisible(true);
+      return;
+    }
 
-    const storageKey = `welcomed_v16_${firebaseUser.uid}`;
+    // 2. Auth check
+    if (!firebaseUser || isUserLoading || !userName) {
+      return;
+    }
+
+    // 3. Session check (one greeting per login session)
+    const storageKey = `welcomed_fresh_${firebaseUser.uid}`;
     const hasWelcomed = sessionStorage.getItem(storageKey);
     
     if (hasWelcomed) {
@@ -130,11 +137,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Step 1: Initialize Identity
+    if (welcomeStartedRef.current) return;
+    welcomeStartedRef.current = true;
+
+    // 4. Prepare Identity
     const hour = new Date().getHours();
     const greetingBase = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
     
-    // Ensure "Mr" prefix for professional hospitality greeting as requested
+    // Ensure "Mr" prefix for professional hospitality greeting
     const nameStr = userName || "";
     const formattedName = nameStr.toLowerCase().startsWith("mr") || nameStr.toLowerCase().startsWith("ms") 
       ? nameStr 
@@ -143,55 +153,46 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     const finalGreeting = `${greetingBase}, ${formattedName}.`;
     setWelcomeText(finalGreeting);
     sessionStorage.setItem(storageKey, 'true');
-    welcomeStartedRef.current = true;
-    setShowWelcome(true);
-    setIsDashboardVisible(false);
 
-    // Step 2: Fetch and Play AI Greeting
+    // 5. Fetch and Sync Audio
     generateGreetingAudio({ greeting: greetingBase, userName: formattedName }).then(audioUri => {
-      const startSequence = async (audio?: HTMLAudioElement) => {
-        setIsAudioReady(true);
-        setIsGlowActive(true);
-        
-        if (audio) {
-          try {
-            await audio.play();
-            // Pulse timing sync during the name part of the greeting
-            setTimeout(() => setIsPulsing(true), 800);
-            setTimeout(() => setIsPulsing(false), 2000);
-          } catch (e) {
-            console.warn("Audio playback failed (usually browser policy):", e);
-          }
-        }
-
-        // Maximum duration fallback - exit after voice should be done
-        welcomeTimerRef.current = setTimeout(() => {
-          dismissWelcome();
-        }, 3500);
-      };
-
-      if (!audioUri) {
-        // Fallback: Proceed visually if AI voice fails or quota hit
-        setTimeout(() => startSequence(), 500);
-        return;
-      }
-
       const audio = new Audio(audioUri);
       welcomeAudioRef.current = audio;
-      
-      // Clinical trigger: Show card ONLY when audio is ready to minimize delay
-      audio.oncanplaythrough = () => startSequence(audio);
+
+      const triggerSequence = async () => {
+        // Clinical Audio-Visual Start
+        setShowWelcome(true);
+        setIsAudioReady(true);
+        
+        try {
+          await audio.play();
+          // Precise pulse sync during the name part
+          setTimeout(() => setIsPulsing(true), 800);
+          setTimeout(() => setIsPulsing(false), 2200);
+        } catch (e) {
+          console.warn("Autoplay restriction or audio failure:", e);
+        }
+
+        // Clinical Duration Control: End when audio ends or max 3s
+        welcomeTimerRef.current = setTimeout(() => {
+          dismissWelcome();
+        }, 3000); // 3 second hard limit
+      };
+
+      // Ensure audio is preloaded BEFORE UI card appears
+      audio.oncanplaythrough = () => triggerSequence();
       audio.onended = () => dismissWelcome();
-      audio.onerror = () => startSequence();
+      audio.onerror = () => triggerSequence(); // Fallback to visual if audio fails
 
-      // Watchdog: If loading takes > 2s, proceed visually
+      // Watchdog: If audio takes > 1.5s to generate/load, proceed visually
       setTimeout(() => {
-        if (!isAudioReady) startSequence();
-      }, 2000);
+        if (!isAudioReady) triggerSequence();
+      }, 1500);
 
-    }).catch(err => {
-      console.error("Welcome logic failure:", err);
-      dismissWelcome();
+    }).catch(() => {
+      setShowWelcome(true);
+      setIsAudioReady(true);
+      setTimeout(() => dismissWelcome(), 3000);
     });
 
     return () => {
@@ -203,26 +204,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     };
   }, [firebaseUser, isUserLoading, userName, pathname, dismissWelcome]);
 
-  // Path change resets
-  useEffect(() => {
-    if (pathname !== "/dashboard") {
-      setIsDashboardVisible(true);
-    }
-  }, [pathname]);
-
-  const filteredProperties = useMemo(() => {
-    if (role === 'admin' || assignedEntityId === 'all') return availableProperties;
-    return availableProperties.filter(p => p.id === entityId);
-  }, [availableProperties, role, assignedEntityId, entityId]);
-
-  const filteredNavItems = useMemo(() => {
-    return NAV_ITEMS.filter(item => {
-      if (item.restricted && !item.restricted.includes(role || "")) return false;
-      if (item.name === "Dashboard") return true;
-      if (role === 'admin' || role === 'owner') return true;
-      return permissions?.includes(item.name);
-    });
-  }, [role, permissions]);
+  // Prevent UI flicker: If we are on dashboard and haven't welcomed, hide content
+  const contentVisible = pathname !== "/dashboard" || isDashboardVisible;
 
   if (!_hasHydrated || isUserLoading) {
     return <div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin text-primary" /></div>;
@@ -232,31 +215,40 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!firebaseUser) return null;
 
   const handleLogout = async () => {
-    sessionStorage.removeItem(`welcomed_v16_${firebaseUser.uid}`);
+    sessionStorage.removeItem(`welcomed_fresh_${firebaseUser.uid}`);
     await signOut(auth);
     router.push("/login");
   };
 
-  const canSwitchProperty = role === 'admin' || assignedEntityId === 'all';
+  const filteredNavItems = NAV_ITEMS.filter(item => {
+    if (item.restricted && !item.restricted.includes(role || "")) return false;
+    if (item.name === "Dashboard") return true;
+    if (role === 'admin' || role === 'owner') return true;
+    return permissions?.includes(item.name);
+  });
+
+  const filteredProperties = role === 'admin' || assignedEntityId === 'all' 
+    ? availableProperties 
+    : availableProperties.filter(p => p.id === entityId);
 
   return (
     <div className="flex h-screen bg-[#F8F9FD] overflow-hidden relative">
-      {/* Premium Welcome Overlay */}
+      {/* Precision Welcome Overlay */}
       {showWelcome && (
         <div className={cn(
-          "fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-[100px] transition-opacity duration-500",
+          "fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-[120px] transition-opacity duration-500",
           isExiting ? "opacity-0" : "opacity-100"
         )}>
           <div className={cn(
-            "absolute w-[600px] h-[600px] bg-emerald-500/30 blur-[140px] rounded-full transition-all duration-700",
-            isGlowActive ? "opacity-100 scale-110" : "opacity-0 scale-90"
+            "absolute w-[500px] h-[500px] bg-emerald-500/20 blur-[120px] rounded-full transition-all duration-1000",
+            isAudioReady ? "opacity-100 scale-110" : "opacity-0 scale-90"
           )} />
           
           <div className={cn(
             "bg-white/95 border border-white/40 p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center gap-8 relative z-10 transition-all duration-500",
-            !isAudioReady ? "scale-95 opacity-0" : "scale-100 opacity-100 animate-in zoom-in-95",
-            isPulsing && "scale-[1.05]",
-            isExiting && "scale-90 opacity-0"
+            !isAudioReady ? "scale-95 opacity-0" : "scale-100 opacity-100",
+            isPulsing && "scale-[1.03] shadow-emerald-500/20",
+            isExiting && "scale-95 opacity-0"
           )}>
             <div className="bg-emerald-600 p-5 rounded-3xl shadow-2xl shadow-emerald-600/30">
               <Building2 className="w-12 h-12 text-white" />
@@ -306,7 +298,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             {filteredProperties.length > 0 && (
               <div className="flex items-center gap-2 px-3 py-1.5 bg-secondary/50 rounded-xl border border-primary/5">
                 <Building2 className="w-4 h-4 text-primary" />
-                <Select value={entityId || ""} onValueChange={setEntityId} disabled={!canSwitchProperty && filteredProperties.length <= 1}>
+                <Select value={entityId || ""} onValueChange={setEntityId} disabled={!(role === 'admin' || assignedEntityId === 'all') && filteredProperties.length <= 1}>
                   <SelectTrigger className="w-[180px] h-8 border-none bg-transparent p-0 focus:ring-0 shadow-none font-black text-[11px] uppercase tracking-wider text-primary">
                     <SelectValue placeholder="Property" />
                   </SelectTrigger>
@@ -352,7 +344,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
         <main className={cn(
           "flex-1 overflow-y-auto p-8 transition-opacity duration-500",
-          isDashboardVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+          contentVisible ? "opacity-100" : "opacity-0 pointer-events-none"
         )}>
           {children}
         </main>

@@ -54,11 +54,12 @@ function AuthSync() {
       });
 
       // Source of truth: Firestore User Profile
+      // This is the CRITICAL part for correct greeting names.
       const unsubscribeProfile = onSnapshot(doc(db, "user_profiles", user.uid), (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data();
-          if (data.permissions) setPermissions(data.permissions);
           if (data.name) setUserName(data.name);
+          if (data.permissions) setPermissions(data.permissions);
           
           // Sovereignty Guard: Override role from DB if it's the master account
           let assignedRole = data.role;

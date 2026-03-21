@@ -64,6 +64,11 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'sukha-auth-storage',
+      // Ensure userName is NOT persisted to keep greeting names fresh from Firestore on every session
+      partialize: (state) => {
+        const { userName, ...rest } = state;
+        return rest;
+      },
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },
