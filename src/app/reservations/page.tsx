@@ -216,12 +216,15 @@ export default function ReservationsPage() {
     try {
       await addDoc(collection(db, "hotel_properties", targetId, "reservations"), resData);
       
-      const propName = availableProperties.find(p => p.id === targetId)?.name || "Property";
+      const activeProp = availableProperties.find(p => p.id === targetId);
+      const propName = activeProp?.name || "Property";
+
       broadcastNotification(db, {
         title: "New Reservation",
         message: `New booking confirmed for ${resForm.guestName} at ${propName}.`,
         type: 'info',
-        entityId: targetId
+        entityId: targetId,
+        propertyName: propName
       });
 
       if (resForm.phoneNumber) {
@@ -239,6 +242,9 @@ export default function ReservationsPage() {
     if (!activeEntityId || !selectedRes || !canEdit) return;
 
     const resRef = doc(db, "hotel_properties", activeEntityId, "reservations", selectedRes.id);
+    const activeProp = availableProperties.find(p => p.id === activeEntityId);
+    const propName = activeProp?.name || "Property";
+
     const updateData = {
       guestName: resForm.guestName,
       phoneNumber: resForm.phoneNumber,
@@ -256,20 +262,22 @@ export default function ReservationsPage() {
     try {
       await updateDoc(resRef, updateData);
       
-      // Trigger specific check-in/out notifications
+      // Trigger specific check-in/out clinical voice alerts
       if (resForm.status === 'checked_in' && selectedRes.status !== 'checked_in') {
         broadcastNotification(db, {
           title: "Guest Checked In",
-          message: `Guest ${resForm.guestName} has checked into Room ${resForm.roomNumber}.`,
+          message: `New check-in to ${propName}: ${resForm.guestName} has arrived in Room ${resForm.roomNumber}.`,
           type: 'checkin',
-          entityId: activeEntityId
+          entityId: activeEntityId,
+          propertyName: propName
         });
       } else if (resForm.status === 'checked_out' && selectedRes.status !== 'checked_out') {
         broadcastNotification(db, {
           title: "Guest Checked Out",
-          message: `Guest ${resForm.guestName} has checked out from Room ${resForm.roomNumber}.`,
+          message: `New check-out from ${propName}: ${resForm.guestName} has vacated Room ${resForm.roomNumber}.`,
           type: 'checkout',
-          entityId: activeEntityId
+          entityId: activeEntityId,
+          propertyName: propName
         });
       }
 

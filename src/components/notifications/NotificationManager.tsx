@@ -3,12 +3,13 @@
 import { useEffect, useRef } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { useFirestore } from "@/firebase";
-import { collection, query, orderBy, limit, onSnapshot, where } from "firebase/firestore";
+import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
 /**
  * NotificationManager
- * Invisible component that listens for new notifications and triggers voice alerts.
+ * Central listener that triggers visual toasts and AI Voice Alerts.
+ * Respects browser interaction policies for audio delivery.
  */
 export function NotificationManager() {
   const { user } = useAuthStore();
@@ -20,7 +21,7 @@ export function NotificationManager() {
   useEffect(() => {
     if (!user?.uid) return;
 
-    // Listen to the current user's notifications
+    // Listen to the current user's specific notification stream
     const notifRef = collection(db, "user_profiles", user.uid, "notifications");
     const q = query(notifRef, orderBy("createdAt", "desc"), limit(1));
 
@@ -32,28 +33,36 @@ export function NotificationManager() {
 
       const latestNotif = { ...snapshot.docs[0].data(), id: snapshot.docs[0].id } as any;
 
-      // Skip processing on initial load to avoid announcing old notifications
+      // Skip processing existing notifications on login
       if (isFirstLoad.current) {
         lastProcessedId.current = latestNotif.id;
         isFirstLoad.current = false;
         return;
       }
 
-      // Only process if it's a new ID
+      // Process only new unique notification IDs
       if (latestNotif.id !== lastProcessedId.current) {
         lastProcessedId.current = latestNotif.id;
         
-        // 1. Show UI Toast
+        // 1. Visual UI Alert
         toast({
           title: latestNotif.title,
           description: latestNotif.message,
         });
 
-        // 2. Trigger Voice Alert
+        // 2. AI Voice Alert (Clinical Operational Context)
         if ('speechSynthesis' in window) {
+          // Cancel any ongoing speech to prioritize the new alert
+          window.speechSynthesis.cancel();
+
           const utterance = new SpeechSynthesisUtterance(latestNotif.message);
-          utterance.rate = 0.9;
-          utterance.pitch = 1;
+          
+          // Configure professional concierge voice settings
+          utterance.rate = 0.95; // Slightly slower for clarity
+          utterance.pitch = 1.0;
+          utterance.volume = 1.0;
+          utterance.lang = 'en-IN'; // Indian-English localized accent if available
+
           window.speechSynthesis.speak(utterance);
         }
       }
