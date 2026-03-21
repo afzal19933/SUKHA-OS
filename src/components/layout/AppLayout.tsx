@@ -86,6 +86,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const welcomeStartedRef = useRef(false);
 
   const dismissWelcome = useCallback(() => {
+    if (isExiting) return;
     setIsExiting(true);
     setIsGlowActive(false);
     setIsPulsing(false);
@@ -95,11 +96,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       setIsExiting(false);
       setIsDashboardVisible(true);
     }, 500); 
-  }, []);
+  }, [isExiting]);
 
   /**
-   * Fix for Router Update during Render error.
-   * Redirects are handled in useEffect.
+   * Side-effect for Authentication redirects
    */
   useEffect(() => {
     if (_hasHydrated && !isUserLoading && !firebaseUser && pathname !== "/login") {
@@ -108,13 +108,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, [_hasHydrated, isUserLoading, firebaseUser, pathname, router]);
 
   /**
-   * Optimized Welcome Sequence with Strict User Binding and Zero-Flash Control
+   * Optimized Welcome Sequence with Strict User Binding and Voice Sync
    */
   useEffect(() => {
-    // Only run on dashboard and when user is fully synced
+    // Only run on dashboard and when user profile is synced
     if (!firebaseUser || isUserLoading || !userName || pathname !== "/dashboard" || welcomeStartedRef.current) return;
 
-    const storageKey = `welcomed_v11_${firebaseUser.uid}`;
+    const storageKey = `welcomed_v12_${firebaseUser.uid}`;
     const hasWelcomed = sessionStorage.getItem(storageKey);
     
     if (hasWelcomed) {
@@ -122,15 +122,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Step 1: Immediately Protect the Dashboard
+    // Step 1: Immediately show the welcome backdrop
     setShowWelcome(true);
     setIsDashboardVisible(false);
     welcomeStartedRef.current = true;
 
-    // Step 2: Determine Greeting and Name (Strictly "Mr [Name]")
+    // Step 2: Resolve Identity
     const hour = new Date().getHours();
     const greetingBase = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
     
+    // Prefix name with Mr if not present
     const formattedName = userName.toLowerCase().startsWith("mr") || userName.toLowerCase().startsWith("ms") 
       ? userName 
       : `Mr ${userName}`;
@@ -138,43 +139,47 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setWelcomeText(`${greetingBase}, ${formattedName}.`);
     sessionStorage.setItem(storageKey, 'true');
 
-    // Step 3: Preload Audio
+    // Step 3: Fetch AI Voice
     generateGreetingAudio({ greeting: greetingBase, userName: formattedName }).then(audioUri => {
-      if (!audioUri) {
-        // Fallback: Silent high-quality visual for 3s
+      const startSequence = (audio?: HTMLAudioElement) => {
         setIsAudioReady(true);
         setIsGlowActive(true);
-        welcomeTimerRef.current = setTimeout(dismissWelcome, 3000);
+        
+        if (audio) {
+          audio.play().catch(e => {
+            console.warn("Audio play blocked by browser", e);
+          });
+          // Pulse effect timing during "Mr Name" (approx 1.2s into speech)
+          setTimeout(() => setIsPulsing(true), 1200);
+          setTimeout(() => setIsPulsing(false), 2400);
+        }
+
+        // Maximum 3 second duration cap
+        welcomeTimerRef.current = setTimeout(() => {
+          dismissWelcome();
+        }, 3000);
+      };
+
+      if (!audioUri) {
+        // Fallback: Proceed visually if AI voice fails
+        startSequence();
         return;
       }
 
       const audio = new Audio(audioUri);
       welcomeAudioRef.current = audio;
       
-      audio.oncanplaythrough = () => {
-        // Step 4: Simultaneous Start
-        setIsAudioReady(true);
-        setIsGlowActive(true);
-        audio.play().catch(e => {
-          console.warn("Audio blocked, proceeding silently", e);
-          welcomeTimerRef.current = setTimeout(dismissWelcome, 3000);
-        });
-      };
+      // Clinical sync: Trigger UI visibility only when audio buffer is ready
+      audio.oncanplaythrough = () => startSequence(audio);
+      audio.onended = () => dismissWelcome();
+      audio.onerror = () => startSequence(); // Fallback on audio error
 
-      audio.onplay = () => {
-        // Name Emphasis Timing (~1.2s into greeting)
-        setTimeout(() => setIsPulsing(true), 1200);
-        setTimeout(() => setIsPulsing(false), 2200);
-      };
+      // Safety watchdog: If audio takes > 2.5s to load, proceed visually
+      const watchdog = setTimeout(() => {
+        if (!isAudioReady) startSequence();
+      }, 2500);
 
-      audio.onended = () => {
-        dismissWelcome();
-      };
-
-      // Step 5: Clinical 3-second cap (Whichever is first)
-      welcomeTimerRef.current = setTimeout(() => {
-        if (!isExiting) dismissWelcome();
-      }, 3000);
+      return () => clearTimeout(watchdog);
     }).catch(err => {
       console.error("Welcome Call Failed:", err);
       dismissWelcome();
@@ -187,9 +192,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         welcomeAudioRef.current = null;
       }
     };
-  }, [firebaseUser, isUserLoading, userName, pathname, dismissWelcome, isExiting]);
+  }, [firebaseUser, isUserLoading, userName, pathname, dismissWelcome]);
 
-  // Ensure content returns on path changes
+  // Path change resets
   useEffect(() => {
     if (pathname !== "/dashboard") {
       setIsDashboardVisible(true);
@@ -215,12 +220,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   if (pathname === "/login") return <>{children}</>;
-  if (!firebaseUser) {
-    return null;
-  }
+  if (!firebaseUser) return null;
 
   const handleLogout = async () => {
-    sessionStorage.removeItem(`welcomed_v11_${firebaseUser.uid}`);
+    sessionStorage.removeItem(`welcomed_v12_${firebaseUser.uid}`);
     await signOut(auth);
     router.push("/login");
   };
