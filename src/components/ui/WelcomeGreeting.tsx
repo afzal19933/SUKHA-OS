@@ -10,13 +10,24 @@ interface WelcomeGreetingProps {
 /**
  * WelcomeGreeting Component
  * Ultra-reliable voice greeting system with Gatekeeper Pattern sync.
+ * 
+ * Logic:
+ * 1. Checks sessionStorage to ensure greeting plays once per session for this user.
+ * 2. Uses greetedNameRef to track the specific name greeted in this component instance.
+ * 3. Gates UI visibility until audio is fully preloaded (Gatekeeper Pattern).
+ * 4. Aggressively cleans up resources on unmount.
  */
 export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   const [visibility, setVisibility] = useState<'hidden' | 'loading' | 'visible' | 'exiting'>('hidden');
   
+  // Use "User" fallback if name is empty as per requirements
+  const safeName = userName?.trim() || "User";
+  const sessionKey = `greeted_${safeName.replace(/\s+/g, '_')}`;
+
   // Safeguard Refs
   const isActiveRef = useRef(true);
-  const hasGreetedRef = useRef(false);
+  // Track the specific name greeted in this instance to allow identity switching
+  const greetedNameRef = useRef<string | null>(null);
   const gatekeeperTriggeredRef = useRef(false);
   const isExitingRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -27,12 +38,7 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   const maxDurationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const exitTransitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const safeName = userName || "User";
-  const sessionKey = `greeted_${safeName.replace(/\s+/g, '_')}`;
-
   const cleanup = () => {
-    isActiveRef.current = false;
-    
     // Clear all timers
     if (watchdogTimeoutRef.current) clearTimeout(watchdogTimeoutRef.current);
     if (maxDurationTimeoutRef.current) clearTimeout(maxDurationTimeoutRef.current);
@@ -84,7 +90,7 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
         const playPromise = audioRef.current.play();
         if (playPromise !== undefined) {
           playPromise.catch(() => {
-            // Handle browser autoplay block - UI still stays for duration
+            // Silently handle autoplay blocks
           });
         }
       }
@@ -95,18 +101,24 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   };
 
   useEffect(() => {
-    // 1. Session & Duplicate Check
-    if (sessionStorage.getItem(sessionKey) || hasGreetedRef.current) {
+    isActiveRef.current = true;
+
+    // 1. Session & Identity Switch Check
+    // If we've already greeted this specific name in this session or this instance, stop.
+    if (sessionStorage.getItem(sessionKey) || greetedNameRef.current === safeName) {
       return;
     }
-    hasGreetedRef.current = true;
-    sessionStorage.setItem(sessionKey, "true");
 
-    // 2. Initialize
-    isActiveRef.current = true;
+    // 2. Mark as Greeted
+    sessionStorage.setItem(sessionKey, "true");
+    greetedNameRef.current = safeName;
+
+    // 3. Initialize/Reset State for New User
+    gatekeeperTriggeredRef.current = false;
+    isExitingRef.current = false;
     setVisibility('loading');
 
-    // 3. Audio Fetch & Setup
+    // 4. Audio Fetch & Setup
     const fetchAudio = async () => {
       try {
         const response = await fetch(`/api/tts-greeting?userName=${encodeURIComponent(safeName)}`);
@@ -123,13 +135,13 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
         
         // Setup listeners before setting src
         audio.oncanplaythrough = startSequence;
-        audio.onerror = startSequence; // Fallback
+        audio.onerror = startSequence; // Fallback to silent UI
         audio.onended = dismiss; // Clinical exit
         
         audio.src = url;
         audio.load();
 
-        // 4. Watchdog Fallback (1000ms)
+        // 5. Watchdog Fallback (1000ms)
         watchdogTimeoutRef.current = setTimeout(startSequence, 1000);
 
       } catch (err) {
@@ -139,8 +151,11 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
 
     fetchAudio();
 
-    return cleanup;
-  }, [safeName, sessionKey]);
+    return () => {
+      isActiveRef.current = false;
+      cleanup();
+    };
+  }, [safeName, sessionKey]); // Re-run if user name or session key changes
 
   if (visibility === 'hidden') return null;
 
