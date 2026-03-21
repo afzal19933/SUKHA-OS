@@ -17,7 +17,7 @@ import { generatePropertyBackup } from "@/services/backupService";
 import { getStorage, ref, uploadBytes } from "firebase/storage";
 import { initializeFirebase } from "@/firebase/init";
 
-const BACKUP_RECIPIENT = "sukhapardise23@gmail.com";
+const BACKUP_RECIPIENT = "sukhaparadise23@gmail.com";
 
 export function BackupPanel() {
   const { entityId, availableProperties, user } = useAuthStore();
