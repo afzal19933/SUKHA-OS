@@ -79,11 +79,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isExiting, setIsExiting] = useState(false);
   const [isAudioReady, setIsAudioReady] = useState(false);
   
-  // Flash Prevention: Dashboard is hidden until welcome sequence concludes or is bypassed
+  // Dashboard Visibility Control
   const [isDashboardVisible, setIsDashboardVisible] = useState(pathname !== "/dashboard");
   
   const welcomeAudioRef = useRef<HTMLAudioElement | null>(null);
   const welcomeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const welcomeStartedRef = useRef(false);
 
   /**
    * Closes the welcome overlay smoothly and reveals the dashboard.
@@ -97,79 +98,81 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       setShowWelcome(false);
       setIsExiting(false);
       setIsDashboardVisible(true);
-    }, 500); // Wait for exit animation
+    }, 500); 
   }, []);
 
   /**
-   * Premium Welcome Sequence
-   * Strictly synchronized with TTS audio and real profile name.
+   * Optimized Welcome Sequence
    */
   useEffect(() => {
-    // We strictly wait for the userName from the Firestore profile sync
-    if (firebaseUser && !isUserLoading && userName && pathname === "/dashboard") {
-      const storageKey = `welcomed_v5_${firebaseUser.uid}`;
-      const hasWelcomed = sessionStorage.getItem(storageKey);
-      
-      if (hasWelcomed) {
-        setIsDashboardVisible(true);
+    if (!firebaseUser || isUserLoading || pathname !== "/dashboard" || welcomeStartedRef.current) return;
+
+    const storageKey = `welcomed_v6_${firebaseUser.uid}`;
+    const hasWelcomed = sessionStorage.getItem(storageKey);
+    
+    if (hasWelcomed) {
+      setIsDashboardVisible(true);
+      return;
+    }
+
+    // Determine Greeting & Name
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+    
+    // Aggressive Name Resolution: Store > Auth > Default
+    const rawName = userName || firebaseUser.displayName || "User";
+    const formattedName = rawName.includes("Mr") || rawName.includes("Ms") ? rawName : `Mr ${rawName}`;
+    
+    setWelcomeText(`${greeting}, ${formattedName}.`);
+    sessionStorage.setItem(storageKey, 'true');
+    welcomeStartedRef.current = true;
+
+    // Immediately Show Backdrop
+    setShowWelcome(true);
+    setIsDashboardVisible(false);
+
+    // Preload Audio & Trigger Sequence
+    generateGreetingAudio({ greeting, userName: formattedName }).then(audioUri => {
+      if (!audioUri) {
+        // Fallback: Silent Mode
+        setIsAudioReady(true);
+        setIsGlowActive(true);
+        welcomeTimerRef.current = setTimeout(dismissWelcome, 2500);
         return;
       }
 
-      const hour = new Date().getHours();
-      const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+      const audio = new Audio(audioUri);
+      welcomeAudioRef.current = audio;
       
-      // Use profile name with Mr prefix
-      const formattedName = userName.includes("Mr") ? userName : `Mr ${userName}`;
-      setWelcomeText(`${greeting}, ${formattedName}.`);
-      sessionStorage.setItem(storageKey, 'true');
+      // We don't wait for 'oncanplaythrough' to show the UI anymore, 
+      // but we wait for it to start the voice sync
+      setIsAudioReady(true);
+      
+      audio.onplay = () => {
+        setIsGlowActive(true);
+        // Visual pulse during name emphasis (offset by ~1s based on greeting text)
+        setTimeout(() => setIsPulsing(true), 800);
+        setTimeout(() => setIsPulsing(false), 2000);
+      };
 
-      // Immediately trigger overlay
-      setShowWelcome(true);
-
-      // Preload Audio from Server Action
-      generateGreetingAudio({ greeting, userName: formattedName }).then(audioUri => {
-        if (!audioUri) {
-          // Fallback: If AI TTS fails (Quota exceeded), show UI for 3 seconds silently
-          setIsAudioReady(true);
-          setIsGlowActive(true);
-          welcomeTimerRef.current = setTimeout(dismissWelcome, 3000);
-          return;
-        }
-
-        const audio = new Audio(audioUri);
-        welcomeAudioRef.current = audio;
-        
-        audio.oncanplaythrough = () => {
-          setIsAudioReady(true);
-          setIsGlowActive(true);
-          
-          audio.play().catch(e => {
-            console.warn("Audio playback blocked by browser policy.", e);
-          });
-
-          // Visual sync with name emphasis
-          setTimeout(() => setIsPulsing(true), 1000);
-          setTimeout(() => setIsPulsing(false), 2200);
-
-          // Race logic: Dismiss when voice ends OR at 3 seconds max
-          audio.onended = () => {
-            dismissWelcome();
-          };
-
-          welcomeTimerRef.current = setTimeout(() => {
-            dismissWelcome();
-          }, 3000);
-        };
-      }).catch(err => {
-        console.error("Welcome Sequence Initiation Failed:", err);
+      audio.onended = () => {
         dismissWelcome();
+      };
+
+      audio.play().catch(e => {
+        console.warn("Audio autoplay blocked or failed:", e);
+        setIsGlowActive(true);
+        welcomeTimerRef.current = setTimeout(dismissWelcome, 2500);
       });
-    } else if (firebaseUser && !isUserLoading && !userName && pathname === "/dashboard") {
-      // Keep dashboard hidden while we wait for the profile name to sync
-      setIsDashboardVisible(false);
-    } else if (pathname !== "/dashboard") {
-      setIsDashboardVisible(true);
-    }
+
+      // Safety timeout
+      welcomeTimerRef.current = setTimeout(() => {
+        dismissWelcome();
+      }, 3500);
+    }).catch(err => {
+      console.error("Welcome Audio Call Failed:", err);
+      dismissWelcome();
+    });
 
     return () => {
       if (welcomeTimerRef.current) clearTimeout(welcomeTimerRef.current);
@@ -179,6 +182,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       }
     };
   }, [firebaseUser, isUserLoading, userName, pathname, dismissWelcome]);
+
+  // Handle path changes after initial login
+  useEffect(() => {
+    if (pathname !== "/dashboard") {
+      setIsDashboardVisible(true);
+    }
+  }, [pathname]);
 
   const filteredProperties = useMemo(() => {
     if (role === 'admin' || assignedEntityId === 'all') return availableProperties;
@@ -208,7 +218,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!firebaseUser) return null;
 
   const handleLogout = async () => {
-    sessionStorage.removeItem(`welcomed_v5_${firebaseUser.uid}`);
+    sessionStorage.removeItem(`welcomed_v6_${firebaseUser.uid}`);
     await signOut(auth);
     router.push("/login");
   };
@@ -217,21 +227,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-[#F8F9FD] overflow-hidden relative">
-      {/* Premium Welcome Overlay (Full Backdrop Sync) */}
+      {/* Optimized Welcome Overlay */}
       {showWelcome && (
         <div className={cn(
-          "fixed inset-0 z-[999] flex items-center justify-center bg-black/40 backdrop-blur-[40px] transition-opacity duration-500",
+          "fixed inset-0 z-[999] flex items-center justify-center bg-black/40 backdrop-blur-[50px] transition-opacity duration-500",
           isExiting ? "opacity-0" : "opacity-100"
         )}>
           <div className={cn(
-            "absolute w-[500px] h-[500px] bg-emerald-500/20 blur-[120px] rounded-full transition-all duration-700",
+            "absolute w-[600px] h-[600px] bg-emerald-500/25 blur-[140px] rounded-full transition-all duration-700",
             isGlowActive ? "opacity-100 scale-110" : "opacity-0 scale-90"
           )} />
           
           <div className={cn(
-            "bg-white border border-white/40 p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center gap-8 relative z-10 transition-all duration-500",
+            "bg-white/90 border border-white/40 p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center gap-8 relative z-10 transition-all duration-500",
             !isAudioReady ? "scale-95 opacity-0" : "scale-100 opacity-100 animate-in zoom-in-95",
-            isPulsing && "scale-[1.04]",
+            isPulsing && "scale-[1.05]",
             isExiting && "scale-90 opacity-0"
           )}>
             <div className="bg-emerald-600 p-5 rounded-3xl shadow-2xl shadow-emerald-600/30">
@@ -240,7 +250,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="text-center space-y-4">
               <h2 className="text-4xl font-black text-emerald-600 uppercase tracking-[0.4em]">SUKHA OS</h2>
               <div className="h-0.5 w-16 bg-emerald-600/20 mx-auto" />
-              <p className="text-2xl font-bold text-slate-800 tracking-tight leading-snug max-w-sm">
+              <p className="text-2xl font-bold text-slate-800 tracking-tight leading-snug max-w-md">
                 {welcomeText}
               </p>
             </div>
