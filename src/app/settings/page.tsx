@@ -11,7 +11,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { doc, updateDoc, collection, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Building, Percent, Plus, Palette, Check, MessageSquare, Key } from "lucide-react";
+import { Loader2, Save, Building, Percent, Plus, Palette, Check, MessageSquare, Key, Database } from "lucide-react";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { 
   Dialog, 
@@ -22,6 +22,7 @@ import {
   DialogTrigger 
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 const THEMES = [
   { id: 'default', name: 'Sukha Indigo', color: 'bg-[#5F5FA7]' },
@@ -35,6 +36,7 @@ export default function SettingsPage() {
   const { entityId, role: currentUserRole, setEntityId, theme, setTheme } = useAuthStore();
   const db = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
 
   const canEdit = currentUserRole === "admin";
   const canView = ["owner", "admin"].includes(currentUserRole || "");
@@ -84,6 +86,11 @@ export default function SettingsPage() {
             <TabsTrigger value="profile">Property Profile</TabsTrigger>
             <TabsTrigger value="tax">Tax & Billing</TabsTrigger>
             <TabsTrigger value="appearance">Appearance</TabsTrigger>
+            {currentUserRole === 'admin' && (
+              <TabsTrigger value="backup" onClick={() => router.push('/settings/backup')} className="text-primary font-bold">
+                <Database className="w-3.5 h-3.5 mr-2" /> Backup & Restore
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="profile">
