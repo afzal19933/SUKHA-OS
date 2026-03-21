@@ -21,6 +21,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { WelcomeGreeting } from "@/components/ui/WelcomeGreeting";
 import { NotificationManager } from "@/components/notifications/NotificationManager";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 const NAV_ITEMS = [
   { name: "Command Center", href: "/command-center", icon: Monitor, restricted: ["admin", "manager"] },
@@ -175,6 +176,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-3">
+            <NotificationBell />
+            
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <div className="flex items-center gap-2 cursor-pointer group">
