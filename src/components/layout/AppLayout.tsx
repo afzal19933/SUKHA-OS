@@ -99,7 +99,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     : availableProperties.filter(p => p.id === entityId);
 
   return (
-    <div className="flex h-screen bg-[#F8F9FD] overflow-hidden relative">
+    <div className="flex h-screen bg-[#F8F9FD] overflow-hidden relative" suppressHydrationWarning>
       {/* Voice Greeting Integration */}
       <WelcomeGreeting userName={userName} />
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, Suspense } from "react";
+import { useState, useMemo, Suspense, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -55,6 +55,12 @@ function DashboardContent() {
   const router = useRouter();
   
   const [detailView, setDetailView] = useState<string | null>(null);
+  const [todayStr, setTodayStr] = useState<string>("");
+
+  useEffect(() => {
+    // Set date after hydration to avoid SSR mismatch
+    setTodayStr(new Date().toISOString().split('T')[0]);
+  }, []);
 
   /* ------------------------------ */
   /* Firestore Queries              */
@@ -99,22 +105,27 @@ function DashboardContent() {
   /* Stats Aggregation              */
   /* ------------------------------ */
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const stats = useMemo(() => {
+    if (!todayStr) return { 
+      total: 0, occupied: 0, vacantReady: 0, dirty: 0, cleaning: 0, 
+      todayInvoices: [], revenue: 0 
+    };
 
-  const stats = useMemo(() => ({
-    total: rooms?.length || 0,
-    occupied: rooms?.filter(r => r.status.includes('occupied')).length || 0,
-    vacantReady: rooms?.filter(r => r.status === 'available').length || 0,
-    dirty: rooms?.filter(r => r.status === 'dirty' || r.status === 'occupied_dirty').length || 0,
-    cleaning: rooms?.filter(r => r.status.includes('cleaning')).length || 0,
-    todayInvoices: invoices?.filter(inv => inv.createdAt?.startsWith(todayStr)) || [],
-    revenue: invoices?.reduce((acc, inv) => {
-      const isToday = inv.createdAt?.startsWith(todayStr);
-      return isToday ? acc + (inv.totalAmount || 0) : acc;
-    }, 0) || 0
-  }), [rooms, invoices, todayStr]);
+    return {
+      total: rooms?.length || 0,
+      occupied: rooms?.filter(r => r.status.includes('occupied')).length || 0,
+      vacantReady: rooms?.filter(r => r.status === 'available').length || 0,
+      dirty: rooms?.filter(r => r.status === 'dirty' || r.status === 'occupied_dirty').length || 0,
+      cleaning: rooms?.filter(r => r.status.includes('cleaning')).length || 0,
+      todayInvoices: invoices?.filter(inv => inv.createdAt?.startsWith(todayStr)) || [],
+      revenue: invoices?.reduce((acc, inv) => {
+        const isToday = inv.createdAt?.startsWith(todayStr);
+        return isToday ? acc + (inv.totalAmount || 0) : acc;
+      }, 0) || 0
+    };
+  }, [rooms, invoices, todayStr]);
 
-  if (roomsLoading) {
+  if (roomsLoading || !todayStr) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
