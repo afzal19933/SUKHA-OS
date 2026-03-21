@@ -48,7 +48,10 @@ async function toWav(
     });
 
     let bufs = [] as any[];
-    writer.on('error', reject);
+    writer.on('error', (err) => {
+      console.error("WAV Writer Error:", err);
+      reject(err);
+    });
     writer.on('data', function (d) {
       bufs.push(d);
     });
@@ -93,8 +96,10 @@ const greetingTTSFlow = ai.defineFlow(
       'base64'
     );
 
+    const wavBase64 = await toWav(audioBuffer);
+
     return {
-      audioUri: 'data:audio/wav;base64,' + (await toWav(audioBuffer)),
+      audioUri: 'data:audio/wav;base64,' + wavBase64,
     };
   }
 );
