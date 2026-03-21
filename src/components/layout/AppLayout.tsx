@@ -91,8 +91,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     if (isExiting) return;
     setIsExiting(true);
     
+    // Cleanup audio instance on dismissal
     if (welcomeAudioRef.current) {
       welcomeAudioRef.current.pause();
+      welcomeAudioRef.current.src = "";
       welcomeAudioRef.current = null;
     }
 
@@ -104,7 +106,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, [isExiting]);
 
   /**
-   * Auth Redirect Logic (Moved to useEffect to avoid router-in-render error)
+   * Auth Redirect Logic
    */
   useEffect(() => {
     if (_hasHydrated && !isUserLoading && !firebaseUser && pathname !== "/login") {
@@ -113,22 +115,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, [_hasHydrated, isUserLoading, firebaseUser, pathname, router]);
 
   /**
-   * High-Fidelity Greeting Sequence
+   * High-Fidelity Greeting Sequence - Production Hardened
    */
   useEffect(() => {
-    // Requirements: Instant, Correct Name, No Flicker
-    // 1. Dashboard check
     if (pathname !== "/dashboard") {
       setIsDashboardVisible(true);
       return;
     }
 
-    // 2. Auth check
     if (!firebaseUser || isUserLoading || !userName) {
       return;
     }
 
-    // 3. Session check (one greeting per login session)
     const storageKey = `welcomed_fresh_${firebaseUser.uid}`;
     const hasWelcomed = sessionStorage.getItem(storageKey);
     
@@ -137,14 +135,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Atomic Guard: Ensure logic runs only once
     if (welcomeStartedRef.current) return;
     welcomeStartedRef.current = true;
 
-    // 4. Prepare Identity
     const hour = new Date().getHours();
     const greetingBase = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
     
-    // Ensure "Mr" prefix for professional hospitality greeting
     const nameStr = userName || "";
     const formattedName = nameStr.toLowerCase().startsWith("mr") || nameStr.toLowerCase().startsWith("ms") 
       ? nameStr 
@@ -154,57 +151,73 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setWelcomeText(finalGreeting);
     sessionStorage.setItem(storageKey, 'true');
 
-    // 5. Fetch and Sync Audio
+    // Local trigger lock to prevent duplicate starts from multiple event fallbacks
+    let sequenceTriggered = false;
+
     generateGreetingAudio({ greeting: greetingBase, userName: formattedName }).then(audioUri => {
+      if (!audioUri) {
+        // Fallback for silent display if AI fails
+        setShowWelcome(true);
+        setIsAudioReady(true);
+        welcomeTimerRef.current = setTimeout(() => dismissWelcome(), 3000);
+        return;
+      }
+
       const audio = new Audio(audioUri);
       welcomeAudioRef.current = audio;
 
       const triggerSequence = async () => {
-        // Clinical Audio-Visual Start
+        // Prevention: Don't trigger if already started, exiting, or unmounted
+        if (sequenceTriggered || isExiting) return;
+        sequenceTriggered = true;
+
         setShowWelcome(true);
         setIsAudioReady(true);
         
         try {
+          // Promise-based play to handle browser autoplay policies
           await audio.play();
-          // Precise pulse sync during the name part
+          // Visual sync during the name emphasis
           setTimeout(() => setIsPulsing(true), 800);
           setTimeout(() => setIsPulsing(false), 2200);
         } catch (e) {
-          console.warn("Autoplay restriction or audio failure:", e);
+          console.warn("Autoplay restriction encountered. Greeting will proceed visually.", e);
         }
 
-        // Clinical Duration Control: End when audio ends or max 3s
+        // Hard duration limit: 3 seconds or when audio ends
         welcomeTimerRef.current = setTimeout(() => {
           dismissWelcome();
-        }, 3000); // 3 second hard limit
+        }, 3000);
       };
 
-      // Ensure audio is preloaded BEFORE UI card appears
+      // Reliability Fallbacks
       audio.oncanplaythrough = () => triggerSequence();
       audio.onended = () => dismissWelcome();
-      audio.onerror = () => triggerSequence(); // Fallback to visual if audio fails
+      audio.onerror = () => triggerSequence(); // Proceed visually on error
 
-      // Watchdog: If audio takes > 1.5s to generate/load, proceed visually
+      // Tertiary Fallback Watchdog (1.5s)
       setTimeout(() => {
-        if (!isAudioReady) triggerSequence();
+        if (!sequenceTriggered) triggerSequence();
       }, 1500);
 
     }).catch(() => {
+      // Catch-all fallback
       setShowWelcome(true);
       setIsAudioReady(true);
-      setTimeout(() => dismissWelcome(), 3000);
+      welcomeTimerRef.current = setTimeout(() => dismissWelcome(), 3000);
     });
 
+    // Cleanup: Memory safety and overlapping instance prevention
     return () => {
       if (welcomeTimerRef.current) clearTimeout(welcomeTimerRef.current);
       if (welcomeAudioRef.current) {
         welcomeAudioRef.current.pause();
+        welcomeAudioRef.current.src = "";
         welcomeAudioRef.current = null;
       }
     };
-  }, [firebaseUser, isUserLoading, userName, pathname, dismissWelcome]);
+  }, [firebaseUser, isUserLoading, userName, pathname, dismissWelcome, isExiting]);
 
-  // Prevent UI flicker: If we are on dashboard and haven't welcomed, hide content
   const contentVisible = pathname !== "/dashboard" || isDashboardVisible;
 
   if (!_hasHydrated || isUserLoading) {
