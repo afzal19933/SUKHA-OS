@@ -1,20 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { 
   Download, 
   Mail, 
   CloudUpload, 
   Loader2, 
   ShieldCheck, 
-  FileJson,
-  CheckCircle2,
-  AtSign
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/store/authStore";
 import { useFirestore } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
@@ -22,28 +17,18 @@ import { generatePropertyBackup } from "@/services/backupService";
 import { getStorage, ref, uploadBytes } from "firebase/storage";
 import { initializeFirebase } from "@/firebase/init";
 
+const BACKUP_RECIPIENT = "sukhapardise23@gmail.com";
+
 export function BackupPanel() {
   const { entityId, availableProperties, user } = useAuthStore();
   const db = useFirestore();
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
-  const [targetEmail, setTargetEmail] = useState("");
-
-  useEffect(() => {
-    if (user?.email && !targetEmail) {
-      setTargetEmail(user.email);
-    }
-  }, [user, targetEmail]);
 
   const activeProperty = availableProperties.find(p => p.id === entityId);
 
   const triggerManualBackup = async (type: 'download' | 'email' | 'storage') => {
     if (!entityId || !activeProperty || !user) return;
-
-    if (type === 'email' && (!targetEmail || !targetEmail.includes('@'))) {
-      toast({ variant: "destructive", title: "Invalid Email", description: "Please provide a valid Gmail or recipient address." });
-      return;
-    }
 
     setIsGenerating(true);
     try {
@@ -73,12 +58,12 @@ export function BackupPanel() {
         const response = await fetch('/api/backup/email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ backup, recipientEmail: targetEmail })
+          body: JSON.stringify({ backup, recipientEmail: BACKUP_RECIPIENT })
         });
         
         if (!response.ok) throw new Error("Email transmission failed.");
         
-        toast({ title: "Backup Dispatched", description: `Clinical audit sent to ${targetEmail}` });
+        toast({ title: "Backup Dispatched", description: `Clinical audit sent to ${BACKUP_RECIPIENT}` });
       }
     } catch (error: any) {
       toast({ variant: "destructive", title: "Operation Failed", description: error.message });
@@ -103,17 +88,12 @@ export function BackupPanel() {
             </div>
           </div>
 
-          <div className="w-full md:w-72 space-y-2">
-            <Label className="text-[9px] font-black uppercase text-white/60 tracking-widest ml-1">Target Recipient Email (Gmail)</Label>
-            <div className="relative">
-              <Input 
-                value={targetEmail} 
-                onChange={(e) => setTargetEmail(e.target.value)}
-                placeholder="admin@gmail.com"
-                className="h-10 bg-white/10 border-none text-white text-xs font-bold rounded-xl placeholder:text-white/30 pl-10"
-              />
-              <AtSign className="absolute left-3.5 top-3 w-3.5 h-3.5 text-white/40" />
+          <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-white/10 rounded-2xl border border-white/10">
+            <div className="flex flex-col text-right">
+              <p className="text-[8px] font-black uppercase text-white/60">Backup Target</p>
+              <p className="text-[10px] font-black text-white">{BACKUP_RECIPIENT}</p>
             </div>
+            <Mail className="w-4 h-4 text-white/40" />
           </div>
         </div>
       </CardHeader>
@@ -135,7 +115,7 @@ export function BackupPanel() {
           />
           <BackupActionCard 
             title="Email Dispatch"
-            description="Send summarized audit and archive to your configured Gmail."
+            description={`Send summarized audit and archive to ${BACKUP_RECIPIENT}`}
             icon={Mail}
             onClick={() => triggerManualBackup('email')}
             loading={isGenerating}
