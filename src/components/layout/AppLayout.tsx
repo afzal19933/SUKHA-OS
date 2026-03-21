@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { 
@@ -41,7 +40,6 @@ import {
 } from "@/components/ui/select";
 import { useAuth, useUser } from "@/firebase";
 import { signOut } from "firebase/auth";
-import { generateGreetingAudio } from "@/ai/flows/greeting-tts-flow";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -69,41 +67,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  
-  // Welcome State Logic
-  const [showWelcome, setShowWelcome] = useState(false);
-  const [welcomeText, setWelcomeText] = useState("");
-  const [isAudioReady, setIsAudioReady] = useState(false);
-  const [isPulsing, setIsPulsing] = useState(false);
-  const [isExiting, setIsExiting] = useState(false);
-  
-  // Visibility Control to prevent dashboard flicker
-  const [isDashboardVisible, setIsDashboardVisible] = useState(false);
-  
-  const welcomeAudioRef = useRef<HTMLAudioElement | null>(null);
-  const welcomeTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const welcomeStartedRef = useRef(false);
-
-  /**
-   * Final dismissal of the welcome screen
-   */
-  const dismissWelcome = useCallback(() => {
-    if (isExiting) return;
-    setIsExiting(true);
-    
-    // Cleanup audio instance on dismissal
-    if (welcomeAudioRef.current) {
-      welcomeAudioRef.current.pause();
-      welcomeAudioRef.current.src = "";
-      welcomeAudioRef.current = null;
-    }
-
-    setTimeout(() => {
-      setShowWelcome(false);
-      setIsExiting(false);
-      setIsDashboardVisible(true);
-    }, 400); 
-  }, [isExiting]);
 
   /**
    * Auth Redirect Logic
@@ -114,112 +77,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [_hasHydrated, isUserLoading, firebaseUser, pathname, router]);
 
-  /**
-   * High-Fidelity Greeting Sequence - Production Hardened
-   */
-  useEffect(() => {
-    if (pathname !== "/dashboard") {
-      setIsDashboardVisible(true);
-      return;
-    }
-
-    if (!firebaseUser || isUserLoading || !userName) {
-      return;
-    }
-
-    const storageKey = `welcomed_fresh_${firebaseUser.uid}`;
-    const hasWelcomed = sessionStorage.getItem(storageKey);
-    
-    if (hasWelcomed) {
-      setIsDashboardVisible(true);
-      return;
-    }
-
-    // Atomic Guard: Ensure logic runs only once
-    if (welcomeStartedRef.current) return;
-    welcomeStartedRef.current = true;
-
-    const hour = new Date().getHours();
-    const greetingBase = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-    
-    const nameStr = userName || "";
-    const formattedName = nameStr.toLowerCase().startsWith("mr") || nameStr.toLowerCase().startsWith("ms") 
-      ? nameStr 
-      : `Mr ${nameStr}`;
-    
-    const finalGreeting = `${greetingBase}, ${formattedName}.`;
-    setWelcomeText(finalGreeting);
-    sessionStorage.setItem(storageKey, 'true');
-
-    // Local trigger lock to prevent duplicate starts from multiple event fallbacks
-    let sequenceTriggered = false;
-
-    generateGreetingAudio({ greeting: greetingBase, userName: formattedName }).then(audioUri => {
-      if (!audioUri) {
-        // Fallback for silent display if AI fails
-        setShowWelcome(true);
-        setIsAudioReady(true);
-        welcomeTimerRef.current = setTimeout(() => dismissWelcome(), 3000);
-        return;
-      }
-
-      const audio = new Audio(audioUri);
-      welcomeAudioRef.current = audio;
-
-      const triggerSequence = async () => {
-        // Prevention: Don't trigger if already started, exiting, or unmounted
-        if (sequenceTriggered || isExiting) return;
-        sequenceTriggered = true;
-
-        setShowWelcome(true);
-        setIsAudioReady(true);
-        
-        try {
-          // Promise-based play to handle browser autoplay policies
-          await audio.play();
-          // Visual sync during the name emphasis
-          setTimeout(() => setIsPulsing(true), 800);
-          setTimeout(() => setIsPulsing(false), 2200);
-        } catch (e) {
-          console.warn("Autoplay restriction encountered. Greeting will proceed visually.", e);
-        }
-
-        // Hard duration limit: 3 seconds or when audio ends
-        welcomeTimerRef.current = setTimeout(() => {
-          dismissWelcome();
-        }, 3000);
-      };
-
-      // Reliability Fallbacks
-      audio.oncanplaythrough = () => triggerSequence();
-      audio.onended = () => dismissWelcome();
-      audio.onerror = () => triggerSequence(); // Proceed visually on error
-
-      // Tertiary Fallback Watchdog (1.5s)
-      setTimeout(() => {
-        if (!sequenceTriggered) triggerSequence();
-      }, 1500);
-
-    }).catch(() => {
-      // Catch-all fallback
-      setShowWelcome(true);
-      setIsAudioReady(true);
-      welcomeTimerRef.current = setTimeout(() => dismissWelcome(), 3000);
-    });
-
-    // Cleanup: Memory safety and overlapping instance prevention
-    return () => {
-      if (welcomeTimerRef.current) clearTimeout(welcomeTimerRef.current);
-      if (welcomeAudioRef.current) {
-        welcomeAudioRef.current.pause();
-        welcomeAudioRef.current.src = "";
-        welcomeAudioRef.current = null;
-      }
-    };
-  }, [firebaseUser, isUserLoading, userName, pathname, dismissWelcome, isExiting]);
-
-  const contentVisible = pathname !== "/dashboard" || isDashboardVisible;
-
   if (!_hasHydrated || isUserLoading) {
     return <div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin text-primary" /></div>;
   }
@@ -228,7 +85,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!firebaseUser) return null;
 
   const handleLogout = async () => {
-    sessionStorage.removeItem(`welcomed_fresh_${firebaseUser.uid}`);
     await signOut(auth);
     router.push("/login");
   };
@@ -246,37 +102,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-[#F8F9FD] overflow-hidden relative">
-      {/* Precision Welcome Overlay */}
-      {showWelcome && (
-        <div className={cn(
-          "fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-[120px] transition-opacity duration-500",
-          isExiting ? "opacity-0" : "opacity-100"
-        )}>
-          <div className={cn(
-            "absolute w-[500px] h-[500px] bg-emerald-500/20 blur-[120px] rounded-full transition-all duration-1000",
-            isAudioReady ? "opacity-100 scale-110" : "opacity-0 scale-90"
-          )} />
-          
-          <div className={cn(
-            "bg-white/95 border border-white/40 p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center gap-8 relative z-10 transition-all duration-500",
-            !isAudioReady ? "scale-95 opacity-0" : "scale-100 opacity-100",
-            isPulsing && "scale-[1.03] shadow-emerald-500/20",
-            isExiting && "scale-95 opacity-0"
-          )}>
-            <div className="bg-emerald-600 p-5 rounded-3xl shadow-2xl shadow-emerald-600/30">
-              <Building2 className="w-12 h-12 text-white" />
-            </div>
-            <div className="text-center space-y-4">
-              <h2 className="text-4xl font-black text-emerald-600 uppercase tracking-[0.4em]">SUKHA OS</h2>
-              <div className="h-0.5 w-16 bg-emerald-600/20 mx-auto" />
-              <p className="text-2xl font-bold text-slate-800 tracking-tight leading-snug max-w-md">
-                {welcomeText}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       <aside className={cn("bg-white border-r transition-all duration-300 flex flex-col", sidebarOpen ? "w-64" : "w-20")}>
         <div className="p-6 flex items-center gap-3">
           <div className="bg-primary h-9 w-9 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
@@ -355,10 +180,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className={cn(
-          "flex-1 overflow-y-auto p-8 transition-opacity duration-500",
-          contentVisible ? "opacity-100" : "opacity-0 pointer-events-none"
-        )}>
+        <main className="flex-1 overflow-y-auto p-8">
           {children}
         </main>
       </div>
