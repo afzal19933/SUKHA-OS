@@ -9,15 +9,12 @@ interface WelcomeGreetingProps {
 
 /**
  * WelcomeGreeting Component
- * Ultra-reliable voice greeting system with Gatekeeper Pattern sync.
- * 
- * Logic:
- * 1. Tracks identity to allow fresh greetings when switching accounts.
- * 2. Uses session storage per-user to prevent repetitive playback.
- * 3. Gates UI visibility until audio is fully preloaded.
+ * Optimized for immediate appearance after login.
+ * Shows UI instantly and layers voice as it becomes ready.
  */
 export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
-  const [visibility, setVisibility] = useState<'hidden' | 'loading' | 'visible' | 'exiting'>('hidden');
+  const [visibility, setVisibility] = useState<'hidden' | 'active' | 'exiting'>('hidden');
+  const [isAudioStarted, setIsAudioStarted] = useState(false);
   
   // Requirement: Fallback to "User" if name is missing
   const safeName = userName?.trim() || "User";
@@ -27,22 +24,17 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   // Safeguard Refs
   const isActiveRef = useRef(true);
   const greetedThisInstanceRef = useRef<string | null>(null);
-  const gatekeeperTriggeredRef = useRef(false);
   const isExitingRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   
   // Timeout Refs
-  const watchdogTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const maxDurationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const exitTransitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const nameResolutionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const cleanup = () => {
-    if (watchdogTimeoutRef.current) clearTimeout(watchdogTimeoutRef.current);
     if (maxDurationTimeoutRef.current) clearTimeout(maxDurationTimeoutRef.current);
     if (exitTransitionTimeoutRef.current) clearTimeout(exitTransitionTimeoutRef.current);
-    if (nameResolutionTimeoutRef.current) clearTimeout(nameResolutionTimeoutRef.current);
     
     if (audioRef.current) {
       audioRef.current.pause();
@@ -70,39 +62,13 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
     }, 300);
   };
 
-  const startSequence = () => {
-    if (gatekeeperTriggeredRef.current || !isActiveRef.current) return;
-    gatekeeperTriggeredRef.current = true;
-
-    if (watchdogTimeoutRef.current) clearTimeout(watchdogTimeoutRef.current);
-
-    // Primary Sync Trigger
-    setTimeout(() => {
-      if (!isActiveRef.current) return;
-      
-      setVisibility('visible');
-      
-      if (audioRef.current) {
-        const playPromise = audioRef.current.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(() => {
-            // Silently handle autoplay blocks
-          });
-        }
-      }
-
-      // Max Duration Watchdog (3s)
-      maxDurationTimeoutRef.current = setTimeout(dismiss, 3000);
-    }, 100);
-  };
-
   const fetchAndPlay = async (targetName: string) => {
     try {
       const response = await fetch(`/api/tts-greeting?userName=${encodeURIComponent(targetName)}`);
       if (!response.ok) throw new Error("Audio fetch failed");
       
       const blob = await response.blob();
-      if (!isActiveRef.current) return;
+      if (!isActiveRef.current || isExitingRef.current) return;
 
       const url = URL.createObjectURL(blob);
       objectUrlRef.current = url;
@@ -110,26 +76,36 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
       const audio = new Audio();
       audioRef.current = audio;
       
-      audio.oncanplaythrough = startSequence;
-      audio.onerror = startSequence; // Fallback to silent UI if error
-      audio.onended = dismiss; 
+      audio.oncanplaythrough = () => {
+        if (!isActiveRef.current || isExitingRef.current) return;
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            // Silently handle autoplay blocks
+          });
+        }
+        setIsAudioStarted(true);
+      };
+      
+      audio.onended = dismiss;
+      audio.onerror = () => {
+        // Fallback: If audio fails, the visual timer will handle dismissal
+      };
       
       audio.src = url;
       audio.load();
 
-      // Watchdog Fallback (1000ms)
-      watchdogTimeoutRef.current = setTimeout(startSequence, 1000);
-
     } catch (err) {
-      if (isActiveRef.current) startSequence();
+      // Fail silent on audio, let UI timer dismiss
     }
   };
 
   useEffect(() => {
     isActiveRef.current = true;
 
-    // Wait for real name if we are seeing the "User" fallback
-    // Profile sync from Firestore usually takes < 300ms
+    // We wait for the userName to be synchronized from Firestore before showing the UI
+    // to avoid "Welcome User" flickering before the real name appears.
+    // Profile sync from Firestore usually takes < 200ms.
     if (userName === null || userName === undefined) {
       setVisibility('hidden');
       return;
@@ -141,13 +117,18 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
     }
 
     // Reset instance state for new identity
-    gatekeeperTriggeredRef.current = false;
     isExitingRef.current = false;
     greetedThisInstanceRef.current = safeName;
     sessionStorage.setItem(sessionKey, "true");
     
-    setVisibility('loading');
+    // Show UI instantly
+    setVisibility('active');
+    
+    // Start audio layering
     fetchAndPlay(safeName);
+
+    // Hard Max Duration (3.5s) to ensure the user isn't stuck if network is slow
+    maxDurationTimeoutRef.current = setTimeout(dismiss, 3500);
 
     return () => {
       isActiveRef.current = false;
@@ -160,19 +141,18 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   return (
     <div 
       className={cn(
-        "fixed inset-0 z-[9999] flex items-center justify-center bg-black/10 backdrop-blur-sm transition-opacity duration-300",
-        visibility === 'loading' ? "opacity-0" : 
+        "fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-md transition-opacity duration-300",
         visibility === 'exiting' ? "opacity-0" : "opacity-100"
       )}
     >
       <div 
         className={cn(
-          "bg-white/90 backdrop-blur-md p-10 rounded-[3rem] shadow-2xl border border-white/20 transition-all duration-300 transform",
-          visibility === 'visible' ? "scale-100 opacity-100" : "scale-95 opacity-0"
+          "bg-white/95 backdrop-blur-xl p-10 rounded-[3rem] shadow-2xl border border-white/20 transition-all duration-300 transform",
+          visibility === 'active' ? "scale-100 opacity-100" : "scale-95 opacity-0"
         )}
       >
         <div className="flex flex-col items-center gap-6 text-center">
-          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20 animate-pulse">
+          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20">
             <span className="text-white font-black text-2xl">S</span>
           </div>
           <div className="space-y-1">
@@ -183,6 +163,12 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
               SUKHA OS Operational Control
             </p>
           </div>
+          
+          {!isAudioStarted && (
+            <div className="w-12 h-1 bg-primary/10 rounded-full overflow-hidden mt-2">
+              <div className="h-full bg-primary/40 animate-pulse w-full" />
+            </div>
+          )}
         </div>
       </div>
     </div>
