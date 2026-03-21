@@ -10,7 +10,7 @@ interface WelcomeGreetingProps {
 /**
  * WelcomeGreeting Component
  * Optimized for immediate appearance after login.
- * Shows UI instantly and layers voice as it becomes ready.
+ * Triggers every time the user logs in (on component mount).
  */
 export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   const [visibility, setVisibility] = useState<'hidden' | 'active' | 'exiting'>('hidden');
@@ -18,12 +18,10 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   
   // Requirement: Fallback to "User" if name is missing
   const safeName = userName?.trim() || "User";
-  // Identity-specific session key to allow different users to be greeted in the same browser session
-  const sessionKey = `greeted_${safeName.replace(/\s+/g, '_')}`;
 
   // Safeguard Refs
   const isActiveRef = useRef(true);
-  const greetedThisInstanceRef = useRef<string | null>(null);
+  const hasGreetedInThisMountRef = useRef(false);
   const isExitingRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
@@ -33,6 +31,7 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   const exitTransitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const cleanup = () => {
+    isActiveRef.current = false;
     if (maxDurationTimeoutRef.current) clearTimeout(maxDurationTimeoutRef.current);
     if (exitTransitionTimeoutRef.current) clearTimeout(exitTransitionTimeoutRef.current);
     
@@ -76,12 +75,13 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
       const audio = new Audio();
       audioRef.current = audio;
       
+      // Gatekeeper Pattern: Setup listeners before setting src
       audio.oncanplaythrough = () => {
         if (!isActiveRef.current || isExitingRef.current) return;
         const playPromise = audio.play();
         if (playPromise !== undefined) {
           playPromise.catch(() => {
-            // Silently handle autoplay blocks
+            // Silently handle autoplay blocks (e.g. user hasn't interacted yet)
           });
         }
         setIsAudioStarted(true);
@@ -103,38 +103,31 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   useEffect(() => {
     isActiveRef.current = true;
 
-    // We wait for the userName to be synchronized from Firestore before showing the UI
-    // to avoid "Welcome User" flickering before the real name appears.
-    // Profile sync from Firestore usually takes < 200ms.
+    // Wait for the real name from Firestore before showing anything
+    // This prevents "Welcome User" flickering before the profile syncs
     if (userName === null || userName === undefined) {
-      setVisibility('hidden');
       return;
     }
 
-    // Identity & Session Check
-    if (sessionStorage.getItem(sessionKey) || greetedThisInstanceRef.current === safeName) {
+    // Single trigger per mount (Login event)
+    if (hasGreetedInThisMountRef.current) {
       return;
     }
+    hasGreetedInThisMountRef.current = true;
 
-    // Reset instance state for new identity
-    isExitingRef.current = false;
-    greetedThisInstanceRef.current = safeName;
-    sessionStorage.setItem(sessionKey, "true");
-    
     // Show UI instantly
     setVisibility('active');
     
     // Start audio layering
     fetchAndPlay(safeName);
 
-    // Hard Max Duration (3.5s) to ensure the user isn't stuck if network is slow
+    // Hard Max Duration (3.5s) to ensure the user isn't stuck
     maxDurationTimeoutRef.current = setTimeout(dismiss, 3500);
 
     return () => {
-      isActiveRef.current = false;
       cleanup();
     };
-  }, [userName, sessionKey, safeName]);
+  }, [userName, safeName]);
 
   if (visibility === 'hidden') return null;
 
