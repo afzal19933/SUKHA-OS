@@ -205,7 +205,7 @@ export default function TeamPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-6xl mx-auto pb-20">
+      <div className="space-y-6 max-w-6xl mx-auto pb-20" suppressHydrationWarning>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-black tracking-tight text-primary uppercase">Staff & Owner Registry</h1>
@@ -339,7 +339,7 @@ export default function TeamPage() {
                   <SelectContent className="rounded-2xl">
                     <SelectItem value="all" className="text-[11px] font-black text-indigo-600 uppercase">GLOBAL ACCESS (ALL PROPERTIES)</SelectItem>
                     {availableProperties.map(p => (
-                      <SelectItem key={p.id} value={p.id} className="text-[11px] font-bold uppercase">{p.name}</SelectItem>
+                      <SelectItem key={`invite-prop-${p.id}`} value={p.id} className="text-[11px] font-bold uppercase">{p.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -401,7 +401,7 @@ export default function TeamPage() {
                   <SelectTrigger className="h-11 rounded-xl bg-secondary/50 border-none font-bold"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">GLOBAL ACCESS</SelectItem>
-                    {availableProperties.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                    {availableProperties.map(p => <SelectItem key={`edit-prop-${p.id}`} value={p.id}>{p.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -442,7 +442,7 @@ export default function TeamPage() {
                 {SYSTEM_MODULES.map(moduleName => {
                   const hasAccess = editingMember?.permissions?.includes(moduleName);
                   return (
-                    <div key={moduleName} className={cn(
+                    <div key={`perm-${moduleName}`} className={cn(
                       "flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer group",
                       hasAccess ? "bg-primary/5 border-primary/20" : "bg-slate-50 border-transparent hover:border-slate-200"
                     )} onClick={() => togglePermission(editingMember.id, moduleName)}>

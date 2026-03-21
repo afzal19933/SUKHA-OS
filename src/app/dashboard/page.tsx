@@ -134,7 +134,7 @@ function DashboardContent() {
   }
 
   return (
-    <div className="space-y-8 max-w-[1400px] mx-auto animate-in fade-in duration-700">
+    <div className="space-y-8 max-w-[1400px] mx-auto animate-in fade-in duration-700" suppressHydrationWarning>
       
       {/* HEADER & QUICK ACTIONS */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
@@ -212,9 +212,10 @@ function DashboardContent() {
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-4">
               {rooms?.map((room) => {
                 const config = STATUS_CONFIG[room.status] || STATUS_CONFIG.available;
+                // FIX: Key must be room.id, not room.roomNumber to ensure uniqueness
                 return (
                   <div 
-                    key={room.id} 
+                    key={`board-room-${room.id}`} 
                     onClick={() => router.push('/housekeeping')}
                     className="group cursor-pointer space-y-2"
                   >
@@ -332,7 +333,7 @@ function DashboardContent() {
                     rooms?.filter(r => r.status.includes('occupied')).map(room => {
                       const res = checkedInReservations?.find(res => res.roomNumber?.toString() === room.roomNumber?.toString());
                       return (
-                        <TableRow key={room.id}>
+                        <TableRow key={`detail-occ-${room.id}`}>
                           <TableCell className="font-black text-blue-600">{room.roomNumber}</TableCell>
                           <TableCell className="font-bold text-[11px] uppercase">{res?.guestName || "Processing..."}</TableCell>
                           <TableCell className="text-right">
@@ -345,7 +346,7 @@ function DashboardContent() {
 
                   {detailView === 'vacant' && (
                     rooms?.filter(r => r.status === 'available').map(room => (
-                      <TableRow key={room.id}>
+                      <TableRow key={`detail-vac-${room.id}`}>
                         <TableCell className="font-black text-emerald-600">{room.roomNumber}</TableCell>
                         <TableCell className="text-[10px] font-bold text-muted-foreground uppercase">Floor {room.floor}</TableCell>
                         <TableCell className="text-right">
@@ -357,7 +358,7 @@ function DashboardContent() {
 
                   {detailView === 'dirty' && (
                     rooms?.filter(r => r.status === 'dirty' || r.status === 'occupied_dirty').map(room => (
-                      <TableRow key={room.id}>
+                      <TableRow key={`detail-dirty-${room.id}`}>
                         <TableCell className="font-black text-orange-600">{room.roomNumber}</TableCell>
                         <TableCell className="text-[10px] font-bold text-muted-foreground uppercase">
                           {room.status === 'dirty' ? 'Vacant - Requires Service' : 'Occupied - Requires Service'}
@@ -371,7 +372,7 @@ function DashboardContent() {
 
                   {detailView === 'revenue' && (
                     stats.todayInvoices.map((inv: any) => (
-                      <TableRow key={inv.id}>
+                      <TableRow key={`detail-rev-${inv.id}`}>
                         <TableCell className="font-black text-primary">{inv.roomNumber || inv.stayDetails?.roomNumber || "N/A"}</TableCell>
                         <TableCell>
                           <div className="flex flex-col">

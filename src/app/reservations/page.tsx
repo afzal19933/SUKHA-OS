@@ -85,6 +85,7 @@ export default function ReservationsPage() {
   const [newRes, setNewRes] = useState({ 
     guestName: "", 
     roomNumber: "", 
+    roomId: "", // FIX: Store unique roomId instead of roomNumber for selection
     bookingSource: "Direct", 
     phoneNumber: "", 
     checkIn: new Date().toISOString().split('T')[0], 
@@ -104,7 +105,6 @@ export default function ReservationsPage() {
   // Queries
   const reservationsQuery = useMemoFirebase(() => {
     if (!activeEntityId) return null;
-    // If admin, show all reservations, otherwise show property specific
     return query(collection(db, "hotel_properties", activeEntityId, "reservations"), orderBy("checkInDate", "desc"));
   }, [db, activeEntityId]);
 
@@ -137,6 +137,7 @@ export default function ReservationsPage() {
       guestName: newRes.guestName, 
       phoneNumber: newRes.phoneNumber, 
       roomNumber: newRes.roomNumber, 
+      roomId: newRes.roomId,
       checkInDate: newRes.checkIn, 
       checkOutDate: newRes.checkOut || null, 
       negotiatedRate: parseFloat(newRes.negotiatedRate) || 0, 
@@ -158,6 +159,7 @@ export default function ReservationsPage() {
       setNewRes({ 
         guestName: "", 
         roomNumber: "", 
+        roomId: "",
         bookingSource: "Direct", 
         phoneNumber: "", 
         checkIn: new Date().toISOString().split('T')[0], 
@@ -179,7 +181,7 @@ export default function ReservationsPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in duration-500">
+      <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in duration-500" suppressHydrationWarning>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-black text-primary uppercase tracking-tighter">Reservations</h1>
@@ -215,26 +217,29 @@ export default function ReservationsPage() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Property Entity</Label>
-                          <Select value={newRes.targetEntityId} onValueChange={v => setNewRes({...newRes, targetEntityId: v, roomNumber: ""})}>
+                          <Select value={newRes.targetEntityId} onValueChange={v => setNewRes({...newRes, targetEntityId: v, roomNumber: "", roomId: ""})}>
                             <SelectTrigger className="h-11 text-xs rounded-xl bg-secondary/50 border-none font-bold">
                               <SelectValue placeholder="Select Property" />
                             </SelectTrigger>
                             <SelectContent className="rounded-xl">
                               {availableProperties.map(p => (
-                                <SelectItem key={p.id} value={p.id} className="text-xs font-bold uppercase">{p.name}</SelectItem>
+                                <SelectItem key={`prop-opt-${p.id}`} value={p.id} className="text-xs font-bold uppercase">{p.name}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-2">
                           <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Assign Room</Label>
-                          <Select value={newRes.roomNumber} onValueChange={v => setNewRes({...newRes, roomNumber: v})}>
+                          <Select value={newRes.roomId} onValueChange={v => {
+                            const selectedRoom = rooms?.find(r => r.id === v);
+                            setNewRes({...newRes, roomId: v, roomNumber: selectedRoom?.roomNumber || ""});
+                          }}>
                             <SelectTrigger className="h-11 text-xs rounded-xl bg-secondary/50 border-none font-bold">
                               <SelectValue placeholder="Select Room" />
                             </SelectTrigger>
                             <SelectContent className="rounded-xl">
                               {rooms?.map(r => (
-                                <SelectItem key={r.id} value={r.roomNumber} className="text-xs font-bold">Room {r.roomNumber}</SelectItem>
+                                <SelectItem key={`room-opt-${r.id}`} value={r.id} className="text-xs font-bold">Room {r.roomNumber}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -303,7 +308,7 @@ export default function ReservationsPage() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="rounded-xl">
-                              {BOOKING_SOURCES.map(s => <SelectItem key={s} value={s} className="text-xs font-bold">{s}</SelectItem>)}
+                              {BOOKING_SOURCES.map(s => <SelectItem key={`src-${s}`} value={s} className="text-xs font-bold">{s}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
