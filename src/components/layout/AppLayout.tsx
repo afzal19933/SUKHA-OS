@@ -73,6 +73,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!firebaseUser) return null;
 
   const handleLogout = async () => {
+    // Clear the greeting session lock so it triggers on next login
+    if (firebaseUser?.uid) {
+      sessionStorage.removeItem(`greeted_${firebaseUser.uid}`);
+    }
     await signOut(auth);
     router.push("/login");
   };

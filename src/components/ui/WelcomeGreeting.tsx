@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/store/authStore";
 
 interface WelcomeGreetingProps {
   userName: string | null | undefined;
@@ -10,9 +11,10 @@ interface WelcomeGreetingProps {
 /**
  * WelcomeGreeting Component
  * Optimized for immediate appearance after login.
- * Triggers every time the user logs in (on component mount).
+ * Uses sessionStorage to ensure it only plays once per login cycle.
  */
 export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
+  const { user } = useAuthStore();
   const [visibility, setVisibility] = useState<'hidden' | 'active' | 'exiting'>('hidden');
   const [isAudioStarted, setIsAudioStarted] = useState(false);
   
@@ -75,13 +77,12 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
       const audio = new Audio();
       audioRef.current = audio;
       
-      // Gatekeeper Pattern: Setup listeners before setting src
       audio.oncanplaythrough = () => {
         if (!isActiveRef.current || isExitingRef.current) return;
         const playPromise = audio.play();
         if (playPromise !== undefined) {
           playPromise.catch(() => {
-            // Silently handle autoplay blocks (e.g. user hasn't interacted yet)
+            // Silently handle autoplay blocks
           });
         }
         setIsAudioStarted(true);
@@ -89,31 +90,39 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
       
       audio.onended = dismiss;
       audio.onerror = () => {
-        // Fallback: If audio fails, the visual timer will handle dismissal
+        // Fallback: visual timer handles dismissal
       };
       
       audio.src = url;
       audio.load();
 
     } catch (err) {
-      // Fail silent on audio, let UI timer dismiss
+      // Fail silent on audio
     }
   };
 
   useEffect(() => {
     isActiveRef.current = true;
 
-    // Wait for the real name from Firestore before showing anything
-    // This prevents "Welcome User" flickering before the profile syncs
-    if (userName === null || userName === undefined) {
+    // Wait for the real name from Firestore and unique User ID
+    if (!user?.uid || !userName || userName === "User") {
       return;
     }
 
-    // Single trigger per mount (Login event)
+    // SESSION LOCK: Prevent replay during module navigation
+    const sessionKey = `greeted_${user.uid}`;
+    if (sessionStorage.getItem(sessionKey)) {
+      return;
+    }
+
+    // Duplicate mount protection
     if (hasGreetedInThisMountRef.current) {
       return;
     }
     hasGreetedInThisMountRef.current = true;
+
+    // Mark as greeted for this session
+    sessionStorage.setItem(sessionKey, 'true');
 
     // Show UI instantly
     setVisibility('active');
@@ -121,13 +130,13 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
     // Start audio layering
     fetchAndPlay(safeName);
 
-    // Hard Max Duration (3.5s) to ensure the user isn't stuck
+    // Hard Max Duration (3.5s)
     maxDurationTimeoutRef.current = setTimeout(dismiss, 3500);
 
     return () => {
       cleanup();
     };
-  }, [userName, safeName]);
+  }, [userName, user?.uid, safeName]);
 
   if (visibility === 'hidden') return null;
 
