@@ -9,7 +9,8 @@ import {
   Calendar,
   Building2,
   Loader2,
-  HardDrive
+  HardDrive,
+  AlertCircle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { 
@@ -28,40 +29,49 @@ import { initializeFirebase } from "@/firebase/init";
 import { useToast } from "@/hooks/use-toast";
 
 export function BackupHistory() {
-  const { entityId, availableProperties } = useAuthStore();
+  const { entityId } = useAuthStore();
   const [backups, setBackups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const fetchBackups = async () => {
     if (!entityId) return;
     setLoading(true);
+    setError(null);
     try {
       const { firebaseApp } = initializeFirebase();
       const storage = getStorage(firebaseApp);
       const listRef = ref(storage, `backups/${entityId}`);
       
-      // List all date-based folders
       const res = await listAll(listRef);
       const allFiles: any[] = [];
 
       for (const folderRef of res.prefixes) {
-        const folderRes = await listAll(folderRef);
-        for (const itemRef of folderRes.items) {
-          const metadata = await getMetadata(itemRef);
-          allFiles.push({
-            name: itemRef.name,
-            fullPath: itemRef.fullPath,
-            size: metadata.size,
-            timeCreated: metadata.timeCreated,
-            ref: itemRef
-          });
+        try {
+          const folderRes = await listAll(folderRef);
+          for (const itemRef of folderRes.items) {
+            const metadata = await getMetadata(itemRef);
+            allFiles.push({
+              name: itemRef.name,
+              fullPath: itemRef.fullPath,
+              size: metadata.size,
+              timeCreated: metadata.timeCreated,
+              ref: itemRef
+            });
+          }
+        } catch (folderErr) {
+          console.warn("Could not read folder:", folderRef.fullPath);
         }
       }
 
       setBackups(allFiles.sort((a, b) => new Date(b.timeCreated).getTime() - new Date(a.timeCreated).getTime()));
-    } catch (err) {
-      console.error("Failed to list backups:", err);
+    } catch (err: any) {
+      console.error("Storage fetch error:", err);
+      // Handle "retry-limit-exceeded" or "no-default-bucket" gracefully
+      setError(err.message?.includes("retry") 
+        ? "The cloud vault is taking too long to respond. Please verify your internet connection or try again later." 
+        : "Could not connect to the Storage Vault.");
     } finally {
       setLoading(false);
     }
@@ -75,7 +85,7 @@ export function BackupHistory() {
     try {
       await deleteObject(backup.ref);
       setBackups(prev => prev.filter(b => b.fullPath !== backup.fullPath));
-      toast({ title: "Archived Cleared", description: "Storage object deleted permanently." });
+      toast({ title: "Archive Cleared", description: "Storage object deleted permanently." });
     } catch (err) {
       toast({ variant: "destructive", title: "Deletion Failed" });
     }
@@ -105,7 +115,8 @@ export function BackupHistory() {
               </CardDescription>
             </div>
           </div>
-          <Button variant="outline" size="sm" className="h-9 rounded-xl font-black text-[10px] uppercase px-6" onClick={fetchBackups}>
+          <Button variant="outline" size="sm" className="h-9 rounded-xl font-black text-[10px] uppercase px-6" onClick={fetchBackups} disabled={loading}>
+            {loading ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : null}
             Refresh Ledger
           </Button>
         </div>
@@ -116,10 +127,25 @@ export function BackupHistory() {
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <p className="text-[10px] font-black uppercase text-muted-foreground">Indexing Storage Bucket...</p>
           </div>
+        ) : error ? (
+          <div className="py-24 text-center px-10 space-y-4">
+            <div className="p-4 bg-rose-50 rounded-full w-fit mx-auto">
+              <AlertCircle className="w-10 h-10 text-rose-500" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-black text-rose-600 uppercase">Vault Unreachable</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase max-w-xs mx-auto leading-relaxed">
+                {error}
+              </p>
+            </div>
+            <Button variant="outline" size="sm" className="rounded-xl h-8 text-[9px] font-black uppercase" onClick={fetchBackups}>
+              Retry Connection
+            </Button>
+          </div>
         ) : backups.length > 0 ? (
           <Table>
             <TableHeader className="bg-secondary/20">
-              <TableRow className="border-none">
+              <TableRow className="border-none hover:bg-transparent">
                 <TableHead className="h-12 pl-8 text-[10px] font-black uppercase">Archive Date</TableHead>
                 <TableHead className="h-12 text-[10px] font-black uppercase">File Reference</TableHead>
                 <TableHead className="h-12 text-[10px] font-black uppercase">Payload Size</TableHead>
