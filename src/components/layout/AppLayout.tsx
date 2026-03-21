@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -43,6 +42,7 @@ import { useAuth, useUser } from "@/firebase";
 import { signOut } from "firebase/auth";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { WelcomeGreeting } from "@/components/ui/WelcomeGreeting";
 
 const NAV_ITEMS = [
   { name: "Command Center", href: "/command-center", icon: Monitor, restricted: ["admin", "manager"] },
@@ -69,9 +69,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  /**
-   * Auth Redirect Logic
-   */
   useEffect(() => {
     if (_hasHydrated && !isUserLoading && !firebaseUser && pathname !== "/login") {
       router.push("/login");
@@ -103,6 +100,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-[#F8F9FD] overflow-hidden relative">
+      {/* Voice Greeting Integration */}
+      <WelcomeGreeting userName={userName} />
+
       <aside className={cn("bg-white border-r transition-all duration-300 flex flex-col", sidebarOpen ? "w-64" : "w-20")}>
         <div className="p-6 flex items-center gap-3">
           <div className="bg-primary h-9 w-9 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
