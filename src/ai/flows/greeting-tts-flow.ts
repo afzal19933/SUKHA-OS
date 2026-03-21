@@ -25,6 +25,7 @@ export async function generateGreetingAudio(input: { greeting: string, userName:
     return result.audioUri;
   } catch (error: any) {
     console.error("AI Greeting Audio Generation Failed:", error.message);
+    // Graceful fallback for quota exhaustion or API errors
     return "";
   }
 }
@@ -90,11 +91,13 @@ const greetingTTSFlow = ai.defineFlow(
     }
 
     // Extract base64 and convert to WAV
-    const audioBuffer = Buffer.from(
-      media.url.substring(media.url.indexOf(',') + 1),
-      'base64'
-    );
+    // media.url format is expected to be data:audio/pcm;base64,...
+    const base64Data = media.url.split(',')[1];
+    if (!base64Data) {
+      throw new Error('Invalid audio media format');
+    }
 
+    const audioBuffer = Buffer.from(base64Data, 'base64');
     const wavBase64 = await toWav(audioBuffer);
 
     return {

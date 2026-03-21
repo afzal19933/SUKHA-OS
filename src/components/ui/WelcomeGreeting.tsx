@@ -11,12 +11,13 @@ interface WelcomeGreetingProps {
 /**
  * WelcomeGreeting Component
  * Production-grade voice greeting system with strict synchronization and safeguards.
+ * Optimized for reliability across different browser audio handling policies.
  */
 export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   const [status, setStatus] = useState<'hidden' | 'loading' | 'visible' | 'exiting'>('hidden');
   const nameToUse = userName || "User";
   
-  // Safeguard Refs
+  // Safeguard Refs to prevent duplicate execution and stale state issues
   const hasGreetedRef = useRef(false);
   const gatekeeperTriggeredRef = useRef(false);
   const isActiveRef = useRef(true);
@@ -24,7 +25,7 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   
-  // Timer Refs
+  // Timer Refs for precise duration and fallback management
   const watchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
   const maxDurationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const exitTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -32,7 +33,7 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   useEffect(() => {
     isActiveRef.current = true;
     
-    // Session Lock
+    // Session Lock: Ensure greeting plays only once per browser session for this specific user
     const sessionKey = `greeted_${nameToUse}`;
     if (sessionStorage.getItem(sessionKey) || hasGreetedRef.current) {
       return;
@@ -44,7 +45,7 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
       try {
         const response = await fetch(`/api/tts-greeting?name=${encodeURIComponent(nameToUse)}`);
         
-        // Handle API Failure Fallback
+        // Handle API Failure or Quota Exhaustion gracefully
         if (!response.ok || response.status === 204) {
           triggerFallback();
           return;
@@ -56,32 +57,39 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
         const url = URL.createObjectURL(blob);
         objectUrlRef.current = url;
         
-        const audio = new Audio(url);
+        const audio = new Audio();
         audioRef.current = audio;
         
+        /**
+         * The Gatekeeper: Synchronizes UI appearance with audio readiness.
+         */
         const triggerGatekeeper = () => {
           if (gatekeeperTriggeredRef.current || !isActiveRef.current) return;
           gatekeeperTriggeredRef.current = true;
           
           if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
           
-          // Slight delay for smoother animation transition
+          // Micro-delay for smoother animation transition
           setTimeout(() => {
             if (!isActiveRef.current) return;
             setStatus('visible');
             
             const playPromise = audio.play();
             if (playPromise !== undefined) {
-              playPromise.catch(() => {
-                // Silently handle autoplay restrictions
+              playPromise.catch((err) => {
+                // Silently handle browser autoplay restrictions
+                console.warn("WelcomeGreeting: Autoplay restriction or audio error", err);
               });
             }
             
-            // Set Max Duration Timeout (3 seconds)
+            // Set Max Duration Timeout (3 seconds) as per safety requirements
             maxDurationTimerRef.current = setTimeout(dismiss, 3000);
           }, 100);
         };
 
+        /**
+         * Dismissal Logic: Orchestrates the exit animation and state cleanup.
+         */
         const dismiss = () => {
           if (isExitingRef.current || !isActiveRef.current) return;
           isExitingRef.current = true;
@@ -98,21 +106,29 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
           }, 300);
         };
 
-        // Audio Event Listeners
+        // Audio Event Listeners for precise control
         audio.oncanplaythrough = triggerGatekeeper;
         audio.onended = dismiss;
         audio.onerror = () => {
+          // If audio fails, we still want the user to see the welcome UI
           if (isActiveRef.current) triggerGatekeeper();
         };
 
-        // Watchdog Fallback (1000ms)
-        watchdogTimerRef.current = setTimeout(triggerGatekeeper, 1000);
+        // Initialize Audio Source
+        audio.src = url;
+        audio.load();
+
+        // 1.5s Watchdog Fallback: Force UI visibility if audio is slow
+        watchdogTimerRef.current = setTimeout(triggerGatekeeper, 1500);
 
       } catch (err) {
         triggerFallback();
       }
     };
 
+    /**
+     * Fallback for full API failure: Purely visual greeting.
+     */
     const triggerFallback = () => {
       if (!isActiveRef.current) return;
       setStatus('visible');
@@ -130,7 +146,7 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
 
     initGreeting();
 
-    // Aggressive Cleanup (Mandatory)
+    // Aggressive Cleanup: Mandatory to prevent memory leaks and ghost playback
     return () => {
       isActiveRef.current = false;
       if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
@@ -156,18 +172,20 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   return (
     <div className={cn(
       "fixed inset-0 z-[999] flex items-center justify-center transition-all duration-300",
-      status === 'visible' ? "opacity-100 backdrop-blur-sm bg-black/10" : "opacity-0 backdrop-blur-0 bg-transparent pointer-events-none"
+      status === 'visible' ? "opacity-100 backdrop-blur-md bg-black/20" : "opacity-0 backdrop-blur-0 bg-transparent pointer-events-none"
     )}>
       <div className={cn(
-        "bg-white p-10 rounded-[3rem] shadow-2xl border-none transition-all duration-300 transform",
-        status === 'visible' ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"
+        "bg-white p-12 rounded-[3.5rem] shadow-2xl border border-primary/5 transition-all duration-500 transform",
+        status === 'visible' ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-8"
       )}>
-        <div className="flex flex-col items-center text-center space-y-2">
-          <div className="bg-primary h-10 w-10 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 mb-2">
-            <span className="text-white font-black text-xl">S</span>
+        <div className="flex flex-col items-center text-center space-y-4">
+          <div className="bg-primary h-14 w-14 rounded-[1.5rem] flex items-center justify-center shadow-2xl shadow-primary/30 mb-2 animate-pulse">
+            <span className="text-white font-black text-2xl">S</span>
           </div>
-          <h2 className="text-sm font-black text-primary uppercase tracking-[0.2em]">SUKHA OS</h2>
-          <p className="text-2xl font-black text-slate-800 tracking-tight">Welcome {nameToUse}</p>
+          <div className="space-y-1">
+            <h2 className="text-[10px] font-black text-primary uppercase tracking-[0.3em]">SUKHA OS</h2>
+            <p className="text-3xl font-black text-slate-900 tracking-tight">Welcome {nameToUse}</p>
+          </div>
         </div>
       </div>
     </div>
