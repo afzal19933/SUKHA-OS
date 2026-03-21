@@ -49,6 +49,7 @@ export const generateGreetingAudio = ai.defineFlow(
     outputSchema: z.any(),
   },
   async (input) => {
+    // Strictly follow "Welcome {{user_name}}" format as per requirements
     const greetingText = `Welcome ${input.userName || 'User'}`;
 
     const { media } = await ai.generate({

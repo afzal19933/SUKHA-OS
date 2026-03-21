@@ -12,22 +12,21 @@ interface WelcomeGreetingProps {
  * Ultra-reliable voice greeting system with Gatekeeper Pattern sync.
  * 
  * Logic:
- * 1. Checks sessionStorage to ensure greeting plays once per session for this user.
- * 2. Uses greetedNameRef to track the specific name greeted in this component instance.
- * 3. Gates UI visibility until audio is fully preloaded (Gatekeeper Pattern).
- * 4. Aggressively cleans up resources on unmount.
+ * 1. Tracks identity to allow fresh greetings when switching accounts.
+ * 2. Uses session storage per-user to prevent repetitive playback.
+ * 3. Gates UI visibility until audio is fully preloaded.
  */
 export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   const [visibility, setVisibility] = useState<'hidden' | 'loading' | 'visible' | 'exiting'>('hidden');
   
-  // Use "User" fallback if name is empty as per requirements
+  // Requirement: Fallback to "User" if name is missing
   const safeName = userName?.trim() || "User";
+  // Identity-specific session key to allow different users to be greeted in the same browser session
   const sessionKey = `greeted_${safeName.replace(/\s+/g, '_')}`;
 
   // Safeguard Refs
   const isActiveRef = useRef(true);
-  // Track the specific name greeted in this instance to allow identity switching
-  const greetedNameRef = useRef<string | null>(null);
+  const greetedThisInstanceRef = useRef<string | null>(null);
   const gatekeeperTriggeredRef = useRef(false);
   const isExitingRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -37,14 +36,14 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   const watchdogTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const maxDurationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const exitTransitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const nameResolutionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const cleanup = () => {
-    // Clear all timers
     if (watchdogTimeoutRef.current) clearTimeout(watchdogTimeoutRef.current);
     if (maxDurationTimeoutRef.current) clearTimeout(maxDurationTimeoutRef.current);
     if (exitTransitionTimeoutRef.current) clearTimeout(exitTransitionTimeoutRef.current);
+    if (nameResolutionTimeoutRef.current) clearTimeout(nameResolutionTimeoutRef.current);
     
-    // Audio cleanup
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.oncanplaythrough = null;
@@ -54,7 +53,6 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
       audioRef.current = null;
     }
     
-    // Memory cleanup
     if (objectUrlRef.current) {
       URL.revokeObjectURL(objectUrlRef.current);
       objectUrlRef.current = null;
@@ -76,7 +74,6 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
     if (gatekeeperTriggeredRef.current || !isActiveRef.current) return;
     gatekeeperTriggeredRef.current = true;
 
-    // Clear loading watchdog
     if (watchdogTimeoutRef.current) clearTimeout(watchdogTimeoutRef.current);
 
     // Primary Sync Trigger
@@ -85,7 +82,6 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
       
       setVisibility('visible');
       
-      // Play Audio
       if (audioRef.current) {
         const playPromise = audioRef.current.play();
         if (playPromise !== undefined) {
@@ -100,62 +96,64 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
     }, 100);
   };
 
+  const fetchAndPlay = async (targetName: string) => {
+    try {
+      const response = await fetch(`/api/tts-greeting?userName=${encodeURIComponent(targetName)}`);
+      if (!response.ok) throw new Error("Audio fetch failed");
+      
+      const blob = await response.blob();
+      if (!isActiveRef.current) return;
+
+      const url = URL.createObjectURL(blob);
+      objectUrlRef.current = url;
+
+      const audio = new Audio();
+      audioRef.current = audio;
+      
+      audio.oncanplaythrough = startSequence;
+      audio.onerror = startSequence; // Fallback to silent UI if error
+      audio.onended = dismiss; 
+      
+      audio.src = url;
+      audio.load();
+
+      // Watchdog Fallback (1000ms)
+      watchdogTimeoutRef.current = setTimeout(startSequence, 1000);
+
+    } catch (err) {
+      if (isActiveRef.current) startSequence();
+    }
+  };
+
   useEffect(() => {
     isActiveRef.current = true;
 
-    // 1. Session & Identity Switch Check
-    // If we've already greeted this specific name in this session or this instance, stop.
-    if (sessionStorage.getItem(sessionKey) || greetedNameRef.current === safeName) {
+    // Wait for real name if we are seeing the "User" fallback
+    // Profile sync from Firestore usually takes < 300ms
+    if (userName === null || userName === undefined) {
+      setVisibility('hidden');
       return;
     }
 
-    // 2. Mark as Greeted
-    sessionStorage.setItem(sessionKey, "true");
-    greetedNameRef.current = safeName;
+    // Identity & Session Check
+    if (sessionStorage.getItem(sessionKey) || greetedThisInstanceRef.current === safeName) {
+      return;
+    }
 
-    // 3. Initialize/Reset State for New User
+    // Reset instance state for new identity
     gatekeeperTriggeredRef.current = false;
     isExitingRef.current = false;
+    greetedThisInstanceRef.current = safeName;
+    sessionStorage.setItem(sessionKey, "true");
+    
     setVisibility('loading');
-
-    // 4. Audio Fetch & Setup
-    const fetchAudio = async () => {
-      try {
-        const response = await fetch(`/api/tts-greeting?userName=${encodeURIComponent(safeName)}`);
-        if (!response.ok) throw new Error("Audio fetch failed");
-        
-        const blob = await response.blob();
-        if (!isActiveRef.current) return;
-
-        const url = URL.createObjectURL(blob);
-        objectUrlRef.current = url;
-
-        const audio = new Audio();
-        audioRef.current = audio;
-        
-        // Setup listeners before setting src
-        audio.oncanplaythrough = startSequence;
-        audio.onerror = startSequence; // Fallback to silent UI
-        audio.onended = dismiss; // Clinical exit
-        
-        audio.src = url;
-        audio.load();
-
-        // 5. Watchdog Fallback (1000ms)
-        watchdogTimeoutRef.current = setTimeout(startSequence, 1000);
-
-      } catch (err) {
-        if (isActiveRef.current) startSequence(); // Fallback to silent UI
-      }
-    };
-
-    fetchAudio();
+    fetchAndPlay(safeName);
 
     return () => {
       isActiveRef.current = false;
       cleanup();
     };
-  }, [safeName, sessionKey]); // Re-run if user name or session key changes
+  }, [userName, sessionKey, safeName]);
 
   if (visibility === 'hidden') return null;
 
