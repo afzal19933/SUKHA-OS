@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Download, 
   Mail, 
@@ -8,15 +8,18 @@ import {
   Loader2, 
   ShieldCheck, 
   FileJson,
-  CheckCircle2
+  CheckCircle2,
+  AtSign
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/store/authStore";
 import { useFirestore } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { generatePropertyBackup } from "@/services/backupService";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getStorage, ref, uploadBytes } from "firebase/storage";
 import { initializeFirebase } from "@/firebase/init";
 
 export function BackupPanel() {
@@ -24,11 +27,23 @@ export function BackupPanel() {
   const db = useFirestore();
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [targetEmail, setTargetEmail] = useState("");
+
+  useEffect(() => {
+    if (user?.email && !targetEmail) {
+      setTargetEmail(user.email);
+    }
+  }, [user, targetEmail]);
 
   const activeProperty = availableProperties.find(p => p.id === entityId);
 
   const triggerManualBackup = async (type: 'download' | 'email' | 'storage') => {
     if (!entityId || !activeProperty || !user) return;
+
+    if (type === 'email' && (!targetEmail || !targetEmail.includes('@'))) {
+      toast({ variant: "destructive", title: "Invalid Email", description: "Please provide a valid Gmail or recipient address." });
+      return;
+    }
 
     setIsGenerating(true);
     try {
@@ -55,15 +70,18 @@ export function BackupPanel() {
         await uploadBytes(storageRef, blob);
         toast({ title: "Cloud Archive Successful", description: "Safe-stored in Firebase Storage." });
       } else if (type === 'email') {
-        // Simple API call simulation
-        await fetch('/api/backup/email', {
+        const response = await fetch('/api/backup/email', {
           method: 'POST',
-          body: JSON.stringify({ backup, recipientEmail: user.email })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ backup, recipientEmail: targetEmail })
         });
-        toast({ title: "Backup Dispatched", description: `Report sent to ${user.email}` });
+        
+        if (!response.ok) throw new Error("Email transmission failed.");
+        
+        toast({ title: "Backup Dispatched", description: `Clinical audit sent to ${targetEmail}` });
       }
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Backup Failed", description: error.message });
+      toast({ variant: "destructive", title: "Operation Failed", description: error.message });
     } finally {
       setIsGenerating(false);
     }
@@ -72,15 +90,30 @@ export function BackupPanel() {
   return (
     <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
       <CardHeader className="bg-primary p-8 text-white">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-white/20 rounded-2xl">
-            <ShieldCheck className="w-6 h-6" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/20 rounded-2xl">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <CardTitle className="text-xl font-black uppercase tracking-tight">Manual Snapshot Control</CardTitle>
+              <CardDescription className="text-white/70 font-bold text-[10px] uppercase tracking-widest mt-1">
+                Active Entity: {activeProperty?.name || "Initializing..."}
+              </CardDescription>
+            </div>
           </div>
-          <div>
-            <CardTitle className="text-xl font-black uppercase tracking-tight">Manual Snapshot Control</CardTitle>
-            <CardDescription className="text-white/70 font-bold text-[10px] uppercase tracking-widest mt-1">
-              Active Entity: {activeProperty?.name || "Initializing..."}
-            </CardDescription>
+
+          <div className="w-full md:w-72 space-y-2">
+            <Label className="text-[9px] font-black uppercase text-white/60 tracking-widest ml-1">Target Recipient Email (Gmail)</Label>
+            <div className="relative">
+              <Input 
+                value={targetEmail} 
+                onChange={(e) => setTargetEmail(e.target.value)}
+                placeholder="admin@gmail.com"
+                className="h-10 bg-white/10 border-none text-white text-xs font-bold rounded-xl placeholder:text-white/30 pl-10"
+              />
+              <AtSign className="absolute left-3.5 top-3 w-3.5 h-3.5 text-white/40" />
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -102,7 +135,7 @@ export function BackupPanel() {
           />
           <BackupActionCard 
             title="Email Dispatch"
-            description="Send summarized audit and archive to your registered admin email."
+            description="Send summarized audit and archive to your configured Gmail."
             icon={Mail}
             onClick={() => triggerManualBackup('email')}
             loading={isGenerating}
