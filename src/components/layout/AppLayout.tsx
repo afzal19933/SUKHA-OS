@@ -98,12 +98,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   /**
+   * Fix for Router Update during Render error.
+   * Redirects are handled in useEffect.
+   */
+  useEffect(() => {
+    if (_hasHydrated && !isUserLoading && !firebaseUser && pathname !== "/login") {
+      router.push("/login");
+    }
+  }, [_hasHydrated, isUserLoading, firebaseUser, pathname, router]);
+
+  /**
    * Optimized Welcome Sequence with Strict User Binding and Zero-Flash Control
    */
   useEffect(() => {
-    if (!firebaseUser || isUserLoading || pathname !== "/dashboard" || welcomeStartedRef.current) return;
+    // Only run on dashboard and when user is fully synced
+    if (!firebaseUser || isUserLoading || !userName || pathname !== "/dashboard" || welcomeStartedRef.current) return;
 
-    const storageKey = `welcomed_v10_${firebaseUser.uid}`;
+    const storageKey = `welcomed_v11_${firebaseUser.uid}`;
     const hasWelcomed = sessionStorage.getItem(storageKey);
     
     if (hasWelcomed) {
@@ -116,14 +127,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setIsDashboardVisible(false);
     welcomeStartedRef.current = true;
 
-    // Step 2: Determine User Name (Prioritize Store Name over Auth)
+    // Step 2: Determine Greeting and Name (Strictly "Mr [Name]")
     const hour = new Date().getHours();
     const greetingBase = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
     
-    const rawName = userName || firebaseUser.displayName || "Guest";
-    const formattedName = rawName.toLowerCase().startsWith("mr") || rawName.toLowerCase().startsWith("ms") 
-      ? rawName 
-      : `Mr ${rawName}`;
+    const formattedName = userName.toLowerCase().startsWith("mr") || userName.toLowerCase().startsWith("ms") 
+      ? userName 
+      : `Mr ${userName}`;
     
     setWelcomeText(`${greetingBase}, ${formattedName}.`);
     sessionStorage.setItem(storageKey, 'true');
@@ -206,12 +216,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (pathname === "/login") return <>{children}</>;
   if (!firebaseUser) {
-    if (_hasHydrated && pathname !== "/login") router.push("/login");
     return null;
   }
 
   const handleLogout = async () => {
-    sessionStorage.removeItem(`welcomed_v10_${firebaseUser.uid}`);
+    sessionStorage.removeItem(`welcomed_v11_${firebaseUser.uid}`);
     await signOut(auth);
     router.push("/login");
   };
