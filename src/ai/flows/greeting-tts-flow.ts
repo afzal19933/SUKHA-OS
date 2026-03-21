@@ -12,21 +12,18 @@ import { googleAI } from '@genkit-ai/google-genai';
 import wav from 'wav';
 
 const GreetingTTSInputSchema = z.object({
-  greeting: z.string().describe("The time-based greeting (e.g., Good morning)"),
+  greeting: z.string().describe("The greeting prefix (e.g., Welcome)"),
   userName: z.string().describe("The name of the user to greet"),
 });
 
 /**
  * Generates high-quality greeting audio.
- * Includes a safety wrapper to handle AI quota exhaustion gracefully.
  */
 export async function generateGreetingAudio(input: { greeting: string, userName: string }): Promise<string> {
   try {
     const result = await greetingTTSFlow(input);
     return result.audioUri;
   } catch (error: any) {
-    // If quota is exhausted (429) or another error occurs, return empty string.
-    // The client will handle this by showing the UI without sound.
     console.error("AI Greeting Audio Generation Failed:", error.message);
     return "";
   }
@@ -72,8 +69,8 @@ const greetingTTSFlow = ai.defineFlow(
     outputSchema: z.object({ audioUri: z.string() }),
   },
   async (input) => {
-    // Strictly formatted text for human-like greeting: "Good morning, Mr Afzal."
-    const text = `${input.greeting}, ${input.userName}.`;
+    // Strictly formatted text as per Master Prompt: "Welcome {{user_name}}"
+    const text = `${input.greeting} ${input.userName}.`;
     
     const { media } = await ai.generate({
       model: googleAI.model('gemini-2.5-flash-preview-tts'),
