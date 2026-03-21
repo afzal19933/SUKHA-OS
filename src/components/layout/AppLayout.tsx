@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
@@ -93,6 +94,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setIsGlowActive(false);
     setIsPulsing(false);
     
+    if (welcomeAudioRef.current) {
+      welcomeAudioRef.current.pause();
+      welcomeAudioRef.current = null;
+    }
+
     setTimeout(() => {
       setShowWelcome(false);
       setIsExiting(false);
@@ -116,7 +122,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     // Only run on dashboard and when user profile name is confirmed
     if (!firebaseUser || isUserLoading || !userName || pathname !== "/dashboard" || welcomeStartedRef.current) return;
 
-    const storageKey = `welcomed_v15_${firebaseUser.uid}`;
+    const storageKey = `welcomed_v16_${firebaseUser.uid}`;
     const hasWelcomed = sessionStorage.getItem(storageKey);
     
     if (hasWelcomed) {
@@ -128,13 +134,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     const hour = new Date().getHours();
     const greetingBase = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
     
-    // Ensure "Mr" prefix for professional hospitality greeting
+    // Ensure "Mr" prefix for professional hospitality greeting as requested
     const nameStr = userName || "";
     const formattedName = nameStr.toLowerCase().startsWith("mr") || nameStr.toLowerCase().startsWith("ms") 
       ? nameStr 
       : `Mr ${nameStr}`;
     
-    setWelcomeText(`${greetingBase}, ${formattedName}.`);
+    const finalGreeting = `${greetingBase}, ${formattedName}.`;
+    setWelcomeText(finalGreeting);
     sessionStorage.setItem(storageKey, 'true');
     welcomeStartedRef.current = true;
     setShowWelcome(true);
@@ -142,21 +149,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
     // Step 2: Fetch and Play AI Greeting
     generateGreetingAudio({ greeting: greetingBase, userName: formattedName }).then(audioUri => {
-      const startSequence = (audio?: HTMLAudioElement) => {
+      const startSequence = async (audio?: HTMLAudioElement) => {
         setIsAudioReady(true);
         setIsGlowActive(true);
         
         if (audio) {
-          audio.play().then(() => {
-            // Pulse timing sync
-            setTimeout(() => setIsPulsing(true), 1000);
-            setTimeout(() => setIsPulsing(false), 2200);
-          }).catch(e => {
-            console.warn("Audio playback blocked or failed:", e);
-          });
+          try {
+            await audio.play();
+            // Pulse timing sync during the name part of the greeting
+            setTimeout(() => setIsPulsing(true), 800);
+            setTimeout(() => setIsPulsing(false), 2000);
+          } catch (e) {
+            console.warn("Audio playback failed (usually browser policy):", e);
+          }
         }
 
-        // Maximum duration fallback
+        // Maximum duration fallback - exit after voice should be done
         welcomeTimerRef.current = setTimeout(() => {
           dismissWelcome();
         }, 3500);
@@ -164,22 +172,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       if (!audioUri) {
         // Fallback: Proceed visually if AI voice fails or quota hit
-        setTimeout(startSequence, 500);
+        setTimeout(() => startSequence(), 500);
         return;
       }
 
       const audio = new Audio(audioUri);
       welcomeAudioRef.current = audio;
       
-      // Clinical trigger: Show card ONLY when audio is ready
-      audio.oncanplay = () => startSequence(audio);
+      // Clinical trigger: Show card ONLY when audio is ready to minimize delay
+      audio.oncanplaythrough = () => startSequence(audio);
       audio.onended = () => dismissWelcome();
       audio.onerror = () => startSequence();
 
-      // Watchdog: If buffering takes > 2.5s, proceed visually
+      // Watchdog: If loading takes > 2s, proceed visually
       setTimeout(() => {
         if (!isAudioReady) startSequence();
-      }, 2500);
+      }, 2000);
 
     }).catch(err => {
       console.error("Welcome logic failure:", err);
@@ -224,7 +232,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!firebaseUser) return null;
 
   const handleLogout = async () => {
-    sessionStorage.removeItem(`welcomed_v15_${firebaseUser.uid}`);
+    sessionStorage.removeItem(`welcomed_v16_${firebaseUser.uid}`);
     await signOut(auth);
     router.push("/login");
   };

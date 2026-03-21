@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview AI Flow for generating human-like voice greetings.
@@ -71,7 +72,7 @@ const greetingTTSFlow = ai.defineFlow(
     outputSchema: z.object({ audioUri: z.string() }),
   },
   async (input) => {
-    // Strictly formatted text for human-like greeting
+    // Strictly formatted text for human-like greeting: "Good morning, Mr Afzal."
     const text = `${input.greeting}, ${input.userName}.`;
     
     const { media } = await ai.generate({
@@ -91,6 +92,7 @@ const greetingTTSFlow = ai.defineFlow(
       throw new Error('Failed to generate audio greeting.');
     }
 
+    // Extract base64 and convert to WAV
     const audioBuffer = Buffer.from(
       media.url.substring(media.url.indexOf(',') + 1),
       'base64'
