@@ -2,6 +2,7 @@
 'use server';
 /**
  * @fileOverview AI Flow for generating human-like voice greetings.
+ * Uses Genkit defineFlow to interface with Gemini TTS.
  */
 
 import { ai } from '@/ai/genkit';
@@ -15,14 +16,15 @@ const GreetingTTSInputSchema = z.object({
 });
 
 /**
- * Generates high-quality greeting audio.
+ * Server-side wrapper to generate greeting audio.
  */
 export async function generateGreetingAudio(input: { greeting: string, userName: string }): Promise<string> {
   try {
     const result = await greetingTTSFlow(input);
     return result.audioUri;
   } catch (error: any) {
-    console.error("AI Greeting Audio Generation Failed:", error.message);
+    // Graceful fallback for quota or AI failures
+    console.warn("AI Greeting Audio Generation Failed:", error.message);
     return "";
   }
 }
@@ -44,16 +46,9 @@ async function toWav(
     });
 
     let bufs = [] as any[];
-    writer.on('error', (err) => {
-      console.error("WAV Writer Error:", err);
-      reject(err);
-    });
-    writer.on('data', function (d) {
-      bufs.push(d);
-    });
-    writer.on('end', function () {
-      resolve(Buffer.concat(bufs).toString('base64'));
-    });
+    writer.on('error', (err) => reject(err));
+    writer.on('data', (d) => bufs.push(d));
+    writer.on('end', () => resolve(Buffer.concat(bufs).toString('base64')));
 
     writer.write(pcmData);
     writer.end();
@@ -67,8 +62,7 @@ const greetingTTSFlow = ai.defineFlow(
     outputSchema: z.object({ audioUri: z.string() }),
   },
   async (input) => {
-    // Strictly formatted text: "Welcome {{user_name}}"
-    const text = `${input.greeting} ${input.userName}.`;
+    const text = `${input.greeting}, ${input.userName}.`;
     
     const { media } = await ai.generate({
       model: googleAI.model('gemini-2.5-flash-preview-tts'),
@@ -90,10 +84,6 @@ const greetingTTSFlow = ai.defineFlow(
     const base64Parts = media.url.split(',');
     const base64Data = base64Parts.length > 1 ? base64Parts[1] : base64Parts[0];
     
-    if (!base64Data) {
-      throw new Error('Invalid audio media format');
-    }
-
     const audioBuffer = Buffer.from(base64Data, 'base64');
     const wavBase64 = await toWav(audioBuffer);
 

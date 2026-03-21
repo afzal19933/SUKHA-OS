@@ -10,14 +10,12 @@ interface WelcomeGreetingProps {
 
 /**
  * WelcomeGreeting Component
- * Production-grade voice greeting system with strict synchronization and safeguards.
- * Optimized for reliability across different browser audio handling policies.
+ * Production-grade voice greeting system with Gatekeeper Pattern.
  */
 export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   const [status, setStatus] = useState<'hidden' | 'loading' | 'visible' | 'exiting'>('hidden');
   const nameToUse = userName || "User";
   
-  // Safeguard Refs
   const hasGreetedRef = useRef(false);
   const gatekeeperTriggeredRef = useRef(false);
   const isActiveRef = useRef(true);
@@ -25,7 +23,6 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   
-  // Timer Refs
   const watchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
   const maxDurationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const exitTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -33,7 +30,6 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
   useEffect(() => {
     isActiveRef.current = true;
     
-    // Session Lock: Play only once per session for this specific user
     const sessionKey = `greeted_${nameToUse}`;
     if (typeof window !== 'undefined' && sessionStorage.getItem(sessionKey)) {
       return;
@@ -42,7 +38,6 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
     if (hasGreetedRef.current) return;
 
     const initGreeting = async () => {
-      // Start loading phase immediately to show backdrop/blur
       setStatus('loading');
       
       try {
@@ -62,28 +57,21 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
         const audio = new Audio();
         audioRef.current = audio;
         
-        /**
-         * The Gatekeeper: Synchronizes UI appearance with audio readiness.
-         */
         const triggerGatekeeper = () => {
           if (gatekeeperTriggeredRef.current || !isActiveRef.current) return;
           gatekeeperTriggeredRef.current = true;
           
           if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
           
-          // Micro-delay for smoother animation transition
           setTimeout(() => {
             if (!isActiveRef.current) return;
             setStatus('visible');
             
             const playPromise = audio.play();
             if (playPromise !== undefined) {
-              playPromise.catch((err) => {
-                console.warn("WelcomeGreeting: Autoplay restriction", err);
-              });
+              playPromise.catch((err) => console.warn("Autoplay restriction", err));
             }
             
-            // Set Max Duration Timeout (3 seconds)
             maxDurationTimerRef.current = setTimeout(dismiss, 3000);
           }, 100);
         };
@@ -91,7 +79,6 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
         const dismiss = () => {
           if (isExitingRef.current || !isActiveRef.current) return;
           isExitingRef.current = true;
-          
           if (maxDurationTimerRef.current) clearTimeout(maxDurationTimerRef.current);
           
           setStatus('exiting');
@@ -104,18 +91,14 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
           }, 300);
         };
 
-        // Attach listeners BEFORE setting src
         audio.oncanplaythrough = triggerGatekeeper;
         audio.onended = dismiss;
-        audio.onerror = () => {
-          if (isActiveRef.current) triggerGatekeeper();
-        };
+        audio.onerror = () => { if (isActiveRef.current) triggerGatekeeper(); };
 
         audio.src = url;
         audio.load();
 
-        // Watchdog Fallback: Force UI visibility if audio is slow
-        watchdogTimerRef.current = setTimeout(triggerGatekeeper, 1200);
+        watchdogTimerRef.current = setTimeout(triggerGatekeeper, 1500);
 
       } catch (err) {
         triggerFallback();
@@ -147,15 +130,10 @@ export function WelcomeGreeting({ userName }: WelcomeGreetingProps) {
       
       if (audioRef.current) {
         audioRef.current.pause();
-        audioRef.current.oncanplaythrough = null;
-        audioRef.current.onended = null;
-        audioRef.current.onerror = null;
         audioRef.current.src = "";
       }
       
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current);
-      }
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
     };
   }, [nameToUse]);
 

@@ -4,7 +4,7 @@ import { generateGreetingAudio } from '@/ai/flows/greeting-tts-flow';
 
 /**
  * API Endpoint for TTS Greeting
- * Returns a WAV audio blob for the synchronized greeting system.
+ * Serves audio as a binary stream for the frontend.
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -17,7 +17,6 @@ export async function GET(req: NextRequest) {
       return new Response(null, { status: 204 });
     }
     
-    // Convert data URI back to binary buffer
     const base64Parts = audioDataUri.split(',');
     const base64 = base64Parts.length > 1 ? base64Parts[1] : base64Parts[0];
     const buffer = Buffer.from(base64, 'base64');
@@ -29,7 +28,6 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("TTS API Error:", error);
     return new Response(null, { status: 500 });
   }
 }
