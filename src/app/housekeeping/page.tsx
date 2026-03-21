@@ -393,7 +393,6 @@ export default function HousekeepingPage() {
                               </div>
                             )}
                             <div className="flex items-center justify-between pt-1 border-t">
-                              <Badge variant="outline" className="text-[8px] uppercase px-1 py-0 bg-secondary/20">{room.roomTypeId}</Badge>
                               <span className="text-[8px] text-muted-foreground flex items-center gap-1">
                                 <History className="w-2.5 h-2.5" />
                                 {room.updatedAt ? new Date(room.updatedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'N/A'}

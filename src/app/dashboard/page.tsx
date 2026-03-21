@@ -333,7 +333,7 @@ function DashboardContent() {
                       const res = checkedInReservations?.find(res => res.roomNumber?.toString() === room.roomNumber?.toString());
                       return (
                         <TableRow key={room.id}>
-                          <TableCell className="font-black text-blue-600">#{room.roomNumber}</TableCell>
+                          <TableCell className="font-black text-blue-600">{room.roomNumber}</TableCell>
                           <TableCell className="font-bold text-[11px] uppercase">{res?.guestName || "Processing..."}</TableCell>
                           <TableCell className="text-right">
                             <Badge className="bg-blue-50 text-blue-600 border-blue-100 text-[8px] font-black uppercase">In-House</Badge>
@@ -346,10 +346,10 @@ function DashboardContent() {
                   {detailView === 'vacant' && (
                     rooms?.filter(r => r.status === 'available').map(room => (
                       <TableRow key={room.id}>
-                        <TableCell className="font-black text-emerald-600">#{room.roomNumber}</TableCell>
-                        <TableCell className="text-[10px] font-bold text-muted-foreground uppercase">Floor {room.floor} • {room.roomTypeId}</TableCell>
+                        <TableCell className="font-black text-emerald-600">{room.roomNumber}</TableCell>
+                        <TableCell className="text-[10px] font-bold text-muted-foreground uppercase">Floor {room.floor}</TableCell>
                         <TableCell className="text-right">
-                          <Badge className="bg-emerald-50 text-emerald-600 border-emerald-100 text-[8px] font-black uppercase">Ready</Badge>
+                          <Badge className="bg-emerald-50 text-emerald-600 border-blue-100 text-[8px] font-black uppercase">Ready</Badge>
                         </TableCell>
                       </TableRow>
                     ))
@@ -358,7 +358,7 @@ function DashboardContent() {
                   {detailView === 'dirty' && (
                     rooms?.filter(r => r.status === 'dirty' || r.status === 'occupied_dirty').map(room => (
                       <TableRow key={room.id}>
-                        <TableCell className="font-black text-orange-600">#{room.roomNumber}</TableCell>
+                        <TableCell className="font-black text-orange-600">{room.roomNumber}</TableCell>
                         <TableCell className="text-[10px] font-bold text-muted-foreground uppercase">
                           {room.status === 'dirty' ? 'Vacant - Requires Service' : 'Occupied - Requires Service'}
                         </TableCell>
@@ -372,7 +372,7 @@ function DashboardContent() {
                   {detailView === 'revenue' && (
                     stats.todayInvoices.map((inv: any) => (
                       <TableRow key={inv.id}>
-                        <TableCell className="font-black text-primary">#{inv.roomNumber || inv.stayDetails?.roomNumber || "N/A"}</TableCell>
+                        <TableCell className="font-black text-primary">{inv.roomNumber || inv.stayDetails?.roomNumber || "N/A"}</TableCell>
                         <TableCell>
                           <div className="flex flex-col">
                             <span className="font-bold text-[11px] uppercase">{inv.guestDetails?.name || inv.guestName}</span>

@@ -167,7 +167,7 @@ export default function ReservationsPage() {
                 <TableRow><TableCell colSpan={4} className="text-center py-20"><Loader2 className="animate-spin w-6 h-6 mx-auto" /></TableCell></TableRow>
               ) : filteredReservations.map((res) => (
                 <TableRow key={res.id} className="hover:bg-primary/5">
-                  <TableCell className="text-center pl-8">#{res.roomNumber}</TableCell>
+                  <TableCell className="text-center pl-8">{res.roomNumber}</TableCell>
                   <TableCell className="font-black text-center">{res.guestName}</TableCell>
                   <TableCell className="text-center"><Badge>{res.status}</Badge></TableCell>
                   <TableCell className="text-center pr-8">

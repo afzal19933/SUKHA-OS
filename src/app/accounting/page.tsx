@@ -839,7 +839,7 @@ export default function AccountingPage() {
                 <div className="space-y-2">
                   <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Billed To</p>
                   <p className="font-black text-sm text-primary uppercase">{selectedInvoice?.guestName || selectedInvoice?.guestDetails?.name}</p>
-                  <p className="text-[10px] font-bold text-muted-foreground">Room #{selectedInvoice?.roomNumber || selectedInvoice?.stayDetails?.roomNumber || "Cycle"}</p>
+                  <p className="text-[10px] font-bold text-muted-foreground">Room {selectedInvoice?.roomNumber || selectedInvoice?.stayDetails?.roomNumber || "Cycle"}</p>
                 </div>
                 <div className="space-y-2 text-right">
                   <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Reference Info</p>
