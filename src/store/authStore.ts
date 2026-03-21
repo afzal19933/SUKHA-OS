@@ -1,4 +1,3 @@
-
 "use client";
 
 import { create } from 'zustand';
@@ -64,11 +63,12 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'sukha-auth-storage',
-      // Ensure userName is NOT persisted to keep greeting names fresh from Firestore on every session
-      partialize: (state) => {
-        const { userName, ...rest } = state;
-        return rest;
-      },
+      // CRITICAL FIX: Only persist UI-related settings like theme.
+      // Persisting roles or entity IDs causes race conditions where data hooks 
+      // trigger before the Firebase SDK has initialized the auth token.
+      partialize: (state) => ({
+        theme: state.theme,
+      }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },

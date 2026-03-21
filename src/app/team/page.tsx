@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -72,6 +71,7 @@ const SYSTEM_MODULES = [
 
 export default function TeamPage() {
   const { role: currentUserRole, entityId, availableProperties } = useAuthStore();
+  const { user: firebaseUser, isUserLoading: isAuthLoading } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
   
@@ -109,9 +109,13 @@ export default function TeamPage() {
   }, [isEditOpen, isPermissionsOpen, isInviteOpen]);
 
   const teamQuery = useMemoFirebase(() => {
+    // SECURITY GUARD: Ensure auth state is fully initialized and an entity context is selected
+    // before attempting to list user profiles. This prevents "Missing Permissions" errors during page loads.
+    if (isAuthLoading || !firebaseUser || !entityId) return null;
+
     if (isAdmin) return query(collection(db, "user_profiles"));
     return query(collection(db, "user_profiles"), where("entityId", "==", entityId));
-  }, [db, entityId, isAdmin]);
+  }, [db, entityId, isAdmin, firebaseUser, isAuthLoading]);
 
   const { data: teamMembers, isLoading } = useCollection(teamQuery);
 
@@ -245,7 +249,7 @@ export default function TeamPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
+              {isLoading || isAuthLoading ? (
                 <TableRow><TableCell colSpan={5} className="text-center py-24"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></TableCell></TableRow>
               ) : filteredMembers.length > 0 ? (
                 filteredMembers.map((member) => (
