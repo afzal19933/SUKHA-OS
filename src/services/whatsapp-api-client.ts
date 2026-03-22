@@ -1,17 +1,21 @@
-
 /**
  * @fileOverview Real WhatsApp Cloud API Client.
  * Handles outbound communication with Meta Graph API.
  */
 
-const WHATSAPP_VERSION = 'v25.0';
+const WHATSAPP_VERSION = 'v21.0';
 
-export async function sendRealWhatsAppMessage(to: string, text: string) {
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-
+/**
+ * Sends a message via Meta Cloud API using property-specific credentials.
+ */
+export async function sendRealWhatsAppMessage(
+  phoneNumberId: string, 
+  accessToken: string, 
+  to: string, 
+  text: string
+) {
   if (!phoneNumberId || !accessToken) {
-    console.error("WhatsApp API credentials missing in environment variables (PHONE_NUMBER_ID or ACCESS_TOKEN).");
+    console.error("WhatsApp API credentials missing for this property.");
     return;
   }
 
