@@ -5,28 +5,37 @@ import { initializeFirebase } from '@/firebase/init';
 import { collection, query, where, getDocs, limit, addDoc } from 'firebase/firestore';
 
 /**
- * WhatsApp Webhook Route Handler
- * Supports Meta Verification (GET) and Message Events (POST)
- * Dynamically resolves property context and AI responses.
+ * WhatsApp Webhook Route Handler for SUKHA OS
+ * 
+ * GET: Handles Meta Cloud API Verification (Handshake)
+ * POST: Processes incoming messages, logs traffic, and triggers AI responses
  */
+
+const VERIFY_TOKEN = 'sukha_os_verify';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
+  
   const mode = searchParams.get('hub.mode');
   const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  // Verify against the token set in Meta Dashboard (Fallback to 'sukha_os_verify' if not in env)
-  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || 'sukha_os_verify';
+  console.log('--- WHATSAPP WEBHOOK VERIFICATION ATTEMPT ---');
+  console.log('Mode:', mode);
+  console.log('Token:', token);
 
-  if (mode === 'subscribe' && token === verifyToken) {
-    console.log('WEBHOOK_VERIFIED');
+  // 1. Validate Verification Request
+  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+    console.log('WEBHOOK_VERIFIED: Verification successful.');
+    
+    // 2. Return the challenge as PLAIN TEXT (Critical for Meta)
     return new Response(challenge, {
       status: 200,
       headers: { 'Content-Type': 'text/plain' },
     });
   }
   
+  console.error('WEBHOOK_VERIFICATION_FAILED: Tokens do not match.');
   return new Response('Verification failed', { status: 403 });
 }
 
@@ -35,59 +44,78 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { firestore } = initializeFirebase();
 
-    // 1. Identify the message event
-    if (body.object && body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]) {
-      const messageObj = body.entry[0].changes[0].value.messages[0];
-      const metadata = body.entry[0].changes[0].value.metadata;
-      const from = messageObj.from; // Sender phone number
-      const text = messageObj.text?.body; // Message text
-      const phone_number_id = metadata.phone_number_id;
+    // 1. Fast Logging for Debugging
+    console.log('--- INCOMING WHATSAPP PAYLOAD ---');
+    console.log(JSON.stringify(body, null, 2));
 
-      if (!text || typeof text !== 'string') {
-        return NextResponse.json({ status: 'ignored' });
-      }
+    // 2. Identify the specific message event
+    const entry = body.entry?.[0];
+    const changes = entry?.changes?.[0];
+    const value = changes?.value;
+    const messageObj = value?.messages?.[0];
+    const metadata = value?.metadata;
 
-      // 2. Resolve Property Context from Firestore using the phone_number_id
-      const propsRef = collection(firestore, "hotel_properties");
-      const q = query(propsRef, where("whatsappPhoneNumberId", "==", phone_number_id), limit(1));
-      const propSnap = await getDocs(q);
+    if (!messageObj) {
+      return NextResponse.json({ status: 'ignored', reason: 'No message found in payload' });
+    }
 
-      if (propSnap.empty) {
-        console.error(`Webhook received for unregistered phone_number_id: ${phone_number_id}`);
-        return NextResponse.json({ status: 'property_not_found' });
-      }
+    const from = messageObj.from; // Sender phone number
+    const text = messageObj.text?.body; // Message content
+    const phone_number_id = metadata?.phone_number_id;
 
-      const property = propSnap.docs[0].data();
-      const entityId = propSnap.docs[0].id;
-      const accessToken = property.whatsappAccessToken;
+    if (!text || !phone_number_id) {
+      return NextResponse.json({ status: 'ignored', reason: 'Missing text or phone_number_id' });
+    }
 
-      // 3. Log Incoming Message to the property's audit trail
-      await addDoc(collection(firestore, "hotel_properties", entityId, "whatsapp_logs"), {
-        entityId,
-        phoneNumber: from,
-        role: 'Guest',
-        direction: 'incoming',
+    console.log(`Received message from ${from}: "${text}"`);
+
+    // 3. Resolve Property Context from Firestore
+    // We match the incoming phone_number_id to the property settings
+    const propsRef = collection(firestore, "hotel_properties");
+    const q = query(propsRef, where("whatsappPhoneNumberId", "==", phone_number_id), limit(1));
+    const propSnap = await getDocs(q);
+
+    if (propSnap.empty) {
+      console.error(`ERROR: Received message for UNREGISTERED phone_number_id: ${phone_number_id}`);
+      return NextResponse.json({ status: 'property_not_found' });
+    }
+
+    const property = propSnap.docs[0].data();
+    const entityId = propSnap.docs[0].id;
+    const accessToken = property.whatsappAccessToken;
+
+    // 4. Log Incoming Message to Property Audit Trail
+    await addDoc(collection(firestore, "hotel_properties", entityId, "whatsapp_logs"), {
+      entityId,
+      phoneNumber: from,
+      role: 'Guest',
+      direction: 'incoming',
+      message: text,
+      status: 'received',
+      createdAt: new Date().toISOString()
+    });
+
+    // 5. Generate AI Receptionist Response
+    // We check for simple greetings first, then fall back to Gemini
+    const lowerText = text.toLowerCase().trim();
+    const greetings = ['hi', 'hello', 'hey', 'namaste', 'morning', 'evening'];
+    
+    let replyText = "";
+    if (greetings.some(g => lowerText.startsWith(g))) {
+      replyText = `Welcome to ${property.name} 🌿 How can I assist you today?`;
+    } else {
+      // Use specialized Genkit flow for natural language processing
+      replyText = await getReceptionistResponse({ 
         message: text,
-        status: 'received',
-        createdAt: new Date().toISOString()
+        guestName: value?.contacts?.[0]?.profile?.name
       });
+    }
 
-      // 4. Generate AI Response
-      // Logic: If it's a basic greeting, be friendly. Otherwise, use Gemini.
-      const lowerText = text.toLowerCase().trim();
-      const greetings = ['hi', 'hello', 'hey', 'namaste'];
-      
-      let replyText = "";
-      if (greetings.some(g => lowerText.startsWith(g))) {
-        replyText = `Welcome to ${property.name} 🌿 How can I assist you today?`;
-      } else {
-        replyText = await getReceptionistResponse({ message: text });
-      }
-
-      // 5. Send Outbound Reply via WhatsApp API
+    // 6. Dispatch Outbound Reply via Meta API
+    if (accessToken) {
       await sendRealWhatsAppMessage(phone_number_id, accessToken, from, replyText);
 
-      // 6. Log Outgoing AI Response
+      // 7. Log Outgoing AI Response
       await addDoc(collection(firestore, "hotel_properties", entityId, "whatsapp_logs"), {
         entityId,
         phoneNumber: from,
@@ -99,13 +127,17 @@ export async function POST(req: NextRequest) {
         intent: 'GuestSupport',
         createdAt: new Date().toISOString()
       });
-
-      return NextResponse.json({ status: 'success' });
+    } else {
+      console.warn(`WARNING: Property ${property.name} has no WhatsApp Access Token configured.`);
     }
 
-    return NextResponse.json({ status: 'not_a_message' });
-  } catch (error) {
-    console.error("Webhook Error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    // Always respond with 200 OK promptly to Meta
+    return NextResponse.json({ status: 'success' });
+
+  } catch (error: any) {
+    console.error("WEBHOOK_POST_ERROR:", error);
+    // Even on error, we return 200 to prevent Meta from retrying indefinitely 
+    // and potentially flooding the system if the error is data-specific.
+    return NextResponse.json({ error: "Internal processing error" }, { status: 200 });
   }
 }
