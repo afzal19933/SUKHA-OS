@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeFirebase } from '@/firebase/init';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { db } from '@/lib/firebase-admin'; // ✅ Firebase Admin SDK
+import { collection, query, where, getDocs, limit } from 'firebase-admin/firestore';
 import { getReceptionistResponse } from '@/ai/flows/whatsapp-receptionist-flow';
 import { getOpsAssistantResponse } from '@/ai/flows/whatsapp-ops-assistant-flow';
 import { sendRealWhatsAppMessage } from '@/services/whatsapp-api-client';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { getPropertyContext } from '@/services/property-context-service';
 
 /**
  * WhatsApp Webhook Route Handler
- * Optimized for Meta Cloud API Verification and Message Ingestion.
+ * Updated to use Firebase Admin SDK (server-safe)
  */
 
 const VERIFY_TOKEN = 'sukha_os_verify';
@@ -46,105 +45,137 @@ export async function POST(req: NextRequest) {
     const text = messageObj.text?.body;
     const phoneNumberId = value.metadata.phone_number_id;
 
-    const { firestore } = initializeFirebase();
+    console.log(`📩 Message from: ${from} | PhoneNumberId: ${phoneNumberId} | Text: ${text}`);
 
     // 1. Identify Property by Phone Number ID
-    const propertiesRef = collection(firestore, "hotel_properties");
-    const q = query(propertiesRef, where("whatsappPhoneNumberId", "==", phoneNumberId), limit(1));
-    const propSnap = await getDocs(q);
+    const propertiesRef = db.collection('hotel_properties');
+    const propSnap = await propertiesRef
+      .where('whatsappPhoneNumberId', '==', phoneNumberId)
+      .limit(1)
+      .get();
 
     if (propSnap.empty) {
-      console.warn(`[Webhook] Property not found for Phone ID: ${phoneNumberId}`);
+      console.warn(`[Webhook] ❌ Property not found for Phone ID: ${phoneNumberId}`);
       return NextResponse.json({ status: 'property_not_found' });
     }
 
     const property = propSnap.docs[0].data();
     const propertyId = propSnap.docs[0].id;
+    console.log(`🏨 Property found: ${property.name} (${propertyId})`);
 
     // 2. Identify Sender Role (Guest vs Management)
-    const contactsRef = collection(firestore, "hotel_properties", propertyId, "whatsapp_contacts");
-    const contactQ = query(contactsRef, where("phoneNumber", "==", from), limit(1));
-    const contactSnap = await getDocs(contactQ);
-    const contact = contactSnap.empty ? null : contactSnap.docs[0].data();
+    const contactSnap = await db
+      .collection('hotel_properties')
+      .doc(propertyId)
+      .collection('whatsapp_contacts')
+      .where('phoneNumber', '==', from)
+      .limit(1)
+      .get();
 
-    // 3. Log Incoming Message to Audit Trail
-    addDocumentNonBlocking(collection(firestore, "hotel_properties", propertyId, "whatsapp_logs"), {
-      entityId: propertyId,
-      phoneNumber: from,
-      role: contact?.role || 'Guest',
-      direction: 'incoming',
-      message: text,
-      status: 'received',
-      createdAt: new Date().toISOString()
-    });
+    const contact = contactSnap.empty ? null : contactSnap.docs[0].data();
+    const role = contact?.role || 'Guest';
+    console.log(`👤 Sender role: ${role}`);
+
+    // 3. Log Incoming Message
+    db.collection('hotel_properties')
+      .doc(propertyId)
+      .collection('whatsapp_logs')
+      .add({
+        entityId: propertyId,
+        phoneNumber: from,
+        role,
+        direction: 'incoming',
+        message: text,
+        status: 'received',
+        createdAt: new Date().toISOString()
+      })
+      .catch(err => console.error('Log error (incoming):', err));
 
     // 4. Generate AI Response
-    let replyText = "";
+    let replyText = '';
     let isAiQuery = false;
-    let intent = "GeneralQuery";
+    let intent = 'GeneralQuery';
 
-    if (contact && ["Owner", "Admin", "Manager"].includes(contact.role)) {
-      // Management -> Operations Assistant
-      const dataContext = await getPropertyContext(firestore, propertyId);
+    if (contact && ['Owner', 'Admin', 'Manager'].includes(contact.role)) {
+      // Management → Operations Assistant
+      console.log('🧑‍💼 Routing to Ops Assistant...');
+      const dataContext = await getPropertyContext(db, propertyId);
       replyText = await getOpsAssistantResponse({
         propertyName: property.name,
         dataContext,
         query: text
       });
       isAiQuery = true;
-      intent = "OperationalReport";
+      intent = 'OperationalReport';
     } else {
-      // Guest -> AI Receptionist
-      replyText = await getReceptionistResponse({ 
+      // Guest → AI Receptionist
+      console.log('👤 Routing to Receptionist AI...');
+      replyText = await getReceptionistResponse({
         message: text,
         guestName: value.contacts?.[0]?.profile?.name
       });
     }
 
-    // 5. Attempt Outbound Dispatch
+    console.log(`🤖 AI Reply generated: ${replyText?.slice(0, 80)}...`);
+
+    // 5. Send WhatsApp Reply
     if (replyText && property.whatsappAccessToken) {
       try {
+        console.log('📡 Sending WhatsApp message...');
         await sendRealWhatsAppMessage(
           property.whatsappPhoneNumberId,
           property.whatsappAccessToken,
           from,
           replyText
         );
+        console.log('✅ WhatsApp message sent successfully!');
 
         // Log Success
-        addDocumentNonBlocking(collection(firestore, "hotel_properties", propertyId, "whatsapp_logs"), {
-          entityId: propertyId,
-          phoneNumber: from,
-          role: 'AI Assistant',
-          direction: 'outgoing',
-          message: replyText,
-          status: 'sent',
-          isAiQuery,
-          intent,
-          response: replyText,
-          createdAt: new Date().toISOString()
-        });
+        db.collection('hotel_properties')
+          .doc(propertyId)
+          .collection('whatsapp_logs')
+          .add({
+            entityId: propertyId,
+            phoneNumber: from,
+            role: 'AI Assistant',
+            direction: 'outgoing',
+            message: replyText,
+            status: 'sent',
+            isAiQuery,
+            intent,
+            createdAt: new Date().toISOString()
+          })
+          .catch(err => console.error('Log error (outgoing success):', err));
+
       } catch (apiError: any) {
-        // Log Dispatch Failure (Very important for debugging)
-        addDocumentNonBlocking(collection(firestore, "hotel_properties", propertyId, "whatsapp_logs"), {
-          entityId: propertyId,
-          phoneNumber: from,
-          role: 'AI Assistant',
-          direction: 'outgoing',
-          message: replyText,
-          status: 'failed',
-          isAiQuery,
-          intent,
-          error: apiError.message,
-          createdAt: new Date().toISOString()
-        });
+        console.error('❌ WhatsApp send failed:', apiError.message);
+
+        // Log Failure
+        db.collection('hotel_properties')
+          .doc(propertyId)
+          .collection('whatsapp_logs')
+          .add({
+            entityId: propertyId,
+            phoneNumber: from,
+            role: 'AI Assistant',
+            direction: 'outgoing',
+            message: replyText,
+            status: 'failed',
+            isAiQuery,
+            intent,
+            error: apiError.message,
+            createdAt: new Date().toISOString()
+          })
+          .catch(err => console.error('Log error (outgoing fail):', err));
       }
+    } else {
+      console.warn('⚠️ No reply text or missing whatsappAccessToken in property config');
     }
 
     return NextResponse.json({ status: 'success' });
 
   } catch (error: any) {
-    console.error("❌ CRITICAL WEBHOOK ERROR:", error);
-    return NextResponse.json({ error: "Internal processing error" }, { status: 200 });
+    console.error('❌ CRITICAL WEBHOOK ERROR:', error);
+    return NextResponse.json({ error: 'Internal processing error' }, { status: 200 });
   }
 }
