@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
@@ -13,6 +14,7 @@ import { doc, updateDoc, collection, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, Building, Percent, Plus, Palette, Check, MessageSquare, Key, Database, Globe, Phone, Info } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { cn } from "@/lib/utils";
 
 const THEMES = [
   { id: 'default', name: 'Sukha Indigo', color: 'bg-[#5F5FA7]' },
