@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase/init';
-import { collection, query, where, getDocs, limit, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { getReceptionistResponse } from '@/ai/flows/whatsapp-receptionist-flow';
 import { getOpsAssistantResponse } from '@/ai/flows/whatsapp-ops-assistant-flow';
 import { sendRealWhatsAppMessage } from '@/services/whatsapp-api-client';
@@ -9,11 +9,12 @@ import { getPropertyContext } from '@/services/property-context-service';
 
 /**
  * WhatsApp Webhook Route Handler
+ * Optimized for Meta Cloud API Verification and Message Ingestion.
  */
 
 const VERIFY_TOKEN = 'sukha_os_verify';
 
-// ✅ GET → Verification
+// ✅ GET → Meta Verification Handshake
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const mode = searchParams.get('hub.mode');
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
   return new Response('Verification failed', { status: 403 });
 }
 
-// ✅ POST → Receive messages
+// ✅ POST → Receive and Auto-Reply to Messages
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
     const value = entry?.changes?.[0]?.value;
     const messageObj = value?.messages?.[0];
 
+    // Ignore non-message events (like delivery statuses)
     if (!messageObj) return NextResponse.json({ status: 'ignored' });
 
     const from = messageObj.from;
@@ -52,7 +54,7 @@ export async function POST(req: NextRequest) {
     const propSnap = await getDocs(q);
 
     if (propSnap.empty) {
-      console.warn(`[Webhook] Unrecognized phone number ID: ${phoneNumberId}`);
+      console.warn(`[Webhook] Property not found for Phone ID: ${phoneNumberId}`);
       return NextResponse.json({ status: 'property_not_found' });
     }
 
@@ -65,7 +67,7 @@ export async function POST(req: NextRequest) {
     const contactSnap = await getDocs(contactQ);
     const contact = contactSnap.empty ? null : contactSnap.docs[0].data();
 
-    // 3. Log Incoming Message
+    // 3. Log Incoming Message to Audit Trail
     addDocumentNonBlocking(collection(firestore, "hotel_properties", propertyId, "whatsapp_logs"), {
       entityId: propertyId,
       phoneNumber: from,
@@ -76,13 +78,13 @@ export async function POST(req: NextRequest) {
       createdAt: new Date().toISOString()
     });
 
-    // 4. Generate AI Response based on Role
+    // 4. Generate AI Response
     let replyText = "";
     let isAiQuery = false;
     let intent = "GeneralQuery";
 
     if (contact && ["Owner", "Admin", "Manager"].includes(contact.role)) {
-      // Management Request -> Use Ops Assistant with REAL DATA
+      // Management -> Operations Assistant
       const dataContext = await getPropertyContext(firestore, propertyId);
       replyText = await getOpsAssistantResponse({
         propertyName: property.name,
@@ -92,41 +94,57 @@ export async function POST(req: NextRequest) {
       isAiQuery = true;
       intent = "OperationalReport";
     } else {
-      // Guest Request -> Use Premium Receptionist
+      // Guest -> AI Receptionist
       replyText = await getReceptionistResponse({ 
         message: text,
         guestName: value.contacts?.[0]?.profile?.name
       });
     }
 
-    // 5. Send Response via WhatsApp Cloud API
+    // 5. Attempt Outbound Dispatch
     if (replyText && property.whatsappAccessToken) {
-      await sendRealWhatsAppMessage(
-        property.whatsappPhoneNumberId,
-        property.whatsappAccessToken,
-        from,
-        replyText
-      );
+      try {
+        await sendRealWhatsAppMessage(
+          property.whatsappPhoneNumberId,
+          property.whatsappAccessToken,
+          from,
+          replyText
+        );
 
-      // 6. Log Outgoing Reply
-      addDocumentNonBlocking(collection(firestore, "hotel_properties", propertyId, "whatsapp_logs"), {
-        entityId: propertyId,
-        phoneNumber: from,
-        role: 'AI Receptionist',
-        direction: 'outgoing',
-        message: replyText,
-        status: 'sent',
-        isAiQuery,
-        intent,
-        response: replyText,
-        createdAt: new Date().toISOString()
-      });
+        // Log Success
+        addDocumentNonBlocking(collection(firestore, "hotel_properties", propertyId, "whatsapp_logs"), {
+          entityId: propertyId,
+          phoneNumber: from,
+          role: 'AI Assistant',
+          direction: 'outgoing',
+          message: replyText,
+          status: 'sent',
+          isAiQuery,
+          intent,
+          response: replyText,
+          createdAt: new Date().toISOString()
+        });
+      } catch (apiError: any) {
+        // Log Dispatch Failure (Very important for debugging)
+        addDocumentNonBlocking(collection(firestore, "hotel_properties", propertyId, "whatsapp_logs"), {
+          entityId: propertyId,
+          phoneNumber: from,
+          role: 'AI Assistant',
+          direction: 'outgoing',
+          message: replyText,
+          status: 'failed',
+          isAiQuery,
+          intent,
+          error: apiError.message,
+          createdAt: new Date().toISOString()
+        });
+      }
     }
 
     return NextResponse.json({ status: 'success' });
 
   } catch (error: any) {
-    console.error("❌ WEBHOOK ERROR:", error);
-    return NextResponse.json({ error: "Internal error" }, { status: 200 });
+    console.error("❌ CRITICAL WEBHOOK ERROR:", error);
+    return NextResponse.json({ error: "Internal processing error" }, { status: 200 });
   }
 }

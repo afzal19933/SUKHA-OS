@@ -3,10 +3,11 @@
  * Handles outbound communication with Meta Graph API.
  */
 
-const WHATSAPP_VERSION = 'v21.0';
+const WHATSAPP_VERSION = 'v20.0';
 
 /**
  * Sends a message via Meta Cloud API using property-specific credentials.
+ * Returns the Meta API response or throws a descriptive error.
  */
 export async function sendRealWhatsAppMessage(
   phoneNumberId: string, 
@@ -15,8 +16,7 @@ export async function sendRealWhatsAppMessage(
   text: string
 ) {
   if (!phoneNumberId || !accessToken) {
-    console.error("WhatsApp API credentials missing for this property.");
-    return;
+    throw new Error("WhatsApp API credentials (Phone ID or Token) missing for this property.");
   }
 
   const url = `https://graph.facebook.com/${WHATSAPP_VERSION}/${phoneNumberId}/messages`;
@@ -41,12 +41,16 @@ export async function sendRealWhatsAppMessage(
     });
 
     const result = await response.json();
+    
     if (!response.ok) {
-      console.error("WhatsApp API Error Response:", JSON.stringify(result, null, 2));
+      const errorMessage = result.error?.message || "Unknown Meta API Error";
+      const errorCode = result.error?.code || "No Code";
+      throw new Error(`Meta API Error [${errorCode}]: ${errorMessage}`);
     }
+
     return result;
-  } catch (error) {
-    console.error("Failed to execute WhatsApp API request:", error);
+  } catch (error: any) {
+    console.error("❌ WhatsApp Outbound Failure:", error.message);
     throw error;
   }
 }
