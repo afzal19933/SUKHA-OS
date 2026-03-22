@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin'; // ✅ Firebase Admin SDK
-import { collection, query, where, getDocs, limit } from 'firebase-admin/firestore';
 import { getReceptionistResponse } from '@/ai/flows/whatsapp-receptionist-flow';
 import { getOpsAssistantResponse } from '@/ai/flows/whatsapp-ops-assistant-flow';
 import { sendRealWhatsAppMessage } from '@/services/whatsapp-api-client';
@@ -99,7 +98,7 @@ export async function POST(req: NextRequest) {
     if (contact && ['Owner', 'Admin', 'Manager'].includes(contact.role)) {
       // Management → Operations Assistant
       console.log('🧑‍💼 Routing to Ops Assistant...');
-      const dataContext = await getPropertyContext(db, propertyId);
+      const dataContext = await getPropertyContext(propertyId); // ✅ FIXED: removed db parameter
       replyText = await getOpsAssistantResponse({
         propertyName: property.name,
         dataContext,

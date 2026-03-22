@@ -1,22 +1,27 @@
-'use client';
-
-import { collection, getDocs, query, where, limit, orderBy, Firestore } from 'firebase/firestore';
+// ✅ NO 'use client' - this runs on server
+import { db } from '@/lib/firebase-admin'; // ✅ Admin SDK
 
 /**
  * Summarizes the current property state for the AI Assistant.
- * Optimized for management queries.
+ * Server-safe version using Firebase Admin SDK.
  */
-export async function getPropertyContext(db: Firestore, entityId: string) {
+export async function getPropertyContext(entityId: string) {
   const today = new Date().toISOString().split('T')[0];
   const startOfMonth = today.substring(0, 7) + "-01";
 
   try {
+    const propertyRef = db.collection('hotel_properties').doc(entityId);
+
     const [roomsSnap, resSnap, tasksSnap, invSnap, laundrySnap] = await Promise.all([
-      getDocs(collection(db, "hotel_properties", entityId, "rooms")),
-      getDocs(query(collection(db, "hotel_properties", entityId, "reservations"), where("checkInDate", ">=", startOfMonth))),
-      getDocs(query(collection(db, "hotel_properties", entityId, "housekeeping_tasks"), limit(20))),
-      getDocs(query(collection(db, "hotel_properties", entityId, "invoices"), where("createdAt", ">=", startOfMonth))),
-      getDocs(query(collection(db, "hotel_properties", entityId, "guest_laundry_orders"), where("status", "==", "sent")))
+      propertyRef.collection('rooms').get(),
+      propertyRef.collection('reservations')
+        .where('checkInDate', '>=', startOfMonth).get(),
+      propertyRef.collection('housekeeping_tasks')
+        .limit(20).get(),
+      propertyRef.collection('invoices')
+        .where('createdAt', '>=', startOfMonth).get(),
+      propertyRef.collection('guest_laundry_orders')
+        .where('status', '==', 'sent').get()
     ]);
 
     const rooms = roomsSnap.docs.map(d => ({ room: d.id, status: d.data().status }));
@@ -28,12 +33,12 @@ export async function getPropertyContext(db: Firestore, entityId: string) {
     return {
       occupancy: {
         total: rooms.length,
-        occupied: rooms.filter(r => r.status.includes('occupied')).length,
+        occupied: rooms.filter(r => r.status?.includes('occupied')).length,
         vacant: rooms.filter(r => r.status === 'available').length
       },
       housekeeping: {
         cleaned: rooms.filter(r => r.status === 'available' || r.status === 'occupied').length,
-        pending: rooms.filter(r => r.status.includes('dirty')).length
+        pending: rooms.filter(r => r.status?.includes('dirty')).length
       },
       movement: {
         arrivalsToday: reservations.filter(r => r.date === today).length
@@ -48,7 +53,7 @@ export async function getPropertyContext(db: Firestore, entityId: string) {
       }
     };
   } catch (error) {
-    console.error("Context fetch failed:", error);
-    return "Data partially unavailable due to system sync lag.";
+    console.error('❌ Context fetch failed:', error);
+    return 'Data partially unavailable due to system sync lag.';
   }
 }
