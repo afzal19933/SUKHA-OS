@@ -1,10 +1,4 @@
-'use server';
-/**
- * @fileOverview Operational Assistant Flow for WhatsApp Management Interactions.
- * 
- * - whatsappOpsAssistant - Handles factual operational queries for owners and admins.
- */
-
+// ✅ NO 'use server' - causes issues in webhook context
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
@@ -16,9 +10,6 @@ const OpsAssistantInputSchema = z.object({
 
 export type OpsAssistantInput = z.infer<typeof OpsAssistantInputSchema>;
 
-/**
- * System Prompt for the SUKHA OS Operations Assistant
- */
 const opsAssistantPrompt = ai.definePrompt({
   name: 'opsAssistantPrompt',
   input: { schema: OpsAssistantInputSchema },
@@ -35,9 +26,9 @@ You must ONLY use the provided DATA. Never guess, assume, or hallucinate.
 ---
 CAPABILITIES:
 1. REPORTS: Daily / Weekly / Monthly reports
-2. OPERATIONS: Room status, Housekeeping updates, Maintenance records, Service history (AC, lift, etc.)
-3. FINANCIALS: Payments received, Outstanding balances, Revenue breakdown, Vendor/customer accounts (e.g., Ayursiha)
-4. HISTORY LOOKUP: "When was AC serviced in Room 203?", "When was lift maintenance done?", "Last payment from Ayursiha?"
+2. OPERATIONS: Room status, Housekeeping updates, Maintenance records
+3. FINANCIALS: Payments received, Outstanding balances, Revenue breakdown
+4. HISTORY LOOKUP: Past maintenance, payments, service records
 
 ---
 RESPONSE RULES:
@@ -63,22 +54,16 @@ Occupancy:
 * Vacant:
 
 Movement:
-* Check-ins:
+* Check-ins Today:
 * Check-outs:
 
 Housekeeping:
 * Cleaned:
 * Pending:
-* Maintenance:
-
-Laundry:
-* Orders:
-* Revenue:
 
 Revenue:
-* Room Revenue:
-* Other Revenue:
-* Total Revenue:
+* Month to Date:
+* Pending Laundry:
 
 ---
 IMPORTANT:
@@ -90,6 +75,16 @@ User Query: {{{query}}}`,
 });
 
 export async function getOpsAssistantResponse(input: OpsAssistantInput): Promise<string> {
-  const { text } = await opsAssistantPrompt(input);
-  return text || "Data not available";
+  try {
+    const response = await opsAssistantPrompt(input);
+    // ✅ Safely extract text - handles null/undefined
+    const result = response?.text ?? response?.output ?? null;
+    if (!result || typeof result !== 'string') {
+      return "Report generated. Data not available for this query.";
+    }
+    return result;
+  } catch (error) {
+    console.error('❌ Ops Assistant error:', error);
+    return "Unable to process report right now. Please try again.";
+  }
 }
