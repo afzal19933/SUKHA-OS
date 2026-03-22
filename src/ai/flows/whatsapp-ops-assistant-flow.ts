@@ -13,7 +13,6 @@ export type OpsAssistantInput = z.infer<typeof OpsAssistantInputSchema>;
 const opsAssistantPrompt = ai.definePrompt({
   name: 'opsAssistantPrompt',
   input: { schema: OpsAssistantInputSchema },
-  output: { schema: z.string() },
   prompt: `You are SUKHA OS, an intelligent operations assistant for property owners and admins.
 Your role is to answer operational, financial, and management-related queries using REAL DATA provided by the system.
 
