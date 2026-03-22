@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -49,6 +48,16 @@ import {
   DialogTrigger 
 } from "@/components/ui/dialog";
 import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { 
   Select, 
   SelectContent, 
   SelectItem, 
@@ -69,6 +78,7 @@ export default function WhatsAppDashboard() {
   
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
   const [newContact, setNewContact] = useState({ name: "", phoneNumber: "", role: "Manager" });
+  const [contactToDelete, setContactToDelete] = useState<any>(null);
 
   const isAdmin = ["owner", "admin"].includes(currentUserRole || "");
 
@@ -124,10 +134,11 @@ export default function WhatsAppDashboard() {
     setNewContact({ name: "", phoneNumber: "", role: "Manager" });
   };
 
-  const handleDeleteContact = (id: string) => {
-    if (!entityId) return;
-    deleteDocumentNonBlocking(doc(db, "hotel_properties", entityId, "whatsapp_contacts", id));
+  const confirmDeleteContact = () => {
+    if (!entityId || !contactToDelete) return;
+    deleteDocumentNonBlocking(doc(db, "hotel_properties", entityId, "whatsapp_contacts", contactToDelete.id));
     toast({ title: "Contact Removed" });
+    setContactToDelete(null);
   };
 
   return (
@@ -141,12 +152,12 @@ export default function WhatsAppDashboard() {
           <div className="flex items-center gap-3">
             {isAdmin && (
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="h-9 text-[10px] font-black uppercase tracking-widest" onClick={() => router.push('/settings?tab=whatsapp')}>
+                <Button variant="outline" className="h-9 text-[10px] font-black uppercase tracking-widest rounded-xl" onClick={() => router.push('/settings?tab=whatsapp')}>
                   <Settings2 className="w-3.5 h-3.5 mr-2" /> Gateway Config
                 </Button>
                 <Dialog open={isAddContactOpen} onOpenChange={setIsAddContactOpen}>
                   <DialogTrigger asChild>
-                    <Button size="sm" className="h-9 text-[10px] font-black uppercase tracking-widest shadow-lg">
+                    <Button className="h-9 text-[10px] font-black uppercase tracking-widest shadow-lg rounded-xl">
                       <Plus className="w-3.5 h-3.5 mr-2" /> Register Management
                     </Button>
                   </DialogTrigger>
@@ -158,22 +169,22 @@ export default function WhatsAppDashboard() {
                     <form onSubmit={handleAddContact} className="space-y-4 pt-2 text-left">
                       <div className="space-y-1.5">
                         <Label className="text-[9px] uppercase font-bold text-muted-foreground">Full Name</Label>
-                        <Input placeholder="Property Manager" value={newContact.name} onChange={e => setNewContact({...newContact, name: e.target.value})} required className="h-9 text-xs" />
+                        <Input placeholder="Property Manager" value={newContact.name} onChange={e => setNewContact({...newContact, name: e.target.value})} required className="h-9 text-xs rounded-xl" />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[9px] uppercase font-bold text-muted-foreground">Phone Number</Label>
-                        <Input placeholder="+91..." value={newContact.phoneNumber} onChange={e => setNewContact({...newContact, phoneNumber: e.target.value})} required className="h-9 text-xs" />
+                        <Input placeholder="+91..." value={newContact.phoneNumber} onChange={e => setNewContact({...newContact, phoneNumber: e.target.value})} required className="h-9 text-xs rounded-xl" />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[9px] uppercase font-bold text-muted-foreground">System Role</Label>
                         <Select value={newContact.role} onValueChange={v => setNewContact({...newContact, role: v})}>
-                          <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-9 text-xs rounded-xl"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {MANAGEMENT_ROLES.map(role => <SelectItem key={role} value={role} className="text-xs">{role}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
-                      <Button type="submit" className="w-full h-10 font-black text-xs uppercase tracking-widest">Authorize Device</Button>
+                      <Button type="submit" className="w-full h-10 font-black text-xs uppercase tracking-widest rounded-xl">Authorize Device</Button>
                     </form>
                   </DialogContent>
                 </Dialog>
@@ -348,7 +359,7 @@ export default function WhatsAppDashboard() {
                               variant="ghost" 
                               size="icon" 
                               className="h-8 w-8 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => handleDeleteContact(contact.id)}
+                              onClick={() => setContactToDelete(contact)}
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -371,6 +382,27 @@ export default function WhatsAppDashboard() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Delete Contact Confirmation */}
+        <AlertDialog open={!!contactToDelete} onOpenChange={(o) => !o && setContactToDelete(null)}>
+          <AlertDialogContent className="rounded-[2rem]">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-rose-600">
+                <AlertTriangle className="w-5 h-5" />
+                Remove Authorized Contact
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs font-bold uppercase tracking-tight">
+                Are you sure you want to remove {contactToDelete?.name}? This number will no longer receive system alerts or be authorized for AI reports.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-xl font-black uppercase text-[10px]">Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDeleteContact} className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black uppercase text-[10px]">
+                Confirm Removal
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );

@@ -46,6 +46,16 @@ import {
   DialogTitle,
   DialogFooter
 } from "@/components/ui/dialog";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { 
   Select, 
@@ -79,6 +89,7 @@ export default function TeamPage() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPermissionsOpen, setIsPermissionsOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<any>(null);
+  const [memberToDelete, setMemberToDelete] = useState<any>(null);
   const [showPassword, setShowPassword] = useState(false);
   
   const [newMember, setNewMember] = useState({ 
@@ -97,7 +108,7 @@ export default function TeamPage() {
 
   // Critical Fix: Ensure pointer-events are always restored after any dialog closes
   useEffect(() => {
-    if (!isEditOpen && !isPermissionsOpen && !isInviteOpen) {
+    if (!isEditOpen && !isPermissionsOpen && !isInviteOpen && !memberToDelete) {
       const restoreEvents = () => {
         document.body.style.pointerEvents = "auto";
       };
@@ -106,13 +117,10 @@ export default function TeamPage() {
       const timer = setTimeout(restoreEvents, 300);
       return () => clearTimeout(timer);
     }
-  }, [isEditOpen, isPermissionsOpen, isInviteOpen]);
+  }, [isEditOpen, isPermissionsOpen, isInviteOpen, memberToDelete]);
 
   const teamQuery = useMemoFirebase(() => {
-    // SECURITY GUARD: Ensure auth state is fully initialized and an entity context is selected
-    // before attempting to list user profiles. This prevents "Missing Permissions" errors during page loads.
     if (isAuthLoading || !firebaseUser || !entityId) return null;
-
     if (isAdmin) return query(collection(db, "user_profiles"));
     return query(collection(db, "user_profiles"), where("entityId", "==", entityId));
   }, [db, entityId, isAdmin, firebaseUser, isAuthLoading]);
@@ -134,7 +142,6 @@ export default function TeamPage() {
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, internalEmail, newMember.password);
       const newUser = userCredential.user;
 
-      // Ensure the display name is updated in Auth immediately
       await updateAuthProfile(newUser, { displayName: newMember.name });
 
       const memberData = {
@@ -176,6 +183,13 @@ export default function TeamPage() {
     
     toast({ title: "Profile updated" });
     setIsEditOpen(false);
+  };
+
+  const terminateAccess = () => {
+    if (!memberToDelete || !isAdmin) return;
+    deleteDocumentNonBlocking(doc(db, "user_profiles", memberToDelete.id));
+    toast({ title: "Access Terminated", description: `Account for ${memberToDelete.name} has been purged.` });
+    setMemberToDelete(null);
   };
 
   const togglePermission = (userId: string, moduleName: string) => {
@@ -303,7 +317,7 @@ export default function TeamPage() {
                             <DropdownMenuItem onClick={() => { setEditingMember(member); setIsPermissionsOpen(true); }} className="text-[11px] font-black uppercase p-3 rounded-xl cursor-pointer">
                               <Lock className="w-3.5 h-3.5 mr-3 text-amber-600" /> Module Access
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-[11px] font-black uppercase p-3 rounded-xl cursor-pointer text-rose-600 hover:bg-rose-50" onClick={() => deleteDocumentNonBlocking(doc(db, "user_profiles", member.id))}>
+                            <DropdownMenuItem className="text-[11px] font-black uppercase p-3 rounded-xl cursor-pointer text-rose-600 hover:bg-rose-50" onClick={() => setMemberToDelete(member)}>
                               <Trash2 className="w-3.5 h-3.5 mr-3" /> Terminate Access
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -459,6 +473,27 @@ export default function TeamPage() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Alert */}
+        <AlertDialog open={!!memberToDelete} onOpenChange={(open) => !open && setMemberToDelete(null)}>
+          <AlertDialogContent className="rounded-[2rem]">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-rose-600">
+                <AlertTriangle className="w-5 h-5" />
+                Terminate Member Access
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs font-bold uppercase tracking-tight">
+                Are you sure you want to terminate access for {memberToDelete?.name}? This will permanently purge their system profile. This action cannot be reversed.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-xl font-black uppercase text-[10px]">Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={terminateAccess} className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black uppercase text-[10px]">
+                Terminate Account
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );

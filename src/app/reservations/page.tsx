@@ -20,7 +20,8 @@ import {
   ChevronRight,
   Edit2,
   Filter,
-  ArrowRight
+  ArrowRight,
+  AlertTriangle
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
@@ -45,6 +46,16 @@ import {
   DialogTrigger,
   DialogFooter
 } from "@/components/ui/dialog";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -76,6 +87,7 @@ export default function ReservationsPage() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedRes, setSelectedRes] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("current");
+  const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
   
   // Filter States
   const [nameSearch, setNameSearch] = useState("");
@@ -296,6 +308,7 @@ export default function ReservationsPage() {
       toast({ title: "Reservation deleted" });
       setIsEditOpen(false);
       setSelectedRes(null);
+      setIsDeleteAlertOpen(false);
     } catch (err) {
       toast({ variant: "destructive", title: "Deletion failed" });
     }
@@ -515,8 +528,8 @@ export default function ReservationsPage() {
         <Tabs defaultValue="current" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <TabsList className="bg-white border p-1 rounded-xl h-10 shadow-sm">
-              <TabsTrigger value="current" className="rounded-lg text-[11px] font-bold px-6">Current View</TabsTrigger>
-              <TabsTrigger value="upcoming" className="rounded-lg text-[11px] font-bold px-6">Upcoming Bookings</TabsTrigger>
+              <TabsTrigger value="current" className="rounded-lg text-[11px] font-bold px-6 uppercase">Current View</TabsTrigger>
+              <TabsTrigger value="upcoming" className="rounded-lg text-[11px] font-bold px-6 uppercase">Upcoming Bookings</TabsTrigger>
             </TabsList>
             
             <LocalFilterBar />
@@ -641,7 +654,7 @@ export default function ReservationsPage() {
                   <Button 
                     type="button" 
                     variant="outline" 
-                    onClick={handleDeleteReservation}
+                    onClick={() => setIsDeleteAlertOpen(true)}
                     className="h-14 font-black uppercase tracking-[0.1em] rounded-2xl border-rose-200 text-rose-600 hover:bg-rose-50"
                   >
                     <Trash2 className="w-4 h-4 mr-2" /> Purge Record
@@ -654,6 +667,27 @@ export default function ReservationsPage() {
             </ScrollArea>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Alert */}
+        <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
+          <AlertDialogContent className="rounded-[2rem]">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-rose-600">
+                <AlertTriangle className="w-5 h-5" />
+                Permanent Data Removal
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs font-bold uppercase tracking-tight">
+                Are you absolutely sure you want to delete this reservation? This action is irreversible and will remove all associated billing context.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-xl font-black uppercase text-[10px]">Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteReservation} className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black uppercase text-[10px]">
+                Confirm Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );

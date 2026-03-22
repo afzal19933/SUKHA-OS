@@ -10,7 +10,8 @@ import {
   Building2,
   Loader2,
   HardDrive,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { 
@@ -21,6 +22,16 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/store/authStore";
@@ -33,6 +44,7 @@ export function BackupHistory() {
   const [backups, setBackups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [backupToDelete, setBackupToDelete] = useState<any>(null);
   const { toast } = useToast();
 
   const fetchBackups = async () => {
@@ -68,7 +80,6 @@ export function BackupHistory() {
       setBackups(allFiles.sort((a, b) => new Date(b.timeCreated).getTime() - new Date(a.timeCreated).getTime()));
     } catch (err: any) {
       console.error("Storage fetch error:", err);
-      // Handle "retry-limit-exceeded" or "no-default-bucket" gracefully
       setError(err.message?.includes("retry") 
         ? "The cloud vault is taking too long to respond. Please verify your internet connection or try again later." 
         : "Could not connect to the Storage Vault.");
@@ -81,13 +92,16 @@ export function BackupHistory() {
     fetchBackups();
   }, [entityId]);
 
-  const handleDelete = async (backup: any) => {
+  const confirmDelete = async () => {
+    if (!backupToDelete) return;
     try {
-      await deleteObject(backup.ref);
-      setBackups(prev => prev.filter(b => b.fullPath !== backup.fullPath));
+      await deleteObject(backupToDelete.ref);
+      setBackups(prev => prev.filter(b => b.fullPath !== backupToDelete.fullPath));
       toast({ title: "Archive Cleared", description: "Storage object deleted permanently." });
     } catch (err) {
       toast({ variant: "destructive", title: "Deletion Failed" });
+    } finally {
+      setBackupToDelete(null);
     }
   };
 
@@ -177,7 +191,7 @@ export function BackupHistory() {
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleDownload(b)}>
                         <Download className="w-4 h-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500" onClick={() => handleDelete(b)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500" onClick={() => setBackupToDelete(b)}>
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -193,6 +207,26 @@ export function BackupHistory() {
           </div>
         )}
       </CardContent>
+
+      <AlertDialog open={!!backupToDelete} onOpenChange={(o) => !o && setBackupToDelete(null)}>
+        <AlertDialogContent className="rounded-[2rem]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-rose-600">
+              <AlertTriangle className="w-5 h-5" />
+              Permanent Snapshot Deletion
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs font-bold uppercase tracking-tight">
+              Are you sure you want to delete this cloud backup? This action is permanent and the data cannot be recovered from the vault.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl font-black uppercase text-[10px]">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black uppercase text-[10px]">
+              Confirm Deletion
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
