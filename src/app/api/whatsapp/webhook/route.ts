@@ -44,6 +44,12 @@ export async function POST(req: NextRequest) {
     const text = messageObj.text?.body;
     const phoneNumberId = value.metadata.phone_number_id;
 
+    // ✅ Ignore non-text messages (voice notes, images etc.)
+    if (!text) {
+      console.log('⚠️ Non-text message received, ignoring.');
+      return NextResponse.json({ status: 'ignored' });
+    }
+
     console.log(`📩 Message from: ${from} | PhoneNumberId: ${phoneNumberId} | Text: ${text}`);
 
     // 1. Identify Property by Phone Number ID
@@ -62,18 +68,37 @@ export async function POST(req: NextRequest) {
     const propertyId = propSnap.docs[0].id;
     console.log(`🏨 Property found: ${property.name} (${propertyId})`);
 
-    // 2. Identify Sender Role (Guest vs Management)
-    const contactSnap = await db
+    // 2. Identify Sender Role
+    // ✅ Normalize phone number — strip + sign for matching
+    // Meta sends: 919895556667 (no +)
+    // Firebase might store: +919895556667 or 919895556667
+    // We try both formats to find the contact
+    const fromNormalized = from.replace(/^\+/, ''); // remove leading + if any
+    const fromWithPlus = `+${fromNormalized}`;      // add + for alternate check
+
+    // Try matching both with and without + sign
+    let contactSnap = await db
       .collection('hotel_properties')
       .doc(propertyId)
       .collection('whatsapp_contacts')
-      .where('phoneNumber', '==', from)
+      .where('phoneNumber', '==', fromNormalized)
       .limit(1)
       .get();
 
+    // If not found without +, try with +
+    if (contactSnap.empty) {
+      contactSnap = await db
+        .collection('hotel_properties')
+        .doc(propertyId)
+        .collection('whatsapp_contacts')
+        .where('phoneNumber', '==', fromWithPlus)
+        .limit(1)
+        .get();
+    }
+
     const contact = contactSnap.empty ? null : contactSnap.docs[0].data();
     const role = contact?.role || 'Guest';
-    console.log(`👤 Sender role: ${role}`);
+    console.log(`👤 Sender role: ${role} | Contact found: ${!contactSnap.empty}`);
 
     // 3. Log Incoming Message
     db.collection('hotel_properties')
@@ -95,10 +120,14 @@ export async function POST(req: NextRequest) {
     let isAiQuery = false;
     let intent = 'GeneralQuery';
 
-    if (contact && ['Owner', 'Admin', 'Manager'].includes(contact.role)) {
+    // ✅ Case-insensitive role check — handles Owner, owner, OWNER, Admin, admin etc.
+    const normalizedRole = contact?.role?.toLowerCase();
+    const isManagement = contact && ['owner', 'admin', 'manager'].includes(normalizedRole);
+
+    if (isManagement) {
       // Management → Operations Assistant
-      console.log('🧑‍💼 Routing to Ops Assistant...');
-      const dataContext = await getPropertyContext(propertyId); // ✅ FIXED: removed db parameter
+      console.log(`🧑‍💼 Routing to Ops Assistant (role: ${role})...`);
+      const dataContext = await getPropertyContext(propertyId);
       replyText = await getOpsAssistantResponse({
         propertyName: property.name,
         dataContext,
