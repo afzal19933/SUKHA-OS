@@ -2,8 +2,9 @@
 import { db } from '@/lib/firebase-admin';
 
 /**
- * Full Data Context Service for SUKHA OS AI Assistant
- * Fetches ALL collections and returns complete data for intelligent AI responses
+ * SUKHA OS — Full Intelligence Context Service
+ * Fetches ALL modules: Rooms, Reservations, Housekeeping, Maintenance,
+ * Inventory, Finance, Laundry, Team — for maximum AI intelligence
  */
 export async function getPropertyContext(entityId: string) {
   const today = new Date().toISOString().split('T')[0];
@@ -16,75 +17,113 @@ export async function getPropertyContext(entityId: string) {
     const [
       roomsSnap,
       roomTypesSnap,
-      resSnap,
-      tasksSnap,
-      invSnap,
-      laundrySnap,
+      reservationsSnap,
+      housekeepingSnap,
+      invoicesSnap,
+      expensesSnap,
+      laundryOrdersSnap,
+      inventoryStocksSnap,
+      supplyPurchasesSnap,
+      teamSnap,
     ] = await Promise.all([
       propertyRef.collection('rooms').get(),
       propertyRef.collection('room_types').get(),
       propertyRef.collection('reservations').get(),
       propertyRef.collection('housekeeping_tasks').get(),
       propertyRef.collection('invoices').get(),
+      propertyRef.collection('expenses').get(),
       propertyRef.collection('guest_laundry_orders').get(),
+      propertyRef.collection('inventory_stocks').get(),
+      propertyRef.collection('supply_purchases').orderBy('date', 'desc').limit(20).get(),
+      db.collection('user_profiles').where('entityId', '==', entityId).get(),
     ]);
 
-    // ✅ ROOMS — full detail
+    // ============================================================
+    // 🏨 ROOMS
+    // ============================================================
+    const roomTypes = roomTypesSnap.docs.map(d => ({ id: d.id, name: d.data().name }));
+    const getRoomType = (id: string) => roomTypes.find(r => r.id === id)?.name || 'Standard';
+
     const rooms = roomsSnap.docs.map(d => ({
       roomNumber: d.data().roomNumber || d.id,
       floor: d.data().floor || null,
       status: d.data().status || 'unknown',
-      roomTypeId: d.data().roomTypeId || null,
-      updatedAt: d.data().updatedAt || null,
+      type: getRoomType(d.data().roomTypeId),
     }));
 
-    // ✅ ROOM TYPES
-    const roomTypes = roomTypesSnap.docs.map(d => ({
-      id: d.id,
-      name: d.data().name || d.id,
-      baseRate: d.data().baseRate || null,
-    }));
+    const vacantRooms = rooms.filter(r => r.status === 'available');
+    const occupiedRooms = rooms.filter(r => r.status?.includes('occupied'));
+    const dirtyRooms = rooms.filter(r => r.status?.includes('dirty'));
+    const maintenanceRooms = rooms.filter(r => r.status?.includes('maintenance'));
 
-    // Helper to get room type name
-    const getRoomType = (roomTypeId: string) => {
-      const rt = roomTypes.find(r => r.id === roomTypeId);
-      return rt?.name || 'Standard';
-    };
-
-    // ✅ RESERVATIONS — full detail
-    const allReservations = resSnap.docs.map(d => ({
+    // ============================================================
+    // 📅 RESERVATIONS
+    // ============================================================
+    const reservations = reservationsSnap.docs.map(d => ({
       guestName: d.data().guestName || 'Unknown',
       roomNumber: d.data().roomNumber || null,
       status: d.data().status || 'unknown',
       checkInDate: d.data().checkInDate || null,
       checkOutDate: d.data().checkOutDate || null,
       totalAmount: d.data().totalAmount || 0,
-      source: d.data().source || 'Direct',
-      createdAt: d.data().createdAt || null,
+      source: d.data().bookingSource || d.data().source || 'Direct',
+      nights: d.data().nights || null,
     }));
 
-    // ✅ HOUSEKEEPING TASKS — full detail
-    const allTasks = tasksSnap.docs.map(d => ({
-      roomNumber: d.data().roomId || d.data().roomNumber || null,
-      taskType: d.data().taskType || 'Unknown',
+    const checkedInGuests = reservations.filter(r => r.status === 'checked_in');
+    const arrivalsToday = reservations.filter(r => r.checkInDate === today);
+    const checkoutsToday = reservations.filter(r => r.checkOutDate === today);
+    const upcomingArrivals = reservations.filter(r => r.status === 'confirmed' && r.checkInDate >= today);
+
+    // ============================================================
+    // 🧹 HOUSEKEEPING & MAINTENANCE
+    // ============================================================
+    const allTasks = housekeepingSnap.docs.map(d => ({
+      room: d.data().roomId || d.data().roomNumber || 'Unknown',
+      taskType: d.data().taskType || 'cleaning',
       status: d.data().status || 'unknown',
+      priority: d.data().priority || 'medium',
       notes: d.data().notes || null,
-      assignedTo: d.data().assignedTo || null,
+      isCommonArea: d.data().isCommonArea || false,
       createdAt: d.data().createdAt || null,
     }));
 
-    // ✅ INVOICES — full detail
-    const allInvoices = invSnap.docs.map(d => ({
+    const housekeepingTasks = allTasks.filter(t => t.taskType !== 'repair');
+    const maintenanceTasks = allTasks.filter(t => t.taskType === 'repair');
+
+    // ============================================================
+    // 💰 FINANCE
+    // ============================================================
+    const invoices = invoicesSnap.docs.map(d => ({
       invoiceNumber: d.data().invoiceNumber || d.id,
-      guestName: d.data().guestName || null,
+      guestName: d.data().guestName || d.data().guestDetails?.name || null,
       totalAmount: d.data().totalAmount || 0,
       status: d.data().status || 'unknown',
-      type: d.data().type || 'room',
+      source: d.data().bookingSource || 'Direct',
+      isAyursiha: d.data().isCycleInvoice || d.data().invoiceNumber?.startsWith('AYUR') || false,
       createdAt: d.data().createdAt || null,
     }));
 
-    // ✅ LAUNDRY ORDERS
-    const allLaundry = laundrySnap.docs.map(d => ({
+    const expenses = expensesSnap.docs.map(d => ({
+      description: d.data().description || 'Unknown',
+      category: d.data().category || 'General',
+      amount: d.data().amount || 0,
+      date: d.data().date || null,
+    }));
+
+    const monthInvoices = invoices.filter(i => i.createdAt >= startOfMonth);
+    const totalRevenue = invoices.reduce((acc, i) => acc + i.totalAmount, 0);
+    const monthRevenue = monthInvoices.reduce((acc, i) => acc + i.totalAmount, 0);
+    const paidRevenue = invoices.filter(i => i.status === 'paid').reduce((acc, i) => acc + i.totalAmount, 0);
+    const pendingRevenue = invoices.filter(i => i.status === 'pending').reduce((acc, i) => acc + i.totalAmount, 0);
+    const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
+    const monthExpenses = expenses.filter(e => e.date >= startOfMonth).reduce((acc, e) => acc + e.amount, 0);
+    const ayursihaInvoices = invoices.filter(i => i.isAyursiha);
+
+    // ============================================================
+    // 🫧 LAUNDRY
+    // ============================================================
+    const laundryOrders = laundryOrdersSnap.docs.map(d => ({
       roomNumber: d.data().roomNumber || null,
       guestName: d.data().guestName || null,
       status: d.data().status || 'unknown',
@@ -92,103 +131,153 @@ export async function getPropertyContext(entityId: string) {
       createdAt: d.data().createdAt || null,
     }));
 
-    // ✅ BUILD INTELLIGENT CONTEXT
+    const pendingLaundry = laundryOrders.filter(l => l.status === 'sent' || l.status === 'pending');
+    const laundryRevenue = laundryOrders.reduce((acc, l) => acc + l.hotelTotal, 0);
+
+    // ============================================================
+    // 📦 INVENTORY
+    // ============================================================
+    const stocks = inventoryStocksSnap.docs.map(d => ({
+      itemName: d.data().itemName || d.id,
+      category: d.data().category || 'General',
+      currentStock: d.data().currentStock || 0,
+      minStock: d.data().minStock || 5,
+      unit: d.data().unit || 'pcs',
+    }));
+
+    const lowStockItems = stocks.filter(s => s.currentStock <= s.minStock);
+    const recentPurchases = supplyPurchasesSnap.docs.map(d => ({
+      itemName: d.data().itemName,
+      quantity: d.data().quantity,
+      totalCost: d.data().totalCost,
+      vendor: d.data().vendor,
+      date: d.data().date,
+    }));
+
+    // ============================================================
+    // 👥 TEAM
+    // ============================================================
+    const team = teamSnap.docs.map(d => ({
+      name: d.data().name || 'Unknown',
+      role: d.data().role || 'staff',
+      isActive: d.data().isActive || false,
+    }));
+
+    const activeStaff = team.filter(t => t.isActive);
+
+    // ============================================================
+    // ✅ RETURN COMPLETE CONTEXT
+    // ============================================================
     return {
 
-      // --- ROOMS ---
-      rooms: {
-        total: rooms.length,
-        vacant: rooms.filter(r => r.status === 'available').length,
-        occupied: rooms.filter(r => r.status?.includes('occupied')).length,
-        dirty: rooms.filter(r => r.status?.includes('dirty')).length,
-        maintenance: rooms.filter(r => r.status?.includes('maintenance')).length,
-        vacantRooms: rooms
-          .filter(r => r.status === 'available')
-          .map(r => ({
-            room: r.roomNumber,
-            floor: r.floor,
-            type: getRoomType(r.roomTypeId),
-          })),
-        occupiedRooms: rooms
-          .filter(r => r.status?.includes('occupied'))
-          .map(r => ({
-            room: r.roomNumber,
-            floor: r.floor,
-            type: getRoomType(r.roomTypeId),
-          })),
-        dirtyRooms: rooms
-          .filter(r => r.status?.includes('dirty'))
-          .map(r => ({ room: r.roomNumber, floor: r.floor })),
-        allRooms: rooms.map(r => ({
-          room: r.roomNumber,
-          floor: r.floor,
-          status: r.status,
-          type: getRoomType(r.roomTypeId),
-        })),
-      },
-
-      // --- RESERVATIONS ---
-      reservations: {
-        total: allReservations.length,
-        checkedIn: allReservations.filter(r => r.status === 'checked_in').length,
-        checkedOut: allReservations.filter(r => r.status === 'checked_out').length,
-        confirmed: allReservations.filter(r => r.status === 'confirmed').length,
-        arrivalsToday: allReservations.filter(r => r.checkInDate === today),
-        checkoutsToday: allReservations.filter(r => r.checkOutDate === today),
-        currentGuests: allReservations.filter(r => r.status === 'checked_in'),
-        upcomingArrivals: allReservations.filter(r =>
-          r.status === 'confirmed' && r.checkInDate >= today
-        ),
-        recentReservations: allReservations.slice(0, 10),
-      },
-
-      // --- HOUSEKEEPING ---
-      housekeeping: {
-        totalTasks: allTasks.length,
-        pending: allTasks.filter(t => t.status === 'pending').length,
-        inProgress: allTasks.filter(t => t.status === 'in_progress').length,
-        completed: allTasks.filter(t => t.status === 'completed').length,
-        pendingTasks: allTasks.filter(t => t.status === 'pending'),
-        inProgressTasks: allTasks.filter(t => t.status === 'in_progress'),
-        recentTasks: allTasks.slice(0, 10),
-      },
-
-      // --- FINANCIALS ---
-      financials: {
-        totalInvoices: allInvoices.length,
-        totalRevenue: allInvoices.reduce((acc, i) => acc + (i.totalAmount || 0), 0),
-        paidRevenue: allInvoices
-          .filter(i => i.status === 'paid')
-          .reduce((acc, i) => acc + (i.totalAmount || 0), 0),
-        pendingRevenue: allInvoices
-          .filter(i => i.status === 'pending')
-          .reduce((acc, i) => acc + (i.totalAmount || 0), 0),
-        monthToDate: allInvoices
-          .filter(i => i.createdAt >= startOfMonth)
-          .reduce((acc, i) => acc + (i.totalAmount || 0), 0),
-        recentInvoices: allInvoices.slice(0, 10),
-        pendingInvoices: allInvoices.filter(i => i.status === 'pending'),
-      },
-
-      // --- LAUNDRY ---
-      laundry: {
-        totalOrders: allLaundry.length,
-        pendingOrders: allLaundry.filter(l => l.status === 'pending').length,
-        sentOrders: allLaundry.filter(l => l.status === 'sent').length,
-        totalAmount: allLaundry.reduce((acc, l) => acc + (l.hotelTotal || 0), 0),
-        pendingAmount: allLaundry
-          .filter(l => l.status === 'sent')
-          .reduce((acc, l) => acc + (l.hotelTotal || 0), 0),
-        recentOrders: allLaundry.slice(0, 10),
-      },
-
-      // --- TODAY SUMMARY ---
       today: {
         date: today,
-        arrivalsCount: allReservations.filter(r => r.checkInDate === today).length,
-        checkoutsCount: allReservations.filter(r => r.checkOutDate === today).length,
-        vacantRoomsCount: rooms.filter(r => r.status === 'available').length,
-        pendingHousekeeping: allTasks.filter(t => t.status === 'pending').length,
+        summary: {
+          totalRooms: rooms.length,
+          vacantCount: vacantRooms.length,
+          occupiedCount: occupiedRooms.length,
+          dirtyCount: dirtyRooms.length,
+          arrivalsCount: arrivalsToday.length,
+          checkoutsCount: checkoutsToday.length,
+          pendingHousekeeping: housekeepingTasks.filter(t => t.status === 'pending').length,
+          pendingMaintenance: maintenanceTasks.filter(t => t.status === 'pending').length,
+          lowStockAlerts: lowStockItems.length,
+        }
+      },
+
+      rooms: {
+        total: rooms.length,
+        vacant: vacantRooms.length,
+        occupied: occupiedRooms.length,
+        dirty: dirtyRooms.length,
+        underMaintenance: maintenanceRooms.length,
+        vacantRooms: vacantRooms.map(r => ({ room: r.roomNumber, floor: r.floor, type: r.type })),
+        occupiedRooms: occupiedRooms.map(r => ({ room: r.roomNumber, floor: r.floor, type: r.type })),
+        dirtyRooms: dirtyRooms.map(r => ({ room: r.roomNumber, floor: r.floor })),
+        maintenanceRooms: maintenanceRooms.map(r => ({ room: r.roomNumber, floor: r.floor })),
+        allRooms: rooms,
+      },
+
+      reservations: {
+        totalEver: reservations.length,
+        currentlyCheckedIn: checkedInGuests.length,
+        arrivalsToday: arrivalsToday,
+        checkoutsToday: checkoutsToday,
+        upcomingArrivals: upcomingArrivals.slice(0, 10),
+        currentGuests: checkedInGuests,
+        recentHistory: reservations.slice(0, 15),
+      },
+
+      housekeeping: {
+        pending: housekeepingTasks.filter(t => t.status === 'pending').length,
+        inProgress: housekeepingTasks.filter(t => t.status === 'in_progress').length,
+        completed: housekeepingTasks.filter(t => t.status === 'completed').length,
+        pendingTasks: housekeepingTasks.filter(t => t.status === 'pending'),
+        inProgressTasks: housekeepingTasks.filter(t => t.status === 'in_progress'),
+      },
+
+      maintenance: {
+        totalOpen: maintenanceTasks.filter(t => t.status !== 'completed').length,
+        highPriority: maintenanceTasks.filter(t => t.priority === 'high' && t.status !== 'completed').length,
+        openRequests: maintenanceTasks.filter(t => t.status !== 'completed'),
+        recentlyResolved: maintenanceTasks.filter(t => t.status === 'completed').slice(0, 5),
+      },
+
+      finance: {
+        allTime: {
+          totalRevenue,
+          paidRevenue,
+          pendingRevenue,
+          totalExpenses,
+          netProfit: totalRevenue - totalExpenses,
+        },
+        thisMonth: {
+          revenue: monthRevenue,
+          expenses: monthExpenses,
+          netProfit: monthRevenue - monthExpenses,
+          invoiceCount: monthInvoices.length,
+        },
+        laundryRevenue,
+        totalCombinedRevenue: totalRevenue + laundryRevenue,
+        pendingInvoices: invoices.filter(i => i.status === 'pending'),
+        recentInvoices: invoices.slice(0, 10),
+        recentExpenses: expenses.slice(0, 10),
+        ayursihaAccounts: {
+          total: ayursihaInvoices.length,
+          totalAmount: ayursihaInvoices.reduce((acc, i) => acc + i.totalAmount, 0),
+          pendingAmount: ayursihaInvoices.filter(i => i.status === 'pending').reduce((acc, i) => acc + i.totalAmount, 0),
+          pending: ayursihaInvoices.filter(i => i.status === 'pending'),
+          paid: ayursihaInvoices.filter(i => i.status === 'paid'),
+        },
+      },
+
+      laundry: {
+        totalOrders: laundryOrders.length,
+        pendingCount: pendingLaundry.length,
+        pendingAmount: pendingLaundry.reduce((acc, l) => acc + l.hotelTotal, 0),
+        totalRevenue: laundryRevenue,
+        pendingOrders: pendingLaundry,
+        recentOrders: laundryOrders.slice(0, 10),
+      },
+
+      inventory: {
+        totalItems: stocks.length,
+        lowStockCount: lowStockItems.length,
+        lowStockItems: lowStockItems,
+        allStocks: stocks,
+        recentPurchases,
+      },
+
+      team: {
+        totalStaff: team.length,
+        activeStaff: activeStaff.length,
+        byRole: {
+          admins: team.filter(t => t.role === 'admin').length,
+          managers: team.filter(t => t.role === 'manager').length,
+          staff: team.filter(t => t.role === 'staff').length,
+          owners: team.filter(t => t.role === 'owner').length,
+        },
+        members: activeStaff,
       },
 
     };
