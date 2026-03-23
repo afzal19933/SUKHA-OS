@@ -26,7 +26,10 @@ import {
   Wallet,
   CalendarDays,
   FilterX,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  MoreVertical,
+  Pencil,
+  Trash2
 } from "lucide-react";
 import { 
   Table, 
@@ -37,12 +40,28 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { cn, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useDoc } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
@@ -90,6 +109,15 @@ export default function AccountingPage() {
   const [activeView, setActiveView] = useState('overview');
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
+
+  // ✅ Edit/Delete state
+  const [invoiceToEdit, setInvoiceToEdit] = useState<any>(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<any>(null);
+  const [editForm, setEditForm] = useState({
+    invoiceNumber: "",
+    totalAmount: "",
+    status: "",
+  });
 
   // Global Date Filtering State
   const [dateFilter, setDateFilter] = useState('all');
@@ -166,20 +194,16 @@ export default function AccountingPage() {
     if (!mounted) return false;
     if (dateFilter === 'all') return true;
     if (!dateInput) return false;
-    
     const date = new Date(dateInput);
     const now = new Date();
-    
     if (dateFilter === 'this_month') {
       return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
     }
-    
     if (dateFilter === 'last_month') {
       const lastMonth = new Date();
       lastMonth.setMonth(now.getMonth() - 1);
       return date.getMonth() === lastMonth.getMonth() && date.getFullYear() === lastMonth.getFullYear();
     }
-    
     if (dateFilter === 'custom') {
       if (!customStart || !customEnd) return true;
       const start = new Date(customStart);
@@ -187,7 +211,6 @@ export default function AccountingPage() {
       end.setHours(23, 59, 59, 999);
       return date >= start && date <= end;
     }
-    
     return true;
   };
 
@@ -203,7 +226,7 @@ export default function AccountingPage() {
   const netProfit = totalRevenue - totalExpenses;
 
   const ayurAccounts = useMemo(() => {
-    return filteredInvoices.filter(inv => inv.isCycleInvoice || inv.invoiceNumber?.startsWith('AYUR')) || [];
+    return filteredInvoices.filter(inv => inv.isCycleInvoice || inv.invoiceNumber?.startsWith('AYUR') || inv.invoiceNumber?.startsWith('A/')) || [];
   }, [filteredInvoices]);
 
   const chartData = useMemo(() => {
@@ -226,10 +249,52 @@ export default function AccountingPage() {
     return Object.entries(sources).map(([name, value]) => ({ name, value }));
   }, [filteredInvoices, laundryRevenue]);
 
+  // ✅ Edit Invoice Handler
+  const handleOpenEdit = (inv: any) => {
+    setInvoiceToEdit(inv);
+    setEditForm({
+      invoiceNumber: inv.invoiceNumber || "",
+      totalAmount: inv.totalAmount?.toString() || "",
+      status: inv.status || "paid",
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!entityId || !invoiceToEdit) return;
+    try {
+      await updateDoc(
+        doc(db, "hotel_properties", entityId, "invoices", invoiceToEdit.id),
+        {
+          invoiceNumber: editForm.invoiceNumber,
+          totalAmount: parseFloat(editForm.totalAmount),
+          status: editForm.status,
+          updatedAt: new Date().toISOString(),
+        }
+      );
+      toast({ title: "Invoice updated successfully" });
+      setInvoiceToEdit(null);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Update failed. Please try again." });
+    }
+  };
+
+  // ✅ Delete Invoice Handler
+  const handleConfirmDelete = async () => {
+    if (!entityId || !invoiceToDelete) return;
+    try {
+      await deleteDoc(
+        doc(db, "hotel_properties", entityId, "invoices", invoiceToDelete.id)
+      );
+      toast({ title: "Invoice deleted successfully" });
+      setInvoiceToDelete(null);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Delete failed. Please try again." });
+    }
+  };
+
   const handleUpdateGst = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!gstRef || !canEdit) return;
-    
     const updateData = {
       ...gstForm,
       roomGstRate: parseFloat(gstForm.roomGstRate),
@@ -241,7 +306,6 @@ export default function AccountingPage() {
       entityId,
       updatedAt: new Date().toISOString()
     };
-
     try {
       await setDoc(gstRef, updateData, { merge: true });
       toast({ title: "Tax settings updated" });
@@ -260,7 +324,6 @@ export default function AccountingPage() {
         <CalendarDays className="w-3.5 h-3.5 text-primary" />
         <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Period Filter</span>
       </div>
-      
       <Select value={dateFilter} onValueChange={setDateFilter}>
         <SelectTrigger className="h-8 w-32 text-[10px] font-bold bg-white text-primary rounded-xl shadow-sm border-none">
           <SelectValue placeholder="All Time" />
@@ -272,7 +335,6 @@ export default function AccountingPage() {
           <SelectItem value="custom" className="text-[10px] font-bold">Custom Range</SelectItem>
         </SelectContent>
       </Select>
-
       {dateFilter === 'custom' && (
         <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
           <Popover>
@@ -300,14 +362,9 @@ export default function AccountingPage() {
           </Popover>
         </div>
       )}
-
       {(dateFilter !== 'all' || customStart || customEnd) && (
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="h-8 w-8 text-rose-500 hover:bg-rose-50 rounded-xl"
-          onClick={() => { setDateFilter('all'); setCustomStart(undefined); setCustomEnd(undefined); }}
-        >
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:bg-rose-50 rounded-xl"
+          onClick={() => { setDateFilter('all'); setCustomStart(undefined); setCustomEnd(undefined); }}>
           <FilterX className="w-3.5 h-3.5" />
         </Button>
       )}
@@ -326,16 +383,10 @@ export default function AccountingPage() {
           <ScrollArea className="flex-1 p-2">
             <div className="space-y-1 mt-2">
               {SIDEBAR_ITEMS.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveView(item.id)}
-                  className={cn(
-                    "w-full flex items-center justify-between p-3 rounded-2xl transition-all group",
-                    activeView === item.id 
-                      ? "bg-primary text-white shadow-lg shadow-primary/20" 
-                      : "text-muted-foreground hover:bg-secondary hover:text-primary"
-                  )}
-                >
+                <button key={item.id} onClick={() => setActiveView(item.id)}
+                  className={cn("w-full flex items-center justify-between p-3 rounded-2xl transition-all group",
+                    activeView === item.id ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-muted-foreground hover:bg-secondary hover:text-primary"
+                  )}>
                   <div className="flex items-center gap-3">
                     <item.icon className={cn("w-4 h-4", activeView === item.id ? "text-white" : "group-hover:text-primary")} />
                     <span className="text-[11px] font-bold">{item.label}</span>
@@ -353,7 +404,7 @@ export default function AccountingPage() {
           </div>
         </aside>
 
-        {/* View Content */}
+        {/* Main Content */}
         <main className="flex-1 bg-white rounded-3xl border shadow-sm overflow-hidden flex flex-col">
           <ScrollArea className="flex-1">
             <div className="p-8 space-y-8">
@@ -363,6 +414,7 @@ export default function AccountingPage() {
                 </div>
               ) : (
                 <>
+                  {/* ============ OVERVIEW ============ */}
                   {activeView === 'overview' && (
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                       <div className="flex justify-between items-start">
@@ -373,9 +425,7 @@ export default function AccountingPage() {
                           </p>
                         </div>
                       </div>
-
                       <LocalFilterBar />
-
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 space-y-2 shadow-sm">
                           <TrendingUp className="w-6 h-6 text-emerald-600" />
@@ -399,46 +449,36 @@ export default function AccountingPage() {
                           </div>
                         </div>
                       </div>
-
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div className="p-6 bg-white rounded-3xl border shadow-sm space-y-4">
-                          <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Revenue Mix</h3>
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-center">
-                              <span className="text-[11px] font-bold">Sales (GST Invoices)</span>
-                              <span className="text-[11px] font-black">₹{invoiceRevenue.toLocaleString()}</span>
-                            </div>
-                            <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-primary" 
-                                style={{ width: `${(invoiceRevenue / (totalRevenue || 1)) * 100}%` }}
-                              />
-                            </div>
-                            <div className="flex justify-between items-center pt-2">
-                              <span className="text-[11px] font-bold">Guest Laundry</span>
-                              <span className="text-[11px] font-black text-emerald-600">₹{laundryRevenue.toLocaleString()}</span>
-                            </div>
-                            <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-emerald-500" 
-                                style={{ width: `${(laundryRevenue / (totalRevenue || 1)) * 100}%` }}
-                              />
-                            </div>
+                      <div className="p-6 bg-white rounded-3xl border shadow-sm space-y-4">
+                        <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Revenue Mix</h3>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[11px] font-bold">Sales (GST Invoices)</span>
+                            <span className="text-[11px] font-black">₹{invoiceRevenue.toLocaleString()}</span>
+                          </div>
+                          <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+                            <div className="h-full bg-primary" style={{ width: `${(invoiceRevenue / (totalRevenue || 1)) * 100}%` }} />
+                          </div>
+                          <div className="flex justify-between items-center pt-2">
+                            <span className="text-[11px] font-bold">Guest Laundry</span>
+                            <span className="text-[11px] font-black text-emerald-600">₹{laundryRevenue.toLocaleString()}</span>
+                          </div>
+                          <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500" style={{ width: `${(laundryRevenue / (totalRevenue || 1)) * 100}%` }} />
                           </div>
                         </div>
                       </div>
                     </div>
                   )}
 
+                  {/* ============ SALES / INVOICES ============ */}
                   {activeView === 'invoices' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                       <div className="space-y-1">
                         <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Sales Ledger</h1>
                         <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">All processed GST invoices</p>
                       </div>
-
                       <LocalFilterBar />
-
                       <div className="rounded-2xl border overflow-hidden">
                         <Table>
                           <TableHeader className="bg-primary">
@@ -447,7 +487,7 @@ export default function AccountingPage() {
                               <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Guest</TableHead>
                               <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Amount</TableHead>
                               <TableHead className="text-[10px] font-black uppercase h-12 text-primary-foreground">Status</TableHead>
-                              <TableHead className="text-right text-[10px] font-black uppercase pr-6 h-12 text-primary-foreground">Action</TableHead>
+                              <TableHead className="text-right text-[10px] font-black uppercase pr-4 h-12 text-primary-foreground">Actions</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -464,10 +504,34 @@ export default function AccountingPage() {
                                       {inv.status}
                                     </Badge>
                                   </TableCell>
-                                  <TableCell className="text-right pr-6">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-primary opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setSelectedInvoice(inv)}>
-                                      <Printer className="w-4 h-4" />
-                                    </Button>
+                                  <TableCell className="text-right pr-4">
+                                    <div className="flex items-center justify-end gap-1">
+                                      {/* View Button */}
+                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-primary opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setSelectedInvoice(inv)}>
+                                        <Printer className="w-4 h-4" />
+                                      </Button>
+
+                                      {/* ✅ 3-dot Edit/Delete Menu */}
+                                      {canEdit && (
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                                              <MoreVertical className="w-4 h-4" />
+                                            </Button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end" className="w-44 rounded-xl">
+                                            <DropdownMenuItem className="text-[11px] font-bold cursor-pointer" onClick={() => handleOpenEdit(inv)}>
+                                              <Pencil className="w-3.5 h-3.5 mr-2 text-primary" />
+                                              Edit Invoice
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem className="text-[11px] font-bold cursor-pointer text-rose-600 focus:text-rose-600 focus:bg-rose-50" onClick={() => setInvoiceToDelete(inv)}>
+                                              <Trash2 className="w-3.5 h-3.5 mr-2" />
+                                              Delete Invoice
+                                            </DropdownMenuItem>
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+                                      )}
+                                    </div>
                                   </TableCell>
                                 </TableRow>
                               ))
@@ -480,38 +544,32 @@ export default function AccountingPage() {
                     </div>
                   )}
 
+                  {/* ============ LAUNDRY REVENUE ============ */}
                   {activeView === 'laundry_revenue' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                       <div className="space-y-1">
                         <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Laundry Revenue Hub</h1>
                         <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Detail tracking of guest service income</p>
                       </div>
-
                       <LocalFilterBar />
-
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                         <div className="p-6 bg-indigo-50 rounded-3xl border border-indigo-100 flex items-center gap-4">
-                          <div className="p-3 bg-indigo-100 rounded-2xl text-indigo-600">
-                            <WashingMachine className="w-6 h-6" />
-                          </div>
+                          <div className="p-3 bg-indigo-100 rounded-2xl text-indigo-600"><WashingMachine className="w-6 h-6" /></div>
                           <div>
                             <p className="text-[10px] font-black uppercase text-indigo-600/70">Filtered Laundry Billed</p>
                             <h3 className="text-xl font-black text-indigo-700">₹{laundryRevenue.toLocaleString()}</h3>
                           </div>
                         </div>
                         <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 flex items-center gap-4">
-                          <div className="p-3 bg-emerald-100 rounded-2xl text-emerald-600">
-                            <Wallet className="w-6 h-6" />
-                          </div>
+                          <div className="p-3 bg-emerald-100 rounded-2xl text-emerald-600"><Wallet className="w-6 h-6" /></div>
                           <div>
-                            <p className="text-[10px] font-black uppercase text-emerald-600/70">Filtered Collected Revenue</p>
+                            <p className="text-[10px] font-black uppercase text-emerald-600/70">Collected Revenue</p>
                             <h3 className="text-xl font-black text-emerald-700">
                               ₹{filteredLaundryOrders.filter(o => o.status === 'paid').reduce((acc, o) => acc + (o.hotelTotal || 0), 0).toLocaleString()}
                             </h3>
                           </div>
                         </div>
                       </div>
-
                       <div className="rounded-2xl border overflow-hidden">
                         <Table>
                           <TableHeader className="bg-primary">
@@ -543,17 +601,14 @@ export default function AccountingPage() {
                                   </TableCell>
                                   <TableCell className="font-black text-[11px] text-primary">₹{order.hotelTotal?.toLocaleString()}</TableCell>
                                   <TableCell className="text-right pr-6">
-                                    <Badge className={cn(
-                                      "text-[9px] uppercase font-black px-2 h-5",
-                                      order.status === "paid" ? "bg-emerald-500" : "bg-amber-500"
-                                    )}>
+                                    <Badge className={cn("text-[9px] uppercase font-black px-2 h-5", order.status === "paid" ? "bg-emerald-500" : "bg-amber-500")}>
                                       {order.status}
                                     </Badge>
                                   </TableCell>
                                 </TableRow>
                               ))
                             ) : (
-                              <TableRow><TableCell colSpan={5} className="text-center py-20 text-[10px] text-muted-foreground uppercase font-black">No laundry records found for this period</TableCell></TableRow>
+                              <TableRow><TableCell colSpan={5} className="text-center py-20 text-[10px] text-muted-foreground uppercase font-black">No laundry records found</TableCell></TableRow>
                             )}
                           </TableBody>
                         </Table>
@@ -561,20 +616,17 @@ export default function AccountingPage() {
                     </div>
                   )}
 
+                  {/* ============ AYURSIHA ACCOUNTS ============ */}
                   {activeView === 'ayuraccounts' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                       <div className="p-4 bg-primary/5 rounded-[2rem] border border-primary/10 flex items-center gap-4 max-w-xl">
-                        <div className="p-2.5 bg-primary rounded-2xl text-white shadow-lg">
-                          <Hospital className="w-5 h-5" />
-                        </div>
+                        <div className="p-2.5 bg-primary rounded-2xl text-white shadow-lg"><Hospital className="w-5 h-5" /></div>
                         <div>
                           <h1 className="text-sm font-black uppercase tracking-tight text-primary leading-none">Ayursiha Accounts</h1>
                           <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">Hospital settlement cycles</p>
                         </div>
                       </div>
-
                       <LocalFilterBar />
-
                       <div className="grid grid-cols-1 gap-4">
                         {ayurAccounts.length > 0 ? (
                           ayurAccounts.map((cycle) => (
@@ -582,7 +634,7 @@ export default function AccountingPage() {
                               <div className="flex items-center gap-6">
                                 <div className="text-center w-16">
                                   <p className="text-[10px] font-black text-muted-foreground uppercase">Cycle</p>
-                                  <p className="text-lg font-black text-primary">{cycle.invoiceNumber.split('-')[1] || "CYC"}</p>
+                                  <p className="text-lg font-black text-primary">{cycle.invoiceNumber?.split('-')[1] || cycle.invoiceNumber?.split('/')[1] || "CYC"}</p>
                                 </div>
                                 <div className="h-12 w-px bg-border" />
                                 <div>
@@ -593,9 +645,7 @@ export default function AccountingPage() {
                               <div className="flex items-center gap-8">
                                 <div className="text-right">
                                   <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Status</p>
-                                  <Badge className={cn("text-[9px] font-black px-2 h-5 uppercase", cycle.status === 'paid' ? "bg-emerald-500" : "bg-rose-500")}>
-                                    {cycle.status}
-                                  </Badge>
+                                  <Badge className={cn("text-[9px] font-black px-2 h-5 uppercase", cycle.status === 'paid' ? "bg-emerald-500" : "bg-rose-500")}>{cycle.status}</Badge>
                                 </div>
                                 <div className="text-right w-32">
                                   <p className="text-[10px] font-black text-muted-foreground uppercase">Cycle Total</p>
@@ -616,15 +666,14 @@ export default function AccountingPage() {
                     </div>
                   )}
 
+                  {/* ============ EXPENSES ============ */}
                   {activeView === 'expenses' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                       <div className="space-y-1">
                         <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Expense Ledger</h1>
                         <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Property operating costs</p>
                       </div>
-
                       <LocalFilterBar />
-
                       <div className="rounded-2xl border overflow-hidden">
                         <Table>
                           <TableHeader className="bg-primary">
@@ -644,13 +693,11 @@ export default function AccountingPage() {
                                   <TableCell className="pl-6 text-[11px] font-bold">{exp.description}</TableCell>
                                   <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase px-2 h-5 bg-secondary/50">{exp.category}</Badge></TableCell>
                                   <TableCell className="text-[11px] font-bold text-muted-foreground">{formatAppDate(exp.date)}</TableCell>
-                                  <TableCell className="text-right pr-6">
-                                    <span className="text-[11px] font-black text-rose-600">₹{exp.amount?.toLocaleString()}</span>
-                                  </TableCell>
+                                  <TableCell className="text-right pr-6"><span className="text-[11px] font-black text-rose-600">₹{exp.amount?.toLocaleString()}</span></TableCell>
                                 </TableRow>
                               ))
                             ) : (
-                              <TableRow><TableCell colSpan={4} className="text-center py-20 text-[10px] text-muted-foreground uppercase font-black">No expense records found for this period</TableCell></TableRow>
+                              <TableRow><TableCell colSpan={4} className="text-center py-20 text-[10px] text-muted-foreground uppercase font-black">No expense records found</TableCell></TableRow>
                             )}
                           </TableBody>
                         </Table>
@@ -658,15 +705,14 @@ export default function AccountingPage() {
                     </div>
                   )}
 
+                  {/* ============ REPORTS ============ */}
                   {activeView === 'reports' && canView && (
                     <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
                       <div className="space-y-1">
                         <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Analytics Reports</h1>
                         <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Financial Performance Visualization</p>
                       </div>
-
                       <LocalFilterBar />
-
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         <div className="p-6 bg-white rounded-3xl border shadow-sm space-y-4">
                           <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Gross Revenue vs Expenses</h3>
@@ -676,30 +722,18 @@ export default function AccountingPage() {
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                 <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 700 }} />
                                 <YAxis tick={{ fontSize: 10, fontWeight: 700 }} />
-                                <Tooltip 
-                                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                  cursor={{ fill: '#f1f5f9' }}
-                                />
+                                <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} cursor={{ fill: '#f1f5f9' }} />
                                 <Bar dataKey="amount" fill="#5F5FA7" radius={[10, 10, 0, 0]} barSize={40} />
                               </BarChart>
                             </ResponsiveContainer>
                           </div>
                         </div>
-
                         <div className="p-6 bg-white rounded-3xl border shadow-sm space-y-4">
                           <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Revenue by Stream</h3>
                           <div className="h-[250px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
                               <RePieChart>
-                                <Pie
-                                  data={sourceData}
-                                  cx="50%"
-                                  cy="50%"
-                                  innerRadius={60}
-                                  outerRadius={80}
-                                  paddingAngle={5}
-                                  dataKey="value"
-                                >
+                                <Pie data={sourceData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                                   {sourceData.map((entry, index) => (
                                     <ReCell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                   ))}
@@ -721,13 +755,13 @@ export default function AccountingPage() {
                     </div>
                   )}
 
+                  {/* ============ TAX SETTINGS ============ */}
                   {activeView === 'settings' && canView && (
                     <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
                       <div className="space-y-1">
                         <h1 className="text-2xl font-black tracking-tight text-primary uppercase">Tax & SAC Settings</h1>
                         <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Configure Billing Compliance</p>
                       </div>
-
                       <div className="p-8 bg-white rounded-3xl border shadow-sm max-w-2xl">
                         <form onSubmit={handleUpdateGst} className="space-y-8">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -736,53 +770,26 @@ export default function AccountingPage() {
                               <Input className="h-11 rounded-2xl border-primary/10 bg-secondary/30 text-xs font-bold" placeholder="Enter GSTIN" value={gstForm.gstin} onChange={e => setGstForm({...gstForm, gstin: e.target.value})} disabled={!canEdit} />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">SAC Code (Accommodation)</Label>
+                              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">SAC Code</Label>
                               <Input className="h-11 rounded-2xl border-primary/10 bg-secondary/30 text-xs font-bold" placeholder="9963" value={gstForm.sacCode} onChange={e => setGstForm({...gstForm, sacCode: e.target.value})} disabled={!canEdit} />
                             </div>
                           </div>
-
-                          <div className="space-y-6">
-                            <div className="p-6 bg-primary/5 rounded-[2rem] border border-primary/10 space-y-6">
-                              <h3 className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                                <Percent className="w-4 h-4" /> Room Rent GST (Typical: 5%)
-                              </h3>
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="space-y-2">
-                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Total Rate (%)</Label>
-                                  <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-primary/5 text-xs" value={gstForm.roomGstRate} onChange={e => setGstForm({...gstForm, roomGstRate: e.target.value})} disabled={!canEdit} />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">CGST (%)</Label>
-                                  <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-primary/5 text-xs" value={gstForm.roomCgstRate} onChange={e => setGstForm({...gstForm, roomCgstRate: e.target.value})} disabled={!canEdit} />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">SGST (%)</Label>
-                                  <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-primary/5 text-xs" value={gstForm.roomSgstRate} onChange={e => setGstForm({...gstForm, roomSgstRate: e.target.value})} disabled={!canEdit} />
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="p-6 bg-emerald-50/50 rounded-[2rem] border border-emerald-100 space-y-6">
-                              <h3 className="text-xs font-black uppercase tracking-widest text-emerald-700 flex items-center gap-2">
-                                <Percent className="w-4 h-4" /> Service / Extra GST (Typical: 18%)
-                              </h3>
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="space-y-2">
-                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Total Rate (%)</Label>
-                                  <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-emerald-100 text-xs" value={gstForm.serviceGstRate} onChange={e => setGstForm({...gstForm, serviceGstRate: e.target.value})} disabled={!canEdit} />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">CGST (%)</Label>
-                                  <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-emerald-100 text-xs" value={gstForm.serviceCgstRate} onChange={e => setGstForm({...gstForm, serviceCgstRate: e.target.value})} disabled={!canEdit} />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">SGST (%)</Label>
-                                  <Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-emerald-100 text-xs" value={gstForm.serviceSgstRate} onChange={e => setGstForm({...gstForm, serviceSgstRate: e.target.value})} disabled={!canEdit} />
-                                </div>
-                              </div>
+                          <div className="p-6 bg-primary/5 rounded-[2rem] border border-primary/10 space-y-6">
+                            <h3 className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2"><Percent className="w-4 h-4" /> Room Rent GST (5%)</h3>
+                            <div className="grid grid-cols-3 gap-6">
+                              <div className="space-y-2"><Label className="text-[9px] font-black uppercase text-muted-foreground">Total Rate (%)</Label><Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-primary/5 text-xs" value={gstForm.roomGstRate} onChange={e => setGstForm({...gstForm, roomGstRate: e.target.value})} disabled={!canEdit} /></div>
+                              <div className="space-y-2"><Label className="text-[9px] font-black uppercase text-muted-foreground">CGST (%)</Label><Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-primary/5 text-xs" value={gstForm.roomCgstRate} onChange={e => setGstForm({...gstForm, roomCgstRate: e.target.value})} disabled={!canEdit} /></div>
+                              <div className="space-y-2"><Label className="text-[9px] font-black uppercase text-muted-foreground">SGST (%)</Label><Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-primary/5 text-xs" value={gstForm.roomSgstRate} onChange={e => setGstForm({...gstForm, roomSgstRate: e.target.value})} disabled={!canEdit} /></div>
                             </div>
                           </div>
-
+                          <div className="p-6 bg-emerald-50/50 rounded-[2rem] border border-emerald-100 space-y-6">
+                            <h3 className="text-xs font-black uppercase tracking-widest text-emerald-700 flex items-center gap-2"><Percent className="w-4 h-4" /> Service GST (18%)</h3>
+                            <div className="grid grid-cols-3 gap-6">
+                              <div className="space-y-2"><Label className="text-[9px] font-black uppercase text-muted-foreground">Total Rate (%)</Label><Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-emerald-100 text-xs" value={gstForm.serviceGstRate} onChange={e => setGstForm({...gstForm, serviceGstRate: e.target.value})} disabled={!canEdit} /></div>
+                              <div className="space-y-2"><Label className="text-[9px] font-black uppercase text-muted-foreground">CGST (%)</Label><Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-emerald-100 text-xs" value={gstForm.serviceCgstRate} onChange={e => setGstForm({...gstForm, serviceCgstRate: e.target.value})} disabled={!canEdit} /></div>
+                              <div className="space-y-2"><Label className="text-[9px] font-black uppercase text-muted-foreground">SGST (%)</Label><Input type="number" step="0.01" className="h-10 rounded-xl bg-white border-emerald-100 text-xs" value={gstForm.serviceSgstRate} onChange={e => setGstForm({...gstForm, serviceSgstRate: e.target.value})} disabled={!canEdit} /></div>
+                            </div>
+                          </div>
                           {canEdit && (
                             <Button type="submit" className="w-full h-12 rounded-2xl shadow-xl shadow-primary/20 font-black uppercase tracking-widest text-xs">
                               <Save className="w-4 h-4 mr-2" /> Commit Tax Configuration
@@ -795,9 +802,7 @@ export default function AccountingPage() {
 
                   {((activeView === 'reports' || activeView === 'settings') && !canView) && (
                     <div className="flex flex-col items-center justify-center py-32 text-center space-y-4">
-                      <div className="p-6 bg-secondary/50 rounded-full">
-                        <Settings2 className="w-12 h-12 text-muted-foreground/30" />
-                      </div>
+                      <div className="p-6 bg-secondary/50 rounded-full"><Settings2 className="w-12 h-12 text-muted-foreground/30" /></div>
                       <div className="space-y-1">
                         <h3 className="text-lg font-black uppercase text-primary">Module Restricted</h3>
                         <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Only authorized personnel can access these settings.</p>
@@ -810,21 +815,17 @@ export default function AccountingPage() {
           </ScrollArea>
         </main>
 
-        {/* Invoice Detail Dialog */}
+        {/* ============ INVOICE VIEW DIALOG ============ */}
         <Dialog open={!!selectedInvoice} onOpenChange={(o) => !o && setSelectedInvoice(null)}>
           <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden rounded-[2.5rem]">
             <div className="p-10 space-y-8 bg-white" id="printable-invoice">
               <div className="flex justify-between items-start">
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg">
-                      <Building2 className="w-6 h-6 text-white" />
-                    </div>
+                    <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg"><Building2 className="w-6 h-6 text-white" /></div>
                     <h2 className="text-xl font-black uppercase tracking-tight text-primary">{property?.name || "SUKHA RETREATS"}</h2>
                   </div>
-                  <p className="text-[10px] text-muted-foreground max-w-[240px] font-bold uppercase leading-relaxed tracking-wider">
-                    {property?.address || "Address details on file"}
-                  </p>
+                  <p className="text-[10px] text-muted-foreground max-w-[240px] font-bold uppercase leading-relaxed tracking-wider">{property?.address || "Address details on file"}</p>
                 </div>
                 <div className="text-right space-y-1">
                   <h3 className="text-xs font-black uppercase tracking-[0.2em] text-primary">Tax Invoice</h3>
@@ -832,9 +833,7 @@ export default function AccountingPage() {
                   <p className="text-[10px] text-muted-foreground font-black uppercase">{formatAppDate(selectedInvoice?.createdAt)}</p>
                 </div>
               </div>
-
               <Separator className="bg-primary/10" />
-
               <div className="grid grid-cols-2 gap-12">
                 <div className="space-y-2">
                   <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Billed To</p>
@@ -847,7 +846,6 @@ export default function AccountingPage() {
                   <p className="text-[10px] font-bold uppercase text-emerald-600">Settlement: {selectedInvoice?.status}</p>
                 </div>
               </div>
-
               <div className="rounded-2xl border overflow-hidden">
                 <Table>
                   <TableHeader className="bg-primary">
@@ -873,7 +871,6 @@ export default function AccountingPage() {
                   </TableBody>
                 </Table>
               </div>
-
               <div className="flex justify-end pt-4">
                 <div className="w-56 space-y-3">
                   <div className="flex justify-between items-center text-[12px] font-black">
@@ -881,23 +878,94 @@ export default function AccountingPage() {
                     <span className="text-primary text-xl">₹{selectedInvoice?.totalAmount?.toLocaleString()}</span>
                   </div>
                   <div className="pt-4 border-t-2 border-primary/10">
-                    <p className="text-[8px] text-muted-foreground uppercase text-right leading-relaxed font-black tracking-widest">
-                      Note: This is a computer-generated document. No signature is required.
-                    </p>
+                    <p className="text-[8px] text-muted-foreground uppercase text-right leading-relaxed font-black tracking-widest">Computer-generated document. No signature required.</p>
                   </div>
                 </div>
               </div>
             </div>
-            
             <div className="p-6 bg-secondary/30 border-t flex justify-between gap-4 no-print">
-               <Button variant="ghost" className="text-[10px] font-black uppercase" onClick={() => setSelectedInvoice(null)}>Close</Button>
-               <Button className="h-11 px-8 font-black text-[10px] uppercase shadow-xl tracking-widest" onClick={handlePrint}>
-                 <Printer className="w-4 h-4 mr-2" />
-                 Print / Download PDF
-               </Button>
+              <Button variant="ghost" className="text-[10px] font-black uppercase" onClick={() => setSelectedInvoice(null)}>Close</Button>
+              <Button className="h-11 px-8 font-black text-[10px] uppercase shadow-xl tracking-widest" onClick={handlePrint}>
+                <Printer className="w-4 h-4 mr-2" />Print / Download PDF
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* ✅ EDIT INVOICE DIALOG */}
+        <Dialog open={!!invoiceToEdit} onOpenChange={(o) => !o && setInvoiceToEdit(null)}>
+          <DialogContent className="sm:max-w-[420px] rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-sm font-black uppercase">Edit Invoice</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">Invoice Number</Label>
+                <Input
+                  value={editForm.invoiceNumber}
+                  onChange={(e) => setEditForm({ ...editForm, invoiceNumber: e.target.value })}
+                  className="h-10 rounded-xl bg-secondary/30 border-none font-bold text-sm"
+                  placeholder="e.g. 2026-2027/001 or A/001"
+                />
+                <p className="text-[9px] text-muted-foreground font-bold">
+                  Use <span className="text-primary font-black">2026-2027/001</span> for room rent · <span className="text-primary font-black">A/001</span> for Ayursiha
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">Total Amount (₹)</Label>
+                <Input
+                  type="number"
+                  value={editForm.totalAmount}
+                  onChange={(e) => setEditForm({ ...editForm, totalAmount: e.target.value })}
+                  className="h-10 rounded-xl bg-secondary/30 border-none font-bold text-sm"
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">Status</Label>
+                <select
+                  value={editForm.status}
+                  onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                  className="w-full h-10 rounded-xl bg-secondary/30 border-none font-bold text-sm px-3 outline-none"
+                >
+                  <option value="paid">Paid</option>
+                  <option value="pending">Pending</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="ghost" className="font-black text-xs uppercase" onClick={() => setInvoiceToEdit(null)}>Cancel</Button>
+              <Button className="font-black text-xs uppercase shadow-lg" onClick={handleSaveEdit}>Save Changes</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ✅ DELETE CONFIRMATION DIALOG */}
+        <AlertDialog open={!!invoiceToDelete} onOpenChange={(o) => !o && setInvoiceToDelete(null)}>
+          <AlertDialogContent className="rounded-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-rose-600">
+                <Trash2 className="w-4 h-4" />
+                Delete Invoice?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs font-bold">
+                You are about to permanently delete invoice{" "}
+                <span className="font-black text-primary">{invoiceToDelete?.invoiceNumber}</span>{" "}
+                for <span className="font-black text-primary">{invoiceToDelete?.guestDetails?.name || invoiceToDelete?.guestName}</span>.
+                <br /><br />
+                This action <span className="text-rose-600 font-black">cannot be undone</span>.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-xl font-black uppercase text-[10px]">Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmDelete} className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black uppercase text-[10px]">
+                Yes, Delete Invoice
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
       </div>
     </AppLayout>
   );
