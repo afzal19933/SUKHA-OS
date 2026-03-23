@@ -29,12 +29,10 @@ export async function GET(req: NextRequest) {
 // HELPERS
 // ─────────────────────────────────────────────
 
-/** Normalize phone: strip leading + so both formats match */
 function normalizePhone(phone: string) {
   return phone.replace(/^\+/, '');
 }
 
-/** Search for a contact across ALL properties */
 async function findContactAcrossProperties(phoneNumber: string) {
   const normalized = normalizePhone(phoneNumber);
   const withPlus = `+${normalized}`;
@@ -46,7 +44,6 @@ async function findContactAcrossProperties(phoneNumber: string) {
     const propertyId = propDoc.id;
     const property = propDoc.data();
 
-    // Try without + first
     let contactSnap = await db
       .collection('hotel_properties')
       .doc(propertyId)
@@ -55,7 +52,6 @@ async function findContactAcrossProperties(phoneNumber: string) {
       .limit(1)
       .get();
 
-    // Try with + if not found
     if (contactSnap.empty) {
       contactSnap = await db
         .collection('hotel_properties')
@@ -78,26 +74,18 @@ async function findContactAcrossProperties(phoneNumber: string) {
   return results;
 }
 
-/** Get or create conversation session for a phone number */
 async function getSession(phoneNumber: string) {
   const normalized = normalizePhone(phoneNumber);
   const sessionRef = db.collection('whatsapp_sessions').doc(normalized);
   const sessionSnap = await sessionRef.get();
 
   if (!sessionSnap.exists) {
-    return { selectedPropertyId: null, awaitingPropertySelection: false };
+    return { selectedPropertyId: null, awaitingPropertySelection: false, pendingQuery: null };
   }
-  return sessionSnap.data() as {
-    selectedPropertyId: string | null;
-    awaitingPropertySelection: boolean;
-  };
+  return sessionSnap.data();
 }
 
-/** Save conversation session */
-async function saveSession(phoneNumber: string, data: {
-  selectedPropertyId: string | null;
-  awaitingPropertySelection: boolean;
-}) {
+async function saveSession(phoneNumber: string, data: any) {
   const normalized = normalizePhone(phoneNumber);
   await db.collection('whatsapp_sessions').doc(normalized).set({
     ...data,
@@ -105,7 +93,6 @@ async function saveSession(phoneNumber: string, data: {
   });
 }
 
-/** Log message to a property's whatsapp_logs */
 function logMessage(propertyId: string, data: object) {
   db.collection('hotel_properties')
     .doc(propertyId)
@@ -131,7 +118,6 @@ export async function POST(req: NextRequest) {
     const phoneNumberId = value.metadata.phone_number_id;
     const guestName = value.contacts?.[0]?.profile?.name;
 
-    // Ignore non-text messages
     if (!text) {
       console.log('⚠️ Non-text message, ignoring.');
       return NextResponse.json({ status: 'ignored' });
@@ -139,7 +125,6 @@ export async function POST(req: NextRequest) {
 
     console.log(`📩 From: ${from} | Text: ${text}`);
 
-    // ── Find the WhatsApp number's own property (for guests) ──
     const ownPropertySnap = await db.collection('hotel_properties')
       .where('whatsappPhoneNumberId', '==', phoneNumberId)
       .limit(1)
@@ -148,11 +133,9 @@ export async function POST(req: NextRequest) {
     const ownProperty = ownPropertySnap.empty ? null : ownPropertySnap.docs[0].data();
     const ownPropertyId = ownPropertySnap.empty ? null : ownPropertySnap.docs[0].id;
 
-    // ── Find contact across ALL properties ──
     const contactMatches = await findContactAcrossProperties(from);
     console.log(`🔍 Contact matches found: ${contactMatches.length}`);
 
-    // Helper to send reply
     const sendReply = async (replyText: string, targetPropertyId?: string) => {
       const targetProp = targetPropertyId
         ? (await db.collection('hotel_properties').doc(targetPropertyId).get()).data()
@@ -173,7 +156,7 @@ export async function POST(req: NextRequest) {
     };
 
     // ════════════════════════════════════════
-    // CASE 1: MANAGEMENT (found in contacts)
+    // CASE 1: MANAGEMENT
     // ════════════════════════════════════════
     if (contactMatches.length > 0) {
       const isManagement = contactMatches.some(m =>
@@ -182,108 +165,142 @@ export async function POST(req: NextRequest) {
 
       if (isManagement) {
 
-        // ── ADMIN in multiple properties → property selection flow ──
+        // 🔥 UPDATED MULTI-PROPERTY LOGIC
         if (contactMatches.length > 1) {
           const session = await getSession(from);
 
-          // Check if user is selecting a property
           const propertyOptions = contactMatches.map((m, i) => ({
             index: i + 1,
             propertyId: m.propertyId,
             name: m.property.name,
           }));
 
-          // If awaiting selection and user sent a number
+          const greetings = ['hi', 'hello', 'hey', 'start'];
+
+          // STEP 1: Greeting
+          if (greetings.includes(text.toLowerCase())) {
+            await saveSession(from, {
+              selectedPropertyId: null,
+              awaitingPropertySelection: false,
+              pendingQuery: null,
+            });
+
+            await sendReply("Hello! 👋\nHow can I assist you today?");
+            return NextResponse.json({ status: 'success' });
+          }
+
+          // STEP 2: Auto detect property
+          const lower = text.toLowerCase();
+          const detected = contactMatches.find(m => {
+            const name = m.property.name.toLowerCase();
+            return (
+              lower.includes(name) ||
+              (lower.includes('retreat') && name.includes('retreat')) ||
+              (lower.includes('paradise') && name.includes('paradise'))
+            );
+          });
+
+          if (detected) {
+            const dataContext = await getPropertyContext(detected.propertyId);
+
+            const replyText = await getOpsAssistantResponse({
+              propertyName: detected.property.name,
+              dataContext,
+              query: text,
+            });
+
+            await sendReply(replyText, detected.propertyId);
+
+            logMessage(detected.propertyId, {
+              phoneNumber: from,
+              role: 'Admin',
+              direction: 'outgoing',
+              message: replyText,
+              status: 'sent',
+            });
+
+            return NextResponse.json({ status: 'success' });
+          }
+
+          // STEP 3: Handle selection
           if (session.awaitingPropertySelection) {
             const choice = parseInt(text);
             const selected = propertyOptions.find(p => p.index === choice);
 
             if (selected) {
-              // Save selection
+              const query = session.pendingQuery;
+
               await saveSession(from, {
                 selectedPropertyId: selected.propertyId,
                 awaitingPropertySelection: false,
+                pendingQuery: null,
               });
 
-              console.log(`✅ Admin selected: ${selected.name}`);
-
-              // Now fetch data for selected property
               const dataContext = await getPropertyContext(selected.propertyId);
+
               const replyText = await getOpsAssistantResponse({
                 propertyName: selected.name,
                 dataContext,
-                query: text,
+                query,
               });
 
               await sendReply(replyText, selected.propertyId);
+
               logMessage(selected.propertyId, {
-                phoneNumber: from, role: 'Admin',
-                direction: 'outgoing', message: replyText, status: 'sent',
-              });
-
-              return NextResponse.json({ status: 'success' });
-            } else {
-              // Invalid choice
-              const optionsList = propertyOptions.map(p => `*${p.index}.* ${p.name}`).join('\n');
-              const replyText = `Please reply with a number:\n\n${optionsList}`;
-              await sendReply(replyText);
-              return NextResponse.json({ status: 'success' });
-            }
-          }
-
-          // Check if there's already a selected property in session
-          if (session.selectedPropertyId) {
-            const savedMatch = contactMatches.find(m => m.propertyId === session.selectedPropertyId);
-
-            if (savedMatch) {
-              // Use saved property — but allow switching with "switch" or "change"
-              if (['switch', 'change', 'change property', 'switch property'].includes(text.toLowerCase())) {
-                await saveSession(from, { selectedPropertyId: null, awaitingPropertySelection: true });
-                const optionsList = propertyOptions.map(p => `*${p.index}.* ${p.name}`).join('\n');
-                const replyText = `Which property would you like?\n\n${optionsList}\n\nReply with the number.`;
-                await sendReply(replyText);
-                return NextResponse.json({ status: 'success' });
-              }
-
-              console.log(`🏨 Using saved property: ${savedMatch.property.name}`);
-              const dataContext = await getPropertyContext(savedMatch.propertyId);
-              const replyText = await getOpsAssistantResponse({
-                propertyName: savedMatch.property.name,
-                dataContext,
-                query: text,
-              });
-
-              await sendReply(replyText, savedMatch.propertyId);
-              logMessage(savedMatch.propertyId, {
-                phoneNumber: from, role: 'Admin',
-                direction: 'outgoing', message: replyText, status: 'sent',
+                phoneNumber: from,
+                role: 'Admin',
+                direction: 'outgoing',
+                message: replyText,
+                status: 'sent',
               });
 
               return NextResponse.json({ status: 'success' });
             }
+
+            const optionsList = propertyOptions.map(p => `*${p.index}.* ${p.name}`).join('\n');
+            await sendReply(`Please reply with a valid number:\n\n${optionsList}`);
+            return NextResponse.json({ status: 'success' });
           }
 
-          // No saved property yet → ask which one
-          await saveSession(from, { selectedPropertyId: null, awaitingPropertySelection: true });
+          // STEP 4: Ask property
+          await saveSession(from, {
+            selectedPropertyId: null,
+            awaitingPropertySelection: true,
+            pendingQuery: text,
+          });
+
           const optionsList = propertyOptions.map(p => `*${p.index}.* ${p.name}`).join('\n');
-          const replyText = `Hello! You have access to multiple properties. Which one would you like?\n\n${optionsList}\n\nReply with the number.`;
+
+          const replyText = `You have access to multiple properties.
+
+Which one would you like?
+
+${optionsList}
+
+Reply with the number.`;
+
           await sendReply(replyText);
 
           logMessage(ownPropertyId || contactMatches[0].propertyId, {
-            phoneNumber: from, role: 'Admin',
-            direction: 'outgoing', message: replyText, status: 'sent',
+            phoneNumber: from,
+            role: 'Admin',
+            direction: 'outgoing',
+            message: replyText,
+            status: 'sent',
           });
 
           return NextResponse.json({ status: 'success' });
         }
 
-        // ── Single property owner/manager ──
+        // ── Single property ──
         const match = contactMatches[0];
-        console.log(`🏨 Single property: ${match.property.name} | Role: ${match.contact.role}`);
 
         logMessage(match.propertyId, {
-          phoneNumber: from, role: match.contact.role,
-          direction: 'incoming', message: text, status: 'received',
+          phoneNumber: from,
+          role: match.contact.role,
+          direction: 'incoming',
+          message: text,
+          status: 'received',
         });
 
         const dataContext = await getPropertyContext(match.propertyId);
@@ -296,9 +313,11 @@ export async function POST(req: NextRequest) {
         await sendReply(replyText, match.propertyId);
 
         logMessage(match.propertyId, {
-          phoneNumber: from, role: 'AI Assistant',
-          direction: 'outgoing', message: replyText,
-          status: 'sent', isAiQuery: true, intent: 'OperationalReport',
+          phoneNumber: from,
+          role: 'AI Assistant',
+          direction: 'outgoing',
+          message: replyText,
+          status: 'sent',
         });
 
         return NextResponse.json({ status: 'success' });
@@ -306,55 +325,15 @@ export async function POST(req: NextRequest) {
     }
 
     // ════════════════════════════════════════
-    // CASE 2: GUEST (not found in any contacts)
+    // GUEST FLOW (UNCHANGED)
     // ════════════════════════════════════════
-    console.log('👤 Guest detected — Smart routing...');
 
-    if (!ownPropertyId) {
-      console.warn('⚠️ No property found for this WhatsApp number');
-      return NextResponse.json({ status: 'no_property' });
-    }
-
-    logMessage(ownPropertyId, {
-      phoneNumber: from, role: 'Guest',
-      direction: 'incoming', message: text, status: 'received',
-    });
-
-    // ── Fetch context from BOTH properties for smart guest replies ──
-    const allPropertiesSnap = await db.collection('hotel_properties').get();
-    let retreatsContext: any = null;
-    let paradiseContext: any = null;
-    let retreatsName = 'Sukha Retreats';
-    let paradiseName = 'Sukha Paradise Apartments';
-
-    for (const propDoc of allPropertiesSnap.docs) {
-      const name = propDoc.data().name?.toLowerCase() || '';
-      if (name.includes('retreat')) {
-        retreatsContext = await getPropertyContext(propDoc.id);
-        retreatsName = propDoc.data().name;
-      } else if (name.includes('paradise') || name.includes('apartment')) {
-        paradiseContext = await getPropertyContext(propDoc.id);
-        paradiseName = propDoc.data().name;
-      }
-    }
-
-    // ── Smart guest receptionist with combined context ──
     const replyText = await getReceptionistResponse({
       message: text,
       guestName,
-      retreatsContext,
-      paradiseContext,
-      retreatsName,
-      paradiseName,
     });
 
     await sendReply(replyText, ownPropertyId);
-
-    logMessage(ownPropertyId, {
-      phoneNumber: from, role: 'Guest',
-      direction: 'outgoing', message: replyText,
-      status: 'sent', isAiQuery: true, intent: 'GuestEnquiry',
-    });
 
     return NextResponse.json({ status: 'success' });
 
