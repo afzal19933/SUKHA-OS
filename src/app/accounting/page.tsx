@@ -29,7 +29,10 @@ import {
   Calendar as CalendarIcon,
   MoreVertical,
   Pencil,
-  Trash2
+  Trash2,
+  Trash,
+  RotateCcw,
+  AlertTriangle
 } from "lucide-react";
 import { 
   Table, 
@@ -40,10 +43,10 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { doc, setDoc, updateDoc, deleteDoc, addDoc, collection as fsCollection } from "firebase/firestore";
 import { cn, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
-import { useCollection, useMemoFirebase, useFirestore, useDoc } from "@/firebase";
+import { useCollection, useMemoFirebase, useFirestore, useDoc, useUser } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
@@ -98,21 +101,24 @@ const SIDEBAR_ITEMS = [
   { id: 'expenses', label: 'Operating Expenses', icon: CreditCard },
   { id: 'reports', label: 'Analytics Reports', icon: BarChart3 },
   { id: 'settings', label: 'Tax Settings', icon: Settings2 },
+  { id: 'bin', label: 'Deleted Invoices', icon: Trash, adminOnly: true },
 ];
 
 const COLORS = ['#5F5FA7', '#10b981', '#f59e0b', '#e11d48', '#334155'];
 
 export default function AccountingPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
+  const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
   const [activeView, setActiveView] = useState('overview');
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
 
-  // ✅ Edit/Delete state
+  // Edit/Delete state
   const [invoiceToEdit, setInvoiceToEdit] = useState<any>(null);
   const [invoiceToDelete, setInvoiceToDelete] = useState<any>(null);
+  const [invoiceToPermanentDelete, setInvoiceToPermanentDelete] = useState<any>(null);
   const [editForm, setEditForm] = useState({
     invoiceNumber: "",
     totalAmount: "",
@@ -131,11 +137,17 @@ export default function AccountingPage() {
   const canEdit = currentUserRole === "admin";
   const canView = ["owner", "admin"].includes(currentUserRole || "");
 
-  // Data fetching
+  // ── Data Queries ──────────────────────────────────────────────
   const invoiceQuery = useMemoFirebase(() => {
     if (!entityId) return null;
     return query(collection(db, "hotel_properties", entityId, "invoices"), orderBy("createdAt", "desc"));
   }, [db, entityId]);
+
+  // ✅ Deleted invoices bin query (admin only)
+  const deletedInvoiceQuery = useMemoFirebase(() => {
+    if (!entityId || !canEdit) return null;
+    return query(collection(db, "hotel_properties", entityId, "deleted_invoices"), orderBy("deletedAt", "desc"));
+  }, [db, entityId, canEdit]);
 
   const laundryQuery = useMemoFirebase(() => {
     if (!entityId) return null;
@@ -158,6 +170,7 @@ export default function AccountingPage() {
   }, [db, entityId]);
 
   const { data: invoices, isLoading: invLoading } = useCollection(invoiceQuery);
+  const { data: deletedInvoices, isLoading: binLoading } = useCollection(deletedInvoiceQuery);
   const { data: laundryOrders, isLoading: laundryLoading } = useCollection(laundryQuery);
   const { data: expenses, isLoading: expLoading } = useCollection(expenseQuery);
   const { data: property } = useDoc(propertyRef);
@@ -249,7 +262,7 @@ export default function AccountingPage() {
     return Object.entries(sources).map(([name, value]) => ({ name, value }));
   }, [filteredInvoices, laundryRevenue]);
 
-  // ✅ Edit Invoice Handler
+  // ── Edit Invoice ──────────────────────────────────────────────
   const handleOpenEdit = (inv: any) => {
     setInvoiceToEdit(inv);
     setEditForm({
@@ -278,15 +291,51 @@ export default function AccountingPage() {
     }
   };
 
-  // ✅ Delete Invoice Handler
-  const handleConfirmDelete = async () => {
+  // ✅ Move to Bin (Soft Delete)
+  const handleMoveToBin = async () => {
     if (!entityId || !invoiceToDelete) return;
     try {
-      await deleteDoc(
-        doc(db, "hotel_properties", entityId, "invoices", invoiceToDelete.id)
-      );
-      toast({ title: "Invoice deleted successfully" });
+      // 1. Copy invoice to deleted_invoices with metadata
+      await addDoc(fsCollection(db, "hotel_properties", entityId, "deleted_invoices"), {
+        ...invoiceToDelete,
+        originalId: invoiceToDelete.id,
+        deletedAt: new Date().toISOString(),
+        deletedBy: user?.displayName || user?.email || "Admin",
+        deletedByUid: user?.uid || "",
+      });
+      // 2. Remove from active invoices
+      await deleteDoc(doc(db, "hotel_properties", entityId, "invoices", invoiceToDelete.id));
+      toast({ title: "Invoice moved to bin" });
       setInvoiceToDelete(null);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Failed to move invoice to bin." });
+    }
+  };
+
+  // ✅ Restore from Bin
+  const handleRestore = async (binInvoice: any) => {
+    if (!entityId) return;
+    try {
+      const { originalId, deletedAt, deletedBy, deletedByUid, id, ...invoiceData } = binInvoice;
+      await addDoc(fsCollection(db, "hotel_properties", entityId, "invoices"), {
+        ...invoiceData,
+        restoredAt: new Date().toISOString(),
+        restoredBy: user?.displayName || "Admin",
+      });
+      await deleteDoc(doc(db, "hotel_properties", entityId, "deleted_invoices", binInvoice.id));
+      toast({ title: `Invoice ${binInvoice.invoiceNumber} restored successfully` });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Restore failed. Please try again." });
+    }
+  };
+
+  // ✅ Permanent Delete from Bin
+  const handlePermanentDelete = async () => {
+    if (!entityId || !invoiceToPermanentDelete) return;
+    try {
+      await deleteDoc(doc(db, "hotel_properties", entityId, "deleted_invoices", invoiceToPermanentDelete.id));
+      toast({ title: "Invoice permanently deleted" });
+      setInvoiceToPermanentDelete(null);
     } catch (error) {
       toast({ variant: "destructive", title: "Delete failed. Please try again." });
     }
@@ -374,7 +423,8 @@ export default function AccountingPage() {
   return (
     <AppLayout>
       <div className="flex h-[calc(100vh-8rem)] gap-6 max-w-6xl mx-auto overflow-hidden">
-        {/* Sidebar */}
+
+        {/* ── Sidebar ── */}
         <aside className="w-64 bg-white rounded-3xl border shadow-sm flex flex-col shrink-0 overflow-hidden">
           <div className="p-6 bg-primary text-primary-foreground">
             <h2 className="text-sm font-black uppercase tracking-widest">Accounting</h2>
@@ -382,16 +432,26 @@ export default function AccountingPage() {
           </div>
           <ScrollArea className="flex-1 p-2">
             <div className="space-y-1 mt-2">
-              {SIDEBAR_ITEMS.map((item) => (
+              {SIDEBAR_ITEMS.filter(item => !(item as any).adminOnly || canEdit).map((item) => (
                 <button key={item.id} onClick={() => setActiveView(item.id)}
-                  className={cn("w-full flex items-center justify-between p-3 rounded-2xl transition-all group",
-                    activeView === item.id ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-muted-foreground hover:bg-secondary hover:text-primary"
+                  className={cn(
+                    "w-full flex items-center justify-between p-3 rounded-2xl transition-all group",
+                    activeView === item.id ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-muted-foreground hover:bg-secondary hover:text-primary",
+                    item.id === 'bin' && activeView !== 'bin' && "hover:bg-rose-50 hover:text-rose-600"
                   )}>
                   <div className="flex items-center gap-3">
-                    <item.icon className={cn("w-4 h-4", activeView === item.id ? "text-white" : "group-hover:text-primary")} />
-                    <span className="text-[11px] font-bold">{item.label}</span>
+                    <item.icon className={cn("w-4 h-4", activeView === item.id ? "text-white" : item.id === 'bin' ? "group-hover:text-rose-500" : "group-hover:text-primary")} />
+                    <span className={cn("text-[11px] font-bold", item.id === 'bin' && activeView !== 'bin' && "group-hover:text-rose-600")}>{item.label}</span>
                   </div>
-                  {activeView === item.id && <ChevronRight className="w-3.5 h-3.5" />}
+                  <div className="flex items-center gap-1">
+                    {/* ✅ Red badge showing bin count */}
+                    {item.id === 'bin' && deletedInvoices && deletedInvoices.length > 0 && (
+                      <span className="text-[9px] font-black bg-rose-500 text-white rounded-full w-4 h-4 flex items-center justify-center">
+                        {deletedInvoices.length}
+                      </span>
+                    )}
+                    {activeView === item.id && <ChevronRight className="w-3.5 h-3.5" />}
+                  </div>
                 </button>
               ))}
             </div>
@@ -404,7 +464,7 @@ export default function AccountingPage() {
           </div>
         </aside>
 
-        {/* Main Content */}
+        {/* ── Main Content ── */}
         <main className="flex-1 bg-white rounded-3xl border shadow-sm overflow-hidden flex flex-col">
           <ScrollArea className="flex-1">
             <div className="p-8 space-y-8">
@@ -506,12 +566,9 @@ export default function AccountingPage() {
                                   </TableCell>
                                   <TableCell className="text-right pr-4">
                                     <div className="flex items-center justify-end gap-1">
-                                      {/* View Button */}
                                       <Button variant="ghost" size="icon" className="h-8 w-8 text-primary opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setSelectedInvoice(inv)}>
                                         <Printer className="w-4 h-4" />
                                       </Button>
-
-                                      {/* ✅ 3-dot Edit/Delete Menu */}
                                       {canEdit && (
                                         <DropdownMenu>
                                           <DropdownMenuTrigger asChild>
@@ -521,12 +578,10 @@ export default function AccountingPage() {
                                           </DropdownMenuTrigger>
                                           <DropdownMenuContent align="end" className="w-44 rounded-xl">
                                             <DropdownMenuItem className="text-[11px] font-bold cursor-pointer" onClick={() => handleOpenEdit(inv)}>
-                                              <Pencil className="w-3.5 h-3.5 mr-2 text-primary" />
-                                              Edit Invoice
+                                              <Pencil className="w-3.5 h-3.5 mr-2 text-primary" />Edit Invoice
                                             </DropdownMenuItem>
                                             <DropdownMenuItem className="text-[11px] font-bold cursor-pointer text-rose-600 focus:text-rose-600 focus:bg-rose-50" onClick={() => setInvoiceToDelete(inv)}>
-                                              <Trash2 className="w-3.5 h-3.5 mr-2" />
-                                              Delete Invoice
+                                              <Trash2 className="w-3.5 h-3.5 mr-2" />Move to Bin
                                             </DropdownMenuItem>
                                           </DropdownMenuContent>
                                         </DropdownMenu>
@@ -800,6 +855,69 @@ export default function AccountingPage() {
                     </div>
                   )}
 
+                  {/* ✅ ============ DELETED INVOICES BIN ============ */}
+                  {activeView === 'bin' && canEdit && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+                      <div className="flex items-start gap-4">
+                        <div className="p-3 bg-rose-100 rounded-2xl text-rose-600"><Trash className="w-5 h-5" /></div>
+                        <div>
+                          <h1 className="text-2xl font-black tracking-tight text-rose-600 uppercase">Deleted Invoices</h1>
+                          <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Admin only · Restore or permanently remove</p>
+                        </div>
+                      </div>
+                      {binLoading ? (
+                        <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+                      ) : deletedInvoices && deletedInvoices.length > 0 ? (
+                        <div className="rounded-2xl border overflow-hidden">
+                          <Table>
+                            <TableHeader className="bg-rose-600">
+                              <TableRow className="hover:bg-transparent border-none">
+                                <TableHead className="text-[10px] font-black uppercase pl-6 h-12 text-white">Invoice #</TableHead>
+                                <TableHead className="text-[10px] font-black uppercase h-12 text-white">Guest</TableHead>
+                                <TableHead className="text-[10px] font-black uppercase h-12 text-white">Amount</TableHead>
+                                <TableHead className="text-[10px] font-black uppercase h-12 text-white">Deleted By</TableHead>
+                                <TableHead className="text-[10px] font-black uppercase h-12 text-white">Deleted At</TableHead>
+                                <TableHead className="text-right text-[10px] font-black uppercase pr-4 h-12 text-white">Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {deletedInvoices.map((inv) => (
+                                <TableRow key={inv.id} className="group hover:bg-rose-50/30 transition-colors">
+                                  <TableCell className="pl-6 font-mono text-[11px] font-bold text-rose-600">{inv.invoiceNumber}</TableCell>
+                                  <TableCell className="text-[11px] font-bold">{inv.guestDetails?.name || inv.guestName}</TableCell>
+                                  <TableCell className="font-black text-[11px]">₹{inv.totalAmount?.toLocaleString()}</TableCell>
+                                  <TableCell className="text-[11px] font-bold">{inv.deletedBy}</TableCell>
+                                  <TableCell className="text-[10px] font-bold text-muted-foreground">{formatAppDate(inv.deletedAt)}</TableCell>
+                                  <TableCell className="text-right pr-4">
+                                    <div className="flex items-center justify-end gap-1">
+                                      {/* View */}
+                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-primary opacity-0 group-hover:opacity-100 transition-opacity" title="View Invoice" onClick={() => setSelectedInvoice(inv)}>
+                                        <Printer className="w-4 h-4" />
+                                      </Button>
+                                      {/* Restore */}
+                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Restore Invoice" onClick={() => handleRestore(inv)}>
+                                        <RotateCcw className="w-4 h-4" />
+                                      </Button>
+                                      {/* Permanent Delete */}
+                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Permanently Delete" onClick={() => setInvoiceToPermanentDelete(inv)}>
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ) : (
+                        <div className="text-center py-24 border-2 border-dashed border-rose-200 rounded-[3rem]">
+                          <Trash className="w-12 h-12 text-rose-200 mx-auto mb-4" />
+                          <p className="text-xs font-black uppercase text-muted-foreground">Bin is empty</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {((activeView === 'reports' || activeView === 'settings') && !canView) && (
                     <div className="flex flex-col items-center justify-center py-32 text-center space-y-4">
                       <div className="p-6 bg-secondary/50 rounded-full"><Settings2 className="w-12 h-12 text-muted-foreground/30" /></div>
@@ -901,33 +1019,18 @@ export default function AccountingPage() {
             <div className="space-y-4 py-2">
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase text-muted-foreground">Invoice Number</Label>
-                <Input
-                  value={editForm.invoiceNumber}
-                  onChange={(e) => setEditForm({ ...editForm, invoiceNumber: e.target.value })}
-                  className="h-10 rounded-xl bg-secondary/30 border-none font-bold text-sm"
-                  placeholder="e.g. 2026-2027/001 or A/001"
-                />
+                <Input value={editForm.invoiceNumber} onChange={(e) => setEditForm({ ...editForm, invoiceNumber: e.target.value })} className="h-10 rounded-xl bg-secondary/30 border-none font-bold text-sm" placeholder="e.g. 2026-2027/001 or A/001" />
                 <p className="text-[9px] text-muted-foreground font-bold">
                   Use <span className="text-primary font-black">2026-2027/001</span> for room rent · <span className="text-primary font-black">A/001</span> for Ayursiha
                 </p>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase text-muted-foreground">Total Amount (₹)</Label>
-                <Input
-                  type="number"
-                  value={editForm.totalAmount}
-                  onChange={(e) => setEditForm({ ...editForm, totalAmount: e.target.value })}
-                  className="h-10 rounded-xl bg-secondary/30 border-none font-bold text-sm"
-                  placeholder="0.00"
-                />
+                <Input type="number" value={editForm.totalAmount} onChange={(e) => setEditForm({ ...editForm, totalAmount: e.target.value })} className="h-10 rounded-xl bg-secondary/30 border-none font-bold text-sm" placeholder="0.00" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase text-muted-foreground">Status</Label>
-                <select
-                  value={editForm.status}
-                  onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                  className="w-full h-10 rounded-xl bg-secondary/30 border-none font-bold text-sm px-3 outline-none"
-                >
+                <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })} className="w-full h-10 rounded-xl bg-secondary/30 border-none font-bold text-sm px-3 outline-none">
                   <option value="paid">Paid</option>
                   <option value="pending">Pending</option>
                   <option value="cancelled">Cancelled</option>
@@ -941,27 +1044,40 @@ export default function AccountingPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ✅ DELETE CONFIRMATION DIALOG */}
+        {/* ✅ MOVE TO BIN CONFIRMATION */}
         <AlertDialog open={!!invoiceToDelete} onOpenChange={(o) => !o && setInvoiceToDelete(null)}>
           <AlertDialogContent className="rounded-2xl">
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2 text-rose-600">
-                <Trash2 className="w-4 h-4" />
-                Delete Invoice?
+                <Trash2 className="w-4 h-4" />Move to Bin?
               </AlertDialogTitle>
               <AlertDialogDescription className="text-xs font-bold">
-                You are about to permanently delete invoice{" "}
-                <span className="font-black text-primary">{invoiceToDelete?.invoiceNumber}</span>{" "}
-                for <span className="font-black text-primary">{invoiceToDelete?.guestDetails?.name || invoiceToDelete?.guestName}</span>.
+                Invoice <span className="font-black text-primary">{invoiceToDelete?.invoiceNumber}</span> will be moved to the Deleted Invoices bin.
                 <br /><br />
-                This action <span className="text-rose-600 font-black">cannot be undone</span>.
+                You can restore it later from <span className="font-black text-primary">Accounting → Deleted Invoices</span>.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel className="rounded-xl font-black uppercase text-[10px]">Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleConfirmDelete} className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black uppercase text-[10px]">
-                Yes, Delete Invoice
-              </AlertDialogAction>
+              <AlertDialogAction onClick={handleMoveToBin} className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black uppercase text-[10px]">Move to Bin</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* ✅ PERMANENT DELETE CONFIRMATION */}
+        <AlertDialog open={!!invoiceToPermanentDelete} onOpenChange={(o) => !o && setInvoiceToPermanentDelete(null)}>
+          <AlertDialogContent className="rounded-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-rose-600">
+                <AlertTriangle className="w-4 h-4" />Permanently Delete?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs font-bold">
+                Invoice <span className="font-black text-primary">{invoiceToPermanentDelete?.invoiceNumber}</span> will be <span className="text-rose-600 font-black">permanently deleted</span> and cannot be recovered.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-xl font-black uppercase text-[10px]">Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handlePermanentDelete} className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black uppercase text-[10px]">Yes, Delete Forever</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
