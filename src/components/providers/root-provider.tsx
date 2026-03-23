@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/query-client";
 import { FirebaseClientProvider, useFirestore } from "@/firebase";
@@ -13,7 +12,6 @@ import { doc, onSnapshot, collection } from "firebase/firestore";
 /**
  * AuthSync Component
  * Synchronizes Firebase Auth state with the global Zustand store and Firestore Profile.
- * Implements a Sovereignty Guard for the Master Admin and handles Global Access users.
  */
 function AuthSync() {
   const { user } = useUser();
@@ -32,7 +30,7 @@ function AuthSync() {
     theme 
   } = useAuthStore();
 
-  // Apply theme to document root
+  // 1. Theme Sync
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('theme-emerald', 'theme-rose', 'theme-amber', 'theme-slate');
@@ -41,61 +39,16 @@ function AuthSync() {
     }
   }, [theme]);
 
+  // 2. Auth Basic Sync (Claims)
   useEffect(() => {
     if (user) {
-      // Sync basic user state
       user.getIdTokenResult(true).then((idTokenResult) => {
-        // Sovereignty Guard: Ensure admin@sukha.os is ALWAYS an admin
         const claims = { ...idTokenResult.claims };
         if (user.email === 'admin@sukha.os') {
           claims.role = 'admin';
         }
         setUser(user, claims);
       });
-
-      // Source of truth: Firestore User Profile
-      // This is the CRITICAL part for correct greeting names.
-      const unsubscribeProfile = onSnapshot(doc(db, "user_profiles", user.uid), (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.data();
-          if (data.name) setUserName(data.name);
-          if (data.permissions) setPermissions(data.permissions);
-          
-          // Sovereignty Guard: Override role from DB if it's the master account
-          let assignedRole = data.role;
-          if (user.email === 'admin@sukha.os') {
-            assignedRole = 'admin';
-          }
-          
-          if (assignedRole) setRole(assignedRole);
-          
-          if (data.entityId) {
-            setAssignedEntityId(data.entityId);
-            // If user has 'all' access and no active entityId, wait for properties to load
-            if (data.entityId !== 'all' && !entityId) {
-              setEntityId(data.entityId);
-            }
-          }
-        }
-      }, (error) => {
-        console.warn("AuthSync: User profile sync delayed:", error.message);
-      });
-
-      // Fetch available properties
-      const unsubscribeProperties = onSnapshot(collection(db, "hotel_properties"), (snapshot) => {
-        const properties = snapshot.docs.map(doc => ({
-          id: doc.id,
-          name: doc.data().name || "Unnamed Property"
-        }));
-        setAvailableProperties(properties);
-      }, (error) => {
-        console.warn("AuthSync: Property list fetch restricted:", error.message);
-      });
-
-      return () => {
-        unsubscribeProfile();
-        unsubscribeProperties();
-      };
     } else {
       setUser(null);
       setUserName(null);
@@ -105,14 +58,66 @@ function AuthSync() {
       setAssignedEntityId(null);
       setAvailableProperties([]);
     }
-  }, [user, setUser, setUserName, setPermissions, setRole, setEntityId, setAssignedEntityId, setAvailableProperties, db, entityId]);
+  }, [user, setUser, setUserName, setPermissions, setRole, setEntityId, setAssignedEntityId, setAvailableProperties]);
 
-  // Handle initial session entity for Global Access users
+  // 3. Firestore Profile Listener (Stable dependencies)
   useEffect(() => {
-    if (assignedEntityId === 'all' && !entityId && availableProperties.length > 0) {
-      setEntityId(availableProperties[0].id);
+    if (!user?.uid) return;
+
+    const unsubscribeProfile = onSnapshot(doc(db, "user_profiles", user.uid), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data.name) setUserName(data.name);
+        if (data.permissions) setPermissions(data.permissions);
+        
+        let assignedRole = data.role;
+        if (user.email === 'admin@sukha.os') assignedRole = 'admin';
+        if (assignedRole) setRole(assignedRole);
+        
+        if (data.entityId) {
+          setAssignedEntityId(data.entityId);
+        }
+      }
+    });
+
+    return () => unsubscribeProfile();
+  }, [user?.uid, db, setUserName, setPermissions, setRole, setAssignedEntityId]);
+
+  // 4. Properties List Listener
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribeProperties = onSnapshot(collection(db, "hotel_properties"), (snapshot) => {
+      const properties = snapshot.docs.map(doc => ({
+        id: doc.id,
+        name: doc.data().name || "Unnamed Property"
+      }));
+      setAvailableProperties(properties);
+    });
+
+    return () => unsubscribeProperties();
+  }, [user, db, setAvailableProperties]);
+
+  // 5. Initial Session Entity Resolution
+  // Only trigger this when essential context changes, but don't loop on entityId itself
+  const hasInitializedEntity = useRef(false);
+  
+  useEffect(() => {
+    if (!assignedEntityId || availableProperties.length === 0 || hasInitializedEntity.current) return;
+
+    if (assignedEntityId === 'all') {
+      if (!entityId) setEntityId(availableProperties[0].id);
+    } else {
+      setEntityId(assignedEntityId);
     }
-  }, [assignedEntityId, entityId, availableProperties, setEntityId]);
+    
+    hasInitializedEntity.current = true;
+  }, [assignedEntityId, availableProperties, entityId, setEntityId]);
+
+  // Reset initialization flag when user logs out
+  useEffect(() => {
+    if (!user) hasInitializedEntity.current = false;
+  }, [user]);
 
   return null;
 }

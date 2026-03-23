@@ -1,5 +1,3 @@
-'use client';
-
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
@@ -18,9 +16,6 @@ export function initializeFirebase() {
       firebaseApp = initializeApp();
     } catch (e) {
       // Fallback to local config if environment variables are missing (e.g. local dev)
-      if (process.env.NODE_ENV === "production") {
-        console.warn('Automatic initialization failed. Falling back to firebase config object.', e);
-      }
       firebaseApp = initializeApp(firebaseConfig);
     }
 
