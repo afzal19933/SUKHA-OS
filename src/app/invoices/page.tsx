@@ -3,32 +3,62 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Printer, FileText, Search, Loader2, Building2, MapPin, Phone, Mail } from "lucide-react";
+import { 
+  Printer, FileText, Search, Loader2, Building2, 
+  MapPin, Phone, Mail, MoreVertical, Pencil, Trash2 
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+  Table, TableBody, TableCell, TableHead, 
+  TableHeader, TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Dialog, 
-  DialogContent, 
+  Dialog, DialogContent, DialogHeader, 
+  DialogTitle, DialogFooter 
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
 import { cn, formatAppDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useCollection, useMemoFirebase, useFirestore, useDoc } from "@/firebase";
-import { collection, query, orderBy, doc } from "firebase/firestore";
+import { collection, query, orderBy, doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
 
 export default function InvoicesPage() {
-  const { entityId } = useAuthStore();
+  const { entityId, role } = useAuthStore();
   const db = useFirestore();
+  const { toast } = useToast();
+
+  const canEdit = role === "admin";
 
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<any>(null);
+  const [invoiceToEdit, setInvoiceToEdit] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Edit form state
+  const [editForm, setEditForm] = useState({
+    invoiceNumber: "",
+    totalAmount: "",
+    status: "",
+  });
 
   const invoiceQuery = useMemoFirebase(() => {
     if (!entityId) return null;
@@ -39,14 +69,68 @@ export default function InvoicesPage() {
   }, [db, entityId]);
 
   const { data: invoices, isLoading } = useCollection(invoiceQuery);
-  
+
   const propertyRef = useMemoFirebase(() => {
     if (!entityId) return null;
     return doc(db, "hotel_properties", entityId);
   }, [db, entityId]);
   const { data: property } = useDoc(propertyRef);
 
+  const filteredInvoices = invoices?.filter(inv =>
+    inv.invoiceNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    inv.guestDetails?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
   const totalRevenue = invoices?.reduce((acc, inv) => acc + (inv.totalAmount || 0), 0) || 0;
+
+  // ✅ Generate invoice number based on type
+  const generateInvoicePrefix = (inv: any) => {
+    const isAyursiha = inv.isCycleInvoice || inv.invoiceNumber?.startsWith('AYUR') || inv.invoiceNumber?.startsWith('A/');
+    return isAyursiha ? "A" : "2026-2027";
+  };
+
+  // ✅ Handle Edit
+  const handleOpenEdit = (inv: any) => {
+    setInvoiceToEdit(inv);
+    setEditForm({
+      invoiceNumber: inv.invoiceNumber || "",
+      totalAmount: inv.totalAmount?.toString() || "",
+      status: inv.status || "paid",
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!entityId || !invoiceToEdit) return;
+    try {
+      await updateDoc(
+        doc(db, "hotel_properties", entityId, "invoices", invoiceToEdit.id),
+        {
+          invoiceNumber: editForm.invoiceNumber,
+          totalAmount: parseFloat(editForm.totalAmount),
+          status: editForm.status,
+          updatedAt: new Date().toISOString(),
+        }
+      );
+      toast({ title: "Invoice updated successfully" });
+      setInvoiceToEdit(null);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Update failed. Please try again." });
+    }
+  };
+
+  // ✅ Handle Delete
+  const handleConfirmDelete = async () => {
+    if (!entityId || !invoiceToDelete) return;
+    try {
+      await deleteDoc(
+        doc(db, "hotel_properties", entityId, "invoices", invoiceToDelete.id)
+      );
+      toast({ title: "Invoice deleted successfully" });
+      setInvoiceToDelete(null);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Delete failed. Please try again." });
+    }
+  };
 
   const handlePrint = () => {
     window.print();
@@ -84,7 +168,12 @@ export default function InvoicesPage() {
         <div className="flex items-center gap-3">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
-            <Input placeholder="Search invoice number..." className="pl-9 h-9 text-[11px]" />
+            <Input 
+              placeholder="Search invoice or guest name..." 
+              className="pl-9 h-9 text-[11px]"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
         </div>
 
@@ -106,17 +195,58 @@ export default function InvoicesPage() {
                     <Loader2 className="w-4 h-4 animate-spin mx-auto text-primary" />
                   </TableCell>
                 </TableRow>
-              ) : invoices && invoices.length > 0 ? (
-                invoices.map((inv) => (
+              ) : filteredInvoices.length > 0 ? (
+                filteredInvoices.map((inv) => (
                   <TableRow key={inv.id} className="hover:bg-secondary/10 group">
-                    <TableCell className="px-4 font-mono text-[10px] font-bold text-primary">{inv.invoiceNumber}</TableCell>
+                    <TableCell className="px-4 font-mono text-[10px] font-bold text-primary">
+                      {inv.invoiceNumber}
+                    </TableCell>
                     <TableCell className="text-[11px] font-medium">{inv.guestDetails?.name}</TableCell>
                     <TableCell className="text-[10px]">{formatAppDate(inv.createdAt)}</TableCell>
                     <TableCell className="font-bold text-[11px] text-right">₹{inv.totalAmount?.toLocaleString()}</TableCell>
                     <TableCell className="text-right px-4">
-                      <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setSelectedInvoice(inv)}>
-                        View/Print GST Invoice
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        {/* View/Print Button */}
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-7 text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity" 
+                          onClick={() => setSelectedInvoice(inv)}
+                        >
+                          View/Print
+                        </Button>
+
+                        {/* ✅ 3-dot Menu — Edit & Delete */}
+                        {canEdit && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40 rounded-xl">
+                              <DropdownMenuItem 
+                                className="text-[11px] font-bold cursor-pointer"
+                                onClick={() => handleOpenEdit(inv)}
+                              >
+                                <Pencil className="w-3.5 h-3.5 mr-2 text-primary" />
+                                Edit Invoice
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                className="text-[11px] font-bold cursor-pointer text-rose-600 focus:text-rose-600 focus:bg-rose-50"
+                                onClick={() => setInvoiceToDelete(inv)}
+                              >
+                                <Trash2 className="w-3.5 h-3.5 mr-2" />
+                                Delete Invoice
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -131,7 +261,7 @@ export default function InvoicesPage() {
           </Table>
         </div>
 
-        {/* GST Invoice Dialog */}
+        {/* ✅ GST Invoice View Dialog */}
         <Dialog open={!!selectedInvoice} onOpenChange={(o) => !o && setSelectedInvoice(null)}>
           <DialogContent className="max-w-[800px] p-0 overflow-hidden bg-white">
             <div className="p-10 space-y-6" id="printable-invoice">
@@ -260,9 +390,9 @@ export default function InvoicesPage() {
                   </div>
                   <div className="pt-6 text-center space-y-4">
                     <div className="h-16 w-full flex items-end justify-center">
-                       <div className="border-t-2 border-primary/30 w-48 pt-2">
+                      <div className="border-t-2 border-primary/30 w-48 pt-2">
                         <p className="text-[10px] font-black uppercase text-primary">Authorized Signatory</p>
-                       </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -274,16 +404,101 @@ export default function InvoicesPage() {
                 <p className="text-[9px] text-muted-foreground mt-2 font-bold uppercase tracking-widest">Computer Generated Document - No Signature Required</p>
               </div>
             </div>
-            
+
             <div className="p-6 bg-secondary/50 border-t flex justify-end gap-3 no-print">
-               <Button variant="ghost" className="font-black text-xs uppercase" onClick={() => setSelectedInvoice(null)}>Close</Button>
-               <Button className="h-10 px-8 font-black text-xs uppercase shadow-xl" onClick={handlePrint}>
-                 <Printer className="w-4 h-4 mr-2" />
-                 Download PDF / Print
-               </Button>
+              <Button variant="ghost" className="font-black text-xs uppercase" onClick={() => setSelectedInvoice(null)}>Close</Button>
+              <Button className="h-10 px-8 font-black text-xs uppercase shadow-xl" onClick={handlePrint}>
+                <Printer className="w-4 h-4 mr-2" />
+                Download PDF / Print
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* ✅ Edit Invoice Dialog */}
+        <Dialog open={!!invoiceToEdit} onOpenChange={(o) => !o && setInvoiceToEdit(null)}>
+          <DialogContent className="sm:max-w-[420px] rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-sm font-black uppercase">Edit Invoice</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">Invoice Number</Label>
+                <Input
+                  value={editForm.invoiceNumber}
+                  onChange={(e) => setEditForm({ ...editForm, invoiceNumber: e.target.value })}
+                  className="h-10 rounded-xl bg-secondary/30 border-none font-bold text-sm"
+                  placeholder="e.g. 2026-2027/001 or A/001"
+                />
+                <p className="text-[9px] text-muted-foreground font-bold">
+                  Use <span className="text-primary">2026-2027/001</span> for room rent · <span className="text-primary">A/001</span> for Ayursiha
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">Total Amount (₹)</Label>
+                <Input
+                  type="number"
+                  value={editForm.totalAmount}
+                  onChange={(e) => setEditForm({ ...editForm, totalAmount: e.target.value })}
+                  className="h-10 rounded-xl bg-secondary/30 border-none font-bold text-sm"
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">Status</Label>
+                <select
+                  value={editForm.status}
+                  onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                  className="w-full h-10 rounded-xl bg-secondary/30 border-none font-bold text-sm px-3 outline-none"
+                >
+                  <option value="paid">Paid</option>
+                  <option value="pending">Pending</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="ghost" className="font-black text-xs uppercase" onClick={() => setInvoiceToEdit(null)}>
+                Cancel
+              </Button>
+              <Button className="font-black text-xs uppercase shadow-lg" onClick={handleSaveEdit}>
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ✅ Delete Confirmation Dialog */}
+        <AlertDialog open={!!invoiceToDelete} onOpenChange={(o) => !o && setInvoiceToDelete(null)}>
+          <AlertDialogContent className="rounded-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-rose-600">
+                <Trash2 className="w-4 h-4" />
+                Delete Invoice?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs font-bold">
+                You are about to permanently delete invoice{" "}
+                <span className="font-black text-primary">{invoiceToDelete?.invoiceNumber}</span>{" "}
+                for{" "}
+                <span className="font-black text-primary">{invoiceToDelete?.guestDetails?.name}</span>.
+                <br /><br />
+                This action <span className="text-rose-600 font-black">cannot be undone</span>.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-xl font-black uppercase text-[10px]">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmDelete}
+                className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black uppercase text-[10px]"
+              >
+                Yes, Delete Invoice
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
       </div>
     </AppLayout>
   );
