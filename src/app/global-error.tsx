@@ -1,9 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
+
 /**
  * Root Error Boundary for Next.js.
- * Handles errors that occur within the root layout.
- * Must include its own <html> and <body> tags.
+ * Handles fatal errors in the root layout with an automated refresh fallback.
  */
 export default function GlobalError({
   error,
@@ -12,71 +13,42 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    console.error("GLOBAL CRITICAL FAULT:", error);
+    
+    // Auto-recovery: If it's a fatal crash, attempt to reinitialize after 3 seconds
+    const timer = setTimeout(() => {
+      reset();
+    }, 3000);
+    
+    return () => clearTimeout(timer);
+  }, [error, reset]);
+
   return (
     <html lang="en">
-      <body style={{ margin: 0, padding: 0 }}>
-        <div style={{
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '20px',
-          backgroundColor: '#f1f5f9',
-          fontFamily: 'sans-serif',
-          textAlign: 'center'
-        }}>
-          <div style={{
-            maxWidth: '450px',
-            backgroundColor: 'white',
-            padding: '50px',
-            borderRadius: '32px',
-            boxShadow: '0 20px 50px -12px rgba(0, 0, 0, 0.15)'
-          }}>
-            <div style={{
-              width: '80px',
-              height: '80px',
-              backgroundColor: '#ef4444',
-              borderRadius: '24px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 30px',
-              color: 'white',
-              boxShadow: '0 10px 20px rgba(239, 68, 68, 0.3)'
-            }}>
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            </div>
-            
-            <h1 style={{ fontSize: '28px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', color: '#0f172a', letterSpacing: '-0.02em' }}>Critical Fault</h1>
-            <p style={{ fontSize: '10px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', marginBottom: '30px', letterSpacing: '0.3em' }}>
-              Root System Recovery Required
-            </p>
-
-            <p style={{ fontSize: '13px', lineHeight: '1.6', color: '#475569', marginBottom: '40px' }}>
-              A fatal error occurred in the core system layer. The platform has intercepted this exception to prevent instability.
-            </p>
-
-            <button 
-              onClick={() => reset()}
-              style={{
-                width: '100%',
-                height: '56px',
-                backgroundColor: '#ef4444',
-                color: 'white',
-                border: 'none',
-                borderRadius: '16px',
-                fontWeight: 900,
-                textTransform: 'uppercase',
-                fontSize: '12px',
-                letterSpacing: '0.2em',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s'
-              }}
-            >
-              Reinitialize SUKHA OS
-            </button>
+      <body className="bg-slate-100 flex items-center justify-center min-h-screen">
+        <div className="max-w-md w-full bg-white p-12 rounded-[3rem] shadow-2xl text-center space-y-8">
+          <div className="w-24 h-24 bg-rose-600 rounded-[2rem] flex items-center justify-center mx-auto text-white shadow-xl animate-pulse">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           </div>
+          
+          <div className="space-y-2">
+            <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">System Fault</h1>
+            <p className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.3em]">Critical Integrity Breach</p>
+          </div>
+
+          <p className="text-xs font-bold text-slate-500 leading-relaxed px-4 uppercase">
+            A fatal error occurred in the core system layer. 
+            <br />
+            <span className="text-primary">Auto-recovery in progress...</span>
+          </p>
+
+          <button 
+            onClick={() => window.location.href = '/dashboard'}
+            className="h-16 w-full rounded-2xl bg-slate-900 text-white font-black uppercase tracking-[0.2em] shadow-2xl hover:bg-black transition-all"
+          >
+            Reinitialize Dashboard
+          </button>
         </div>
       </body>
     </html>

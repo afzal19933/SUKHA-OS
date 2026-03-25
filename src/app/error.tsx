@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, RotateCcw, RefreshCw } from "lucide-react";
 
 /**
  * Standard Error Boundary for Next.js segments.
- * Uses minimal dependencies to ensure the boundary itself doesn't crash.
+ * Provides a professional fallback UI and manual recovery options.
  */
 export default function Error({
   error,
@@ -14,79 +16,47 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("Application Runtime Error:", error);
+    // Log the error to clinical logs
+    console.error("SUKHA OS Runtime Exception:", error);
   }, [error]);
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px',
-      backgroundColor: '#f8fafc',
-      fontFamily: 'sans-serif',
-      textAlign: 'center'
-    }}>
-      <div style={{
-        maxWidth: '400px',
-        backgroundColor: 'white',
-        padding: '40px',
-        borderRadius: '24px',
-        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
-        border: '1px solid #fee2e2'
-      }}>
-        <div style={{
-          width: '64px',
-          height: '64px',
-          backgroundColor: '#fef2f2',
-          borderRadius: '16px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto 24px',
-          color: '#ef4444'
-        }}>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50">
+      <div className="max-w-md w-full bg-white p-10 rounded-[3rem] shadow-2xl border border-rose-100 text-center space-y-8">
+        <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center mx-auto text-rose-600 shadow-inner">
+          <AlertCircle className="w-10 h-10" />
         </div>
         
-        <h2 style={{ fontSize: '20px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px', color: '#0f172a' }}>System Interruption</h2>
-        <p style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '24px', letterSpacing: '0.05em' }}>
-          An unexpected runtime exception was encountered.
-        </p>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">System Interruption</h1>
+          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">The application encountered a runtime fault</p>
+        </div>
 
-        <div style={{
-          padding: '16px',
-          backgroundColor: '#f1f5f9',
-          borderRadius: '12px',
-          marginBottom: '24px',
-          textAlign: 'left'
-        }}>
-          <p style={{ fontSize: '10px', fontFamily: 'monospace', color: '#ef4444', wordBreak: 'break-all', margin: 0 }}>
-            {error.message || "Unknown Application Error"}
+        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-left">
+          <p className="text-[10px] font-mono text-rose-600 break-all leading-relaxed">
+            {error.message || "Unknown internal exception occurred during execution."}
           </p>
         </div>
 
-        <button 
-          onClick={() => reset()} 
-          style={{
-            width: '100%',
-            height: '48px',
-            backgroundColor: '#5F5FA7',
-            color: 'white',
-            border: 'none',
-            borderRadius: '12px',
-            fontWeight: 900,
-            textTransform: 'uppercase',
-            fontSize: '11px',
-            letterSpacing: '0.1em',
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(95, 95, 167, 0.2)'
-          }}
-        >
-          Attempt Recovery
-        </button>
+        <div className="grid grid-cols-1 gap-3">
+          <Button 
+            onClick={() => reset()}
+            className="h-14 w-full rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl shadow-primary/20"
+          >
+            <RotateCcw className="w-4 h-4 mr-2" /> Attempt Recovery
+          </Button>
+          <Button 
+            variant="ghost"
+            onClick={() => window.location.reload()}
+            className="h-12 w-full rounded-xl font-black uppercase tracking-widest text-[10px] text-muted-foreground hover:text-primary"
+          >
+            <RefreshCw className="w-3 h-3 mr-2" /> Force Global Refresh
+          </Button>
+        </div>
+
+        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-tight">
+          Reference ID: {error.digest || "Local-Context"}
+        </p>
       </div>
     </div>
   );

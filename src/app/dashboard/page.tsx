@@ -36,10 +36,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-/* ------------------------------ */
-/* Dashboard Content Component    */
-/* ------------------------------ */
-
 const STATUS_CONFIG: any = {
   available: { icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-50", label: "Vacant Ready" },
   cleaning: { icon: Brush, color: "text-primary", bg: "bg-primary/5", label: "Cleaning Vacant" },
@@ -58,13 +54,8 @@ function DashboardContent() {
   const [todayStr, setTodayStr] = useState<string>("");
 
   useEffect(() => {
-    // Set date after hydration to avoid SSR mismatch
     setTodayStr(new Date().toISOString().split('T')[0]);
   }, []);
-
-  /* ------------------------------ */
-  /* Firestore Queries              */
-  /* ------------------------------ */
 
   const roomsQuery = useMemoFirebase(() => {
     if (!entityId) return null;
@@ -101,27 +92,23 @@ function DashboardContent() {
 
   const { data: recentLogs } = useCollection(logsQuery);
 
-  /* ------------------------------ */
-  /* Stats Aggregation              */
-  /* ------------------------------ */
-
   const stats = useMemo(() => {
-    if (!todayStr) return { 
-      total: 0, occupied: 0, vacantReady: 0, dirty: 0, cleaning: 0, 
-      todayInvoices: [], revenue: 0 
-    };
+    if (!todayStr) return { total: 0, occupied: 0, vacantReady: 0, dirty: 0, cleaning: 0, todayInvoices: [], revenue: 0 };
+
+    const safeRooms = rooms ?? [];
+    const safeInvoices = invoices ?? [];
 
     return {
-      total: rooms?.length || 0,
-      occupied: rooms?.filter(r => r.status.includes('occupied')).length || 0,
-      vacantReady: rooms?.filter(r => r.status === 'available').length || 0,
-      dirty: rooms?.filter(r => r.status === 'dirty' || r.status === 'occupied_dirty').length || 0,
-      cleaning: rooms?.filter(r => r.status.includes('cleaning')).length || 0,
-      todayInvoices: invoices?.filter(inv => inv.createdAt?.startsWith(todayStr)) || [],
-      revenue: invoices?.reduce((acc, inv) => {
-        const isToday = inv.createdAt?.startsWith(todayStr);
-        return isToday ? acc + (inv.totalAmount || 0) : acc;
-      }, 0) || 0
+      total: safeRooms.length,
+      occupied: safeRooms.filter(r => r?.status?.includes('occupied')).length,
+      vacantReady: safeRooms.filter(r => r?.status === 'available').length,
+      dirty: safeRooms.filter(r => r?.status === 'dirty' || r?.status === 'occupied_dirty').length,
+      cleaning: safeRooms.filter(r => r?.status?.includes('cleaning')).length,
+      todayInvoices: safeInvoices.filter(inv => inv?.createdAt?.startsWith(todayStr)) ?? [],
+      revenue: safeInvoices.reduce((acc, inv) => {
+        const isToday = inv?.createdAt?.startsWith(todayStr);
+        return isToday ? acc + (inv?.totalAmount ?? 0) : acc;
+      }, 0)
     };
   }, [rooms, invoices, todayStr]);
 
@@ -136,7 +123,6 @@ function DashboardContent() {
   return (
     <div className="space-y-8 max-w-[1400px] mx-auto animate-in fade-in duration-700" suppressHydrationWarning>
       
-      {/* HEADER & QUICK ACTIONS */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
         <div>
           <h1 className="text-3xl font-black tracking-tighter text-primary uppercase">Executive Dashboard</h1>
@@ -157,7 +143,6 @@ function DashboardContent() {
         </div>
       </div>
 
-      {/* MAIN KPI GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard 
           label="Rooms Occupied" 
@@ -199,7 +184,6 @@ function DashboardContent() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* ROOM STATUS BOARD */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-[11px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
@@ -211,21 +195,20 @@ function DashboardContent() {
           <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm">
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-4">
               {rooms?.map((room) => {
-                const config = STATUS_CONFIG[room.status] || STATUS_CONFIG.available;
-                // FIX: Key must be room.id, not room.roomNumber to ensure uniqueness
+                const config = STATUS_CONFIG[room?.status] || STATUS_CONFIG.available;
                 return (
                   <div 
-                    key={`board-room-${room.id}`} 
+                    key={`board-room-${room?.id}`} 
                     onClick={() => router.push('/housekeeping')}
                     className="group cursor-pointer space-y-2"
                   >
                     <div className={cn(
                       "aspect-square rounded-2xl border-2 flex flex-col items-center justify-center transition-all group-hover:scale-105 shadow-sm",
-                      room.status === 'available' ? "bg-emerald-50 border-emerald-100" : 
-                      room.status.includes('occupied') ? "bg-blue-50 border-blue-100" :
+                      room?.status === 'available' ? "bg-emerald-50 border-emerald-100" : 
+                      room?.status?.includes('occupied') ? "bg-blue-50 border-blue-100" :
                       "bg-orange-50 border-orange-100"
                     )}>
-                      <span className={cn("text-lg font-black", config.color)}>{room.roomNumber}</span>
+                      <span className={cn("text-lg font-black", config.color)}>{room?.roomNumber}</span>
                       <config.icon className={cn("w-4 h-4 mt-1", config.color)} />
                     </div>
                     <p className="text-[9px] font-black uppercase text-center text-muted-foreground truncate px-1">
@@ -238,7 +221,6 @@ function DashboardContent() {
           </div>
         </div>
 
-        {/* SIDEBAR: ACTIVITY & ALERTS */}
         <div className="space-y-6">
           <section className="space-y-4">
             <h3 className="text-[11px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
@@ -248,14 +230,14 @@ function DashboardContent() {
               {recentLogs?.map((log) => (
                 <div key={log.id} className="p-4 hover:bg-secondary/10 transition-colors">
                   <div className="flex justify-between items-start mb-1">
-                    <span className="text-[11px] font-black text-primary uppercase">{log.direction}</span>
-                    <span className="text-[9px] font-bold text-muted-foreground">{formatAppTime(log.createdAt)}</span>
+                    <span className="text-[11px] font-black text-primary uppercase">{log?.direction}</span>
+                    <span className="text-[9px] font-bold text-muted-foreground">{formatAppTime(log?.createdAt)}</span>
                   </div>
                   <p className="text-[12px] font-medium leading-relaxed line-clamp-2 text-slate-700 italic">
-                    "{log.message}"
+                    "{log?.message}"
                   </p>
                   <p className="text-[10px] font-bold text-muted-foreground mt-1.5 uppercase tracking-tighter">
-                    {log.phoneNumber} • {log.role}
+                    {log?.phoneNumber} • {log?.role}
                   </p>
                 </div>
               ))}
@@ -292,7 +274,6 @@ function DashboardContent() {
         </div>
       </div>
 
-      {/* DRILL DOWN DIALOGS */}
       <Dialog open={!!detailView} onOpenChange={(o) => !o && setDetailView(null)}>
         <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden rounded-[2.5rem]">
           <div className={cn(
@@ -330,12 +311,12 @@ function DashboardContent() {
                 </TableHeader>
                 <TableBody>
                   {detailView === 'occupied' && (
-                    rooms?.filter(r => r.status.includes('occupied')).map(room => {
-                      const res = checkedInReservations?.find(res => res.roomNumber?.toString() === room.roomNumber?.toString());
+                    rooms?.filter(r => r?.status?.includes('occupied')).map(room => {
+                      const res = checkedInReservations?.find(res => res?.roomNumber?.toString() === room?.roomNumber?.toString());
                       return (
-                        <TableRow key={`detail-occ-${room.id}`}>
-                          <TableCell className="font-black text-blue-600">{room.roomNumber}</TableCell>
-                          <TableCell className="font-bold text-[11px] uppercase">{res?.guestName || "Processing..."}</TableCell>
+                        <TableRow key={`detail-occ-${room?.id}`}>
+                          <TableCell className="font-black text-blue-600">{room?.roomNumber}</TableCell>
+                          <TableCell className="font-bold text-[11px] uppercase">{res?.guestName ?? "Processing..."}</TableCell>
                           <TableCell className="text-right">
                             <Badge className="bg-blue-50 text-blue-600 border-blue-100 text-[8px] font-black uppercase">In-House</Badge>
                           </TableCell>
@@ -345,10 +326,10 @@ function DashboardContent() {
                   )}
 
                   {detailView === 'vacant' && (
-                    rooms?.filter(r => r.status === 'available').map(room => (
-                      <TableRow key={`detail-vac-${room.id}`}>
-                        <TableCell className="font-black text-emerald-600">{room.roomNumber}</TableCell>
-                        <TableCell className="text-[10px] font-bold text-muted-foreground uppercase">Floor {room.floor}</TableCell>
+                    rooms?.filter(r => r?.status === 'available').map(room => (
+                      <TableRow key={`detail-vac-${room?.id}`}>
+                        <TableCell className="font-black text-emerald-600">{room?.roomNumber}</TableCell>
+                        <TableCell className="text-[10px] font-bold text-muted-foreground uppercase">Floor {room?.floor}</TableCell>
                         <TableCell className="text-right">
                           <Badge className="bg-emerald-50 text-emerald-600 border-blue-100 text-[8px] font-black uppercase">Ready</Badge>
                         </TableCell>
@@ -357,11 +338,11 @@ function DashboardContent() {
                   )}
 
                   {detailView === 'dirty' && (
-                    rooms?.filter(r => r.status === 'dirty' || r.status === 'occupied_dirty').map(room => (
-                      <TableRow key={`detail-dirty-${room.id}`}>
-                        <TableCell className="font-black text-orange-600">{room.roomNumber}</TableCell>
+                    rooms?.filter(r => r?.status === 'dirty' || r?.status === 'occupied_dirty').map(room => (
+                      <TableRow key={`detail-dirty-${room?.id}`}>
+                        <TableCell className="font-black text-orange-600">{room?.roomNumber}</TableCell>
                         <TableCell className="text-[10px] font-bold text-muted-foreground uppercase">
-                          {room.status === 'dirty' ? 'Vacant - Requires Service' : 'Occupied - Requires Service'}
+                          {room?.status === 'dirty' ? 'Vacant - Requires Service' : 'Occupied - Requires Service'}
                         </TableCell>
                         <TableCell className="text-right">
                           <Badge className="bg-orange-50 text-orange-600 border-orange-100 text-[8px] font-black uppercase">Priority</Badge>
@@ -372,22 +353,22 @@ function DashboardContent() {
 
                   {detailView === 'revenue' && (
                     stats.todayInvoices.map((inv: any) => (
-                      <TableRow key={`detail-rev-${inv.id}`}>
-                        <TableCell className="font-black text-primary">{inv.roomNumber || inv.stayDetails?.roomNumber || "N/A"}</TableCell>
+                      <TableRow key={`detail-rev-${inv?.id}`}>
+                        <TableCell className="font-black text-primary">{inv?.roomNumber || inv?.stayDetails?.roomNumber || "N/A"}</TableCell>
                         <TableCell>
                           <div className="flex flex-col">
-                            <span className="font-bold text-[11px] uppercase">{inv.guestDetails?.name || inv.guestName}</span>
-                            <span className="text-[8px] font-mono text-muted-foreground">{inv.invoiceNumber}</span>
+                            <span className="font-bold text-[11px] uppercase">{inv?.guestDetails?.name || inv?.guestName}</span>
+                            <span className="text-[8px] font-mono text-muted-foreground">{inv?.invoiceNumber}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-right font-black text-primary">₹{inv.totalAmount?.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-black text-primary">₹{(inv?.totalAmount ?? 0).toLocaleString()}</TableCell>
                       </TableRow>
                     ))
                   )}
 
                   {((detailView === 'revenue' && stats.todayInvoices.length === 0) || 
-                    (detailView === 'occupied' && rooms?.filter(r => r.status.includes('occupied')).length === 0) ||
-                    (detailView === 'dirty' && rooms?.filter(r => r.status.includes('dirty')).length === 0)) && (
+                    (detailView === 'occupied' && rooms?.filter(r => r?.status?.includes('occupied')).length === 0) ||
+                    (detailView === 'dirty' && rooms?.filter(r => r?.status?.includes('dirty')).length === 0)) && (
                     <TableRow>
                       <TableCell colSpan={3} className="text-center py-12 text-[10px] font-black uppercase text-muted-foreground">
                         No active records for this category today
@@ -438,10 +419,6 @@ function KPICard({ label, value, sub, icon: Icon, color, bg, onClick }: any) {
     </Card>
   );
 }
-
-/* ------------------------------ */
-/* Dashboard Page Export           */
-/* ------------------------------ */
 
 export default function DashboardPage() {
   return (
