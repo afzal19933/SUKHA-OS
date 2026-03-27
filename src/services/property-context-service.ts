@@ -4,11 +4,18 @@ import { db } from '@/lib/firebase-admin';
 /**
  * SUKHA OS — Full Intelligence Context Service
  * Fetches ALL modules: Rooms, Reservations, Housekeeping, Maintenance,
- * Inventory, Finance, Laundry, Team — for maximum AI intelligence
+ * Inventory, Finance, Laundry, Team, and Attendance — for maximum AI intelligence
  */
 export async function getPropertyContext(entityId: string) {
-  const today = new Date().toISOString().split('T')[0];
+  const todayDate = new Date();
+  const today = todayDate.toISOString().split('T')[0];
   const startOfMonth = today.substring(0, 7) + '-01';
+
+  // DD-MM-YYYY format for attendance lookup
+  const dd = String(todayDate.getDate()).padStart(2, '0');
+  const mm = String(todayDate.getMonth() + 1).padStart(2, '0');
+  const yyyy = todayDate.getFullYear();
+  const todayFormatted = `${dd}-${mm}-${yyyy}`;
 
   try {
     const propertyRef = db.collection('hotel_properties').doc(entityId);
@@ -25,6 +32,7 @@ export async function getPropertyContext(entityId: string) {
       inventoryStocksSnap,
       supplyPurchasesSnap,
       teamSnap,
+      attendanceSnap,
     ] = await Promise.all([
       propertyRef.collection('rooms').get(),
       propertyRef.collection('room_types').get(),
@@ -36,6 +44,7 @@ export async function getPropertyContext(entityId: string) {
       propertyRef.collection('inventory_stocks').get(),
       propertyRef.collection('supply_purchases').orderBy('date', 'desc').limit(20).get(),
       db.collection('user_profiles').where('entityId', '==', entityId).get(),
+      db.collection('attendance_records').where('date', '==', todayFormatted).get(),
     ]);
 
     // ============================================================
@@ -121,55 +130,56 @@ export async function getPropertyContext(entityId: string) {
     const ayursihaInvoices = invoices.filter(i => i.isAyursiha);
 
     // ============================================================
-    // 🫧 LAUNDRY
+    // 👥 ATTENDANCE
     // ============================================================
-    const laundryOrders = laundryOrdersSnap.docs.map(d => ({
-      roomNumber: d.data().roomNumber || null,
-      guestName: d.data().guestName || null,
-      status: d.data().status || 'unknown',
-      hotelTotal: d.data().hotelTotal || 0,
-      createdAt: d.data().createdAt || null,
-    }));
+    const attendanceRecords = attendanceSnap.docs.map(d => d.data());
+    const attendanceMap: Record<string, any> = {};
+    
+    attendanceRecords.forEach(r => {
+      const name = r.staffName;
+      if (!attendanceMap[name]) attendanceMap[name] = { name, checkIn: null, isLate: false };
+      if (r.type === 'check_in') {
+        attendanceMap[name].checkIn = r.time;
+        attendanceMap[name].isLate = r.isLate;
+      }
+    });
 
-    const pendingLaundry = laundryOrders.filter(l => l.status === 'sent' || l.status === 'pending');
-    const laundryRevenue = laundryOrders.reduce((acc, l) => acc + l.hotelTotal, 0);
+    const presentNames: string[] = [];
+    const lateNames: string[] = [];
+    const halfDayNames: string[] = [];
+    const absentNames: string[] = [];
 
-    // ============================================================
-    // 📦 INVENTORY
-    // ============================================================
-    const stocks = inventoryStocksSnap.docs.map(d => ({
-      itemName: d.data().itemName || d.id,
-      category: d.data().category || 'General',
-      currentStock: d.data().currentStock || 0,
-      minStock: d.data().minStock || 5,
-      unit: d.data().unit || 'pcs',
-    }));
+    // Helper to calculate status from check-in time
+    const getStatusForReport = (time: string, isLate: boolean) => {
+      if (!time) return "Absent";
+      const [h, m] = time.split(':').map(Number);
+      const delay = (h - 9) * 60 + m; // From 09:00 AM
+      if (delay > 60) return "Half Day";
+      if (isLate || delay > 0) return "Late";
+      return "Present";
+    };
 
-    const lowStockItems = stocks.filter(s => s.currentStock <= s.minStock);
-    const recentPurchases = supplyPurchasesSnap.docs.map(d => ({
-      itemName: d.data().itemName,
-      quantity: d.data().quantity,
-      totalCost: d.data().totalCost,
-      vendor: d.data().vendor,
-      date: d.data().date,
-    }));
-
-    // ============================================================
-    // 👥 TEAM
-    // ============================================================
+    // Assuming we only check active team members for attendance
     const team = teamSnap.docs.map(d => ({
       name: d.data().name || 'Unknown',
       role: d.data().role || 'staff',
       isActive: d.data().isActive || false,
     }));
 
-    const activeStaff = team.filter(t => t.isActive);
+    team.filter(t => t.isActive && t.role !== 'admin' && t.role !== 'owner').forEach(member => {
+      const record = attendanceMap[member.name];
+      const status = getStatusForReport(record?.checkIn, record?.isLate);
+      
+      if (status === "Present") presentNames.push(member.name);
+      else if (status === "Late") lateNames.push(member.name);
+      else if (status === "Half Day") halfDayNames.push(member.name);
+      else absentNames.push(member.name);
+    });
 
     // ============================================================
     // ✅ RETURN COMPLETE CONTEXT
     // ============================================================
     return {
-
       today: {
         date: today,
         summary: {
@@ -181,8 +191,19 @@ export async function getPropertyContext(entityId: string) {
           checkoutsCount: checkoutsToday.length,
           pendingHousekeeping: housekeepingTasks.filter(t => t.status === 'pending').length,
           pendingMaintenance: maintenanceTasks.filter(t => t.status === 'pending').length,
-          lowStockAlerts: lowStockItems.length,
+          lowStockAlerts: inventoryStocksSnap.docs.filter(d => d.data().currentStock <= (d.data().minStock || 5)).length,
         }
+      },
+
+      attendance: {
+        presentCount: presentNames.length,
+        presentNames: presentNames.join(", ") || "None",
+        lateCount: lateNames.length,
+        lateNames: lateNames.join(", ") || "None",
+        halfDayCount: halfDayNames.length,
+        halfDayNames: halfDayNames.join(", ") || "None",
+        absentCount: absentNames.length,
+        absentNames: absentNames.join(", ") || "None",
       },
 
       rooms: {
@@ -193,8 +214,6 @@ export async function getPropertyContext(entityId: string) {
         underMaintenance: maintenanceRooms.length,
         vacantRooms: vacantRooms.map(r => ({ room: r.roomNumber, floor: r.floor, type: r.type })),
         occupiedRooms: occupiedRooms.map(r => ({ room: r.roomNumber, floor: r.floor, type: r.type })),
-        dirtyRooms: dirtyRooms.map(r => ({ room: r.roomNumber, floor: r.floor })),
-        maintenanceRooms: maintenanceRooms.map(r => ({ room: r.roomNumber, floor: r.floor })),
         allRooms: rooms,
       },
 
@@ -203,31 +222,12 @@ export async function getPropertyContext(entityId: string) {
         currentlyCheckedIn: checkedInGuests.length,
         arrivalsToday: arrivalsToday,
         checkoutsToday: checkoutsToday,
-        upcomingArrivals: upcomingArrivals.slice(0, 10),
         currentGuests: checkedInGuests,
-        recentHistory: reservations.slice(0, 15),
-      },
-
-      housekeeping: {
-        pending: housekeepingTasks.filter(t => t.status === 'pending').length,
-        inProgress: housekeepingTasks.filter(t => t.status === 'in_progress').length,
-        completed: housekeepingTasks.filter(t => t.status === 'completed').length,
-        pendingTasks: housekeepingTasks.filter(t => t.status === 'pending'),
-        inProgressTasks: housekeepingTasks.filter(t => t.status === 'in_progress'),
-      },
-
-      maintenance: {
-        totalOpen: maintenanceTasks.filter(t => t.status !== 'completed').length,
-        highPriority: maintenanceTasks.filter(t => t.priority === 'high' && t.status !== 'completed').length,
-        openRequests: maintenanceTasks.filter(t => t.status !== 'completed'),
-        recentlyResolved: maintenanceTasks.filter(t => t.status === 'completed').slice(0, 5),
       },
 
       finance: {
         allTime: {
           totalRevenue,
-          paidRevenue,
-          pendingRevenue,
           totalExpenses,
           netProfit: totalRevenue - totalExpenses,
         },
@@ -235,51 +235,26 @@ export async function getPropertyContext(entityId: string) {
           revenue: monthRevenue,
           expenses: monthExpenses,
           netProfit: monthRevenue - monthExpenses,
-          invoiceCount: monthInvoices.length,
         },
-        laundryRevenue,
-        totalCombinedRevenue: totalRevenue + laundryRevenue,
-        pendingInvoices: invoices.filter(i => i.status === 'pending'),
-        recentInvoices: invoices.slice(0, 10),
-        recentExpenses: expenses.slice(0, 10),
-        ayursihaAccounts: {
-          total: ayursihaInvoices.length,
-          totalAmount: ayursihaInvoices.reduce((acc, i) => acc + i.totalAmount, 0),
-          pendingAmount: ayursihaInvoices.filter(i => i.status === 'pending').reduce((acc, i) => acc + i.totalAmount, 0),
-          pending: ayursihaInvoices.filter(i => i.status === 'pending'),
-          paid: ayursihaInvoices.filter(i => i.status === 'paid'),
-        },
+        totalCombinedRevenue: totalRevenue + laundryOrdersSnap.docs.reduce((acc, l) => acc + (l.data().hotelTotal || 0), 0),
       },
 
       laundry: {
-        totalOrders: laundryOrders.length,
-        pendingCount: pendingLaundry.length,
-        pendingAmount: pendingLaundry.reduce((acc, l) => acc + l.hotelTotal, 0),
-        totalRevenue: laundryRevenue,
-        pendingOrders: pendingLaundry,
-        recentOrders: laundryOrders.slice(0, 10),
+        totalOrders: laundryOrdersSnap.docs.length,
+        pendingCount: laundryOrdersSnap.docs.filter(l => l.data().status === 'sent' || l.data().status === 'pending').length,
+        totalRevenue: laundryOrdersSnap.docs.reduce((acc, l) => acc + (l.data().hotelTotal || 0), 0),
       },
 
       inventory: {
-        totalItems: stocks.length,
-        lowStockCount: lowStockItems.length,
-        lowStockItems: lowStockItems,
-        allStocks: stocks,
-        recentPurchases,
+        totalItems: inventoryStocksSnap.docs.length,
+        lowStockCount: inventoryStocksSnap.docs.filter(d => d.data().currentStock <= (d.data().minStock || 5)).length,
       },
 
       team: {
         totalStaff: team.length,
-        activeStaff: activeStaff.length,
-        byRole: {
-          admins: team.filter(t => t.role === 'admin').length,
-          managers: team.filter(t => t.role === 'manager').length,
-          staff: team.filter(t => t.role === 'staff').length,
-          owners: team.filter(t => t.role === 'owner').length,
-        },
-        members: activeStaff,
+        activeStaff: team.filter(t => t.isActive).length,
+        members: team.filter(t => t.isActive),
       },
-
     };
 
   } catch (error) {

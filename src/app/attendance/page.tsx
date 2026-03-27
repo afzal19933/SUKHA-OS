@@ -1,22 +1,56 @@
 "use client";
 
 import { AppLayout } from "@/components/layout/AppLayout";
-
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, doc, updateDoc, onSnapshot } from "firebase/firestore";
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  doc, 
+  updateDoc, 
+  deleteDoc, 
+  onSnapshot, 
+  setDoc,
+  orderBy
+} from "firebase/firestore";
 import { useAuthStore } from "@/store/authStore";
 import { 
   ClipboardCheck, Clock, UserCheck, UserX, AlertTriangle, 
   CheckCircle, XCircle, Calendar, TrendingUp, Users,
-  ChevronDown, Download, RefreshCw, Eye,
+  Download, RefreshCw, Eye, Pencil, Trash2, IndianRupee,
+  Share2, ChevronRight, Filter, CalendarDays
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter,
+  DialogDescription
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { format, parse, differenceInMinutes, startOfMonth, endOfMonth, isWithinInterval, eachDayOfInterval, isSunday } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 // ─── Types ────────────────────────────────────────────────────
 interface AttendanceRecord {
@@ -25,577 +59,491 @@ interface AttendanceRecord {
   staffName: string;
   staffRole: string;
   type: 'check_in' | 'check_out';
-  date: string;
-  time: string;
-  month: string;
+  date: string; // DD-MM-YYYY
+  time: string; // HH:mm
+  month: string; // MM-YYYY
   isLate: boolean;
-  method: string;
-  approvalStatus: string;
-  propertyName: string;
-  confidence?: number;
   createdAt: string;
 }
 
-interface ApprovalRequest {
+interface StaffProfile {
   id: string;
-  staffName: string;
-  type: 'check_in' | 'check_out';
-  date: string;
-  time: string;
-  reason: string;
-  photoUrl: string | null;
-  status: 'pending' | 'approved' | 'rejected';
-  createdAt: string;
-}
-
-interface StaffSummary {
-  staffName: string;
-  staffRole: string;
-  presentDays: number;
-  absentDays: number;
-  lateDays: number;
-  totalCheckIns: number;
+  name: string;
+  role: string;
+  monthlySalary?: number;
+  phoneNumber?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
-const getCurrentMonth = () => {
-  const now = new Date();
-  return `${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()}`;
+const getCurrentMonth = () => format(new Date(), "MM-yyyy");
+const getCurrentDate = () => format(new Date(), "dd-MM-yyyy");
+
+const SHIFT_START = "09:00";
+
+const calculateHours = (checkIn?: string, checkOut?: string) => {
+  if (!checkIn || !checkOut) return "0.0";
+  try {
+    const start = parse(checkIn, "HH:mm", new Date());
+    const end = parse(checkOut, "HH:mm", new Date());
+    const diff = differenceInMinutes(end, start);
+    return (diff / 60).toFixed(1);
+  } catch {
+    return "0.0";
+  }
 };
 
-const getCurrentDate = () => {
-  const now = new Date();
-  return `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()}`;
+const getStatus = (checkInTime: string, isLate: boolean) => {
+  if (!checkInTime) return { label: "Absent", color: "bg-rose-500", variant: "destructive" };
+  const start = parse(SHIFT_START, "HH:mm", new Date());
+  const actual = parse(checkInTime, "HH:mm", new Date());
+  const delay = differenceInMinutes(actual, start);
+  
+  if (delay > 60) return { label: "Half Day", color: "bg-orange-500", variant: "warning" };
+  if (isLate || delay > 0) return { label: "Late", color: "bg-amber-500", variant: "warning" };
+  return { label: "Present", color: "bg-emerald-500", variant: "success" };
 };
 
-const formatMonth = (monthStr: string) => {
-  const [m, y] = monthStr.split('-');
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${months[parseInt(m)-1]} ${y}`;
+const getWorkingDaysInMonth = (monthStr: string) => {
+  const [month, year] = monthStr.split('-').map(Number);
+  const start = startOfMonth(new Date(year, month - 1));
+  const end = endOfMonth(new Date(year, month - 1));
+  const days = eachDayOfInterval({ start, end });
+  return days.filter(d => !isSunday(d)).length;
 };
-
-// ─── Stat Card ────────────────────────────────────────────────
-const StatCard = ({ title, value, icon: Icon, color, sub }: {
-  title: string; value: string | number;
-  icon: any; color: string; sub?: string;
-}) => (
-  <Card className="rounded-2xl border-none shadow-sm hover:shadow-md transition-shadow">
-    <CardContent className="p-4">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">{title}</p>
-          <p className="text-2xl font-black mt-0.5 text-slate-800">{value}</p>
-          {sub && <p className="text-[10px] text-muted-foreground mt-0.5 font-medium">{sub}</p>}
-        </div>
-        <div className={cn("p-2.5 rounded-xl", color)}>
-          <Icon className="w-4 h-4 text-white" />
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-);
 
 // ─── Main Page ────────────────────────────────────────────────
 export default function AttendancePage() {
-  const { entityId } = useAuthStore();
+  const { entityId, role: currentUserRole } = useAuthStore();
+  const { toast } = useToast();
+  const isAdmin = currentUserRole === 'admin';
 
-  const [todayRecords, setTodayRecords] = useState<AttendanceRecord[]>([]);
-  const [monthlyRecords, setMonthlyRecords] = useState<AttendanceRecord[]>([]);
-  const [approvalRequests, setApprovalRequests] = useState<ApprovalRequest[]>([]);
-  const [staffSummaries, setStaffSummaries] = useState<StaffSummary[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
-  const [isLoading, setIsLoading] = useState(true);
+  // State
   const [activeTab, setActiveTab] = useState("today");
+  const [todayRecords, setTodayRecords] = useState<AttendanceRecord[]>([]);
+  const [allRecords, setAllRecords] = useState<AttendanceRecord[]>([]);
+  const [staffProfiles, setStaffProfiles] = useState<StaffProfile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Filters
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
+  const [quickFilter, setQuickFilter] = useState("this_month");
+
+  // Dialogs
+  const [editRecord, setEditRecord] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState<any>(null);
+  const [salaryEdit, setSalaryEdit] = useState<any>(null);
 
   const today = getCurrentDate();
 
-  // ── Real-time today's records ──
+  // 1. Real-time Today's Records
   useEffect(() => {
-    const q = query(
-      collection(db, 'attendance_records'),
-      where('date', '==', today)
-    );
-
-    const unsub = onSnapshot(q, (snap) => {
-      const records = snap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceRecord));
-      records.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-      setTodayRecords(records);
+    const q = query(collection(db, 'attendance_records'), where('date', '==', today));
+    return onSnapshot(q, (snap) => {
+      setTodayRecords(snap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceRecord)));
       setIsLoading(false);
     });
-
-    return () => unsub();
   }, [today]);
 
-  // ── Real-time approval requests ──
+  // 2. Load Staff Profiles for Payroll
   useEffect(() => {
-    const q = query(
-      collection(db, 'attendance_approvals'),
-      where('status', '==', 'pending')
-    );
-
-    const unsub = onSnapshot(q, (snap) => {
-      const requests = snap.docs.map(d => ({ id: d.id, ...d.data() } as ApprovalRequest));
-      requests.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-      setApprovalRequests(requests);
+    if (!entityId) return;
+    const q = query(collection(db, 'user_profiles'), where('entityId', '==', entityId));
+    return onSnapshot(q, (snap) => {
+      setStaffProfiles(snap.docs.map(d => ({ id: d.id, ...d.data() } as StaffProfile)));
     });
+  }, [entityId]);
 
-    return () => unsub();
+  // 3. Load All Records for Filtering
+  useEffect(() => {
+    const q = query(collection(db, 'attendance_records'));
+    return onSnapshot(q, (snap) => {
+      setAllRecords(snap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceRecord)));
+    });
   }, []);
 
-  // ── Monthly records ──
-  useEffect(() => {
-    loadMonthlyRecords();
-  }, [selectedMonth]);
+  // Compute Today's Attendance Pairs
+  const pairedToday = useMemo(() => {
+    const map: Record<string, any> = {};
+    todayRecords.forEach(r => {
+      if (!map[r.staffName]) map[r.staffName] = { name: r.staffName, role: r.staffRole, checkIn: null, checkOut: null };
+      if (r.type === 'check_in') map[r.staffName].checkIn = r;
+      if (r.type === 'check_out') map[r.staffName].checkOut = r;
+    });
+    return Object.values(map);
+  }, [todayRecords]);
 
-  const loadMonthlyRecords = async () => {
-    try {
-      const q = query(
-        collection(db, 'attendance_records'),
-        where('month', '==', selectedMonth)
-      );
-      const snap = await getDocs(q);
-      const records = snap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceRecord));
-      records.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-      setMonthlyRecords(records);
-      generateStaffSummaries(records);
-    } catch (err) {
-      console.error('Failed to load monthly records:', err);
+  // Filter Records Logic
+  const filteredRecords = useMemo(() => {
+    let base = [...allRecords];
+    
+    if (quickFilter === 'this_month') {
+      const current = format(new Date(), "MM-yyyy");
+      base = base.filter(r => r.month === current);
+    } else if (quickFilter === 'last_month') {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 1);
+      const last = format(d, "MM-yyyy");
+      base = base.filter(r => r.month === last);
+    } else if (selectedMonth !== "all") {
+      base = base.filter(r => r.month === selectedMonth);
     }
-  };
 
-  // ── Generate staff summaries from monthly records ──
-  const generateStaffSummaries = (records: AttendanceRecord[]) => {
-    const staffMap = new Map<string, StaffSummary>();
+    if (dateRange.from && dateRange.to) {
+      const start = parse(dateRange.from, "yyyy-MM-dd", new Date());
+      const end = parse(dateRange.to, "yyyy-MM-dd", new Date());
+      base = base.filter(r => {
+        const d = parse(r.date, "dd-MM-yyyy", new Date());
+        return isWithinInterval(d, { start, end });
+      });
+    }
 
-    records.forEach(r => {
-      if (r.type !== 'check_in') return;
-      const key = r.staffName;
-      if (!staffMap.has(key)) {
-        staffMap.set(key, {
-          staffName: r.staffName,
-          staffRole: r.staffRole,
-          presentDays: 0,
-          absentDays: 0,
-          lateDays: 0,
-          totalCheckIns: 0,
-        });
+    // Group for table view
+    const grouped: Record<string, any> = {};
+    base.forEach(r => {
+      const key = `${r.staffName}_${r.date}`;
+      if (!grouped[key]) grouped[key] = { id: r.id, name: r.staffName, date: r.date, checkIn: null, checkOut: null, role: r.staffRole, month: r.month, isLate: false };
+      if (r.type === 'check_in') {
+        grouped[key].checkIn = r.time;
+        grouped[key].isLate = r.isLate;
       }
-      const s = staffMap.get(key)!;
-      s.presentDays++;
-      s.totalCheckIns++;
-      if (r.isLate) s.lateDays++;
+      if (r.type === 'check_out') grouped[key].checkOut = r.time;
     });
 
-    setStaffSummaries(Array.from(staffMap.values()));
-  };
+    return Object.values(grouped).sort((a, b) => b.date.localeCompare(a.date));
+  }, [allRecords, selectedMonth, dateRange, quickFilter]);
 
-  // ── Approve/Reject manual request ──
-  const handleApproval = async (id: string, status: 'approved' | 'rejected') => {
-    try {
-      await updateDoc(doc(db, 'attendance_approvals', id), {
-        status,
-        reviewedAt: new Date().toISOString(),
-        reviewedBy: 'Admin',
+  const distinctMonths = useMemo(() => {
+    const set = new Set(allRecords.map(r => r.month));
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [allRecords]);
+
+  // Payroll Calculation
+  const payrollData = useMemo(() => {
+    const monthStr = quickFilter === 'last_month' ? format(new Date(new Date().setMonth(new Date().getMonth() - 1)), "MM-yyyy") : getCurrentMonth();
+    const workingDays = getWorkingDaysInMonth(monthStr);
+    
+    return staffProfiles.map(staff => {
+      const records = allRecords.filter(r => r.staffName === staff.name && r.month === monthStr);
+      const grouped: Record<string, any> = {};
+      records.forEach(r => {
+        if (!grouped[r.date]) grouped[r.date] = { checkIn: null };
+        if (r.type === 'check_in') grouped[r.date].checkIn = r.time;
       });
 
-      // If approved, create attendance record
-      if (status === 'approved') {
-        const request = approvalRequests.find(r => r.id === id);
-        if (request) {
-          const now = new Date();
-          await import('firebase/firestore').then(({ addDoc }) =>
-            addDoc(collection(db, 'attendance_records'), {
-              staffName: request.staffName,
-              staffId: null,
-              staffRole: 'staff',
-              type: request.type,
-              date: request.date,
-              time: request.time,
-              month: selectedMonth,
-              isLate: false,
-              method: 'manual_approved',
-              approvalStatus: 'approved',
-              propertyName: 'Sukha Retreats',
-              photoUrl: request.photoUrl,
-              createdAt: now.toISOString(),
-              timestamp: now.toISOString(),
-            })
-          );
-        }
-      }
-    } catch (err) {
-      console.error('Approval error:', err);
-    }
+      let presentDays = 0;
+      let halfDays = 0;
+      
+      Object.values(grouped).forEach((day: any) => {
+        const status = getStatus(day.checkIn, false);
+        if (status.label === "Present" || status.label === "Late") presentDays++;
+        if (status.label === "Half Day") halfDays++;
+      });
+
+      const absentDays = workingDays - (presentDays + halfDays);
+      const monthlySalary = staff.monthlySalary || 0;
+      const perDay = monthlySalary / workingDays;
+      const deductions = (absentDays * perDay) + (halfDays * perDay * 0.5);
+      const netSalary = Math.max(0, monthlySalary - deductions);
+
+      return {
+        ...staff,
+        presentDays,
+        halfDays,
+        absentDays,
+        deductions: Math.round(deductions),
+        netSalary: Math.round(netSalary),
+        monthStr
+      };
+    });
+  }, [staffProfiles, allRecords, quickFilter]);
+
+  const handleUpdateSalary = async () => {
+    if (!salaryEdit) return;
+    await updateDoc(doc(db, 'user_profiles', salaryEdit.id), {
+      monthlySalary: parseFloat(salaryEdit.amount)
+    });
+    toast({ title: "Salary Updated" });
+    setSalaryEdit(null);
   };
 
-  // ── Stats ──
-  const checkedInToday = todayRecords.filter(r => r.type === 'check_in').length;
-  const checkedOutToday = todayRecords.filter(r => r.type === 'check_out').length;
-  const lateToday = todayRecords.filter(r => r.isLate).length;
-  const pendingApprovals = approvalRequests.length;
+  const handleShareWhatsApp = (staff: any) => {
+    const phone = staff.phoneNumber || "9895556667";
+    const msg = `*SUKHA OS - Salary Advice*\nMonth: ${staff.monthStr}\nStaff: ${staff.name}\n\nPresent: ${staff.presentDays}\nHalf Days: ${staff.halfDays}\nAbsent: ${staff.absentDays}\nDeductions: ₹${staff.deductions}\n*Net Salary: ₹${staff.netSalary}*`;
+    window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+  };
 
-  // ── Month options ──
-  const monthOptions = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - i);
-    const val = `${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}`;
-    return { value: val, label: formatMonth(val) };
-  });
+  const handleDeleteRecord = async () => {
+    if (!isDeleting) return;
+    // Note: This only deletes the specific grouped record representative ID
+    await deleteDoc(doc(db, 'attendance_records', isDeleting.id));
+    toast({ title: "Record Deleted" });
+    setIsDeleting(null);
+  };
 
   return (
     <AppLayout>
-    <div className="space-y-6 max-w-5xl mx-auto">
-
-      {/* ── Page Header ── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-black text-slate-800 flex items-center gap-2">
-            <ClipboardCheck className="w-6 h-6 text-primary" />
-            Attendance
-          </h1>
-          <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
-            Today: {today} • Real-time monitoring
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="rounded-xl font-bold text-[10px] uppercase h-8"
-          onClick={loadMonthlyRecords}
-        >
-          <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-          Refresh
-        </Button>
-      </div>
-
-      {/* ── Stats Row ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard
-          title="Checked In Today"
-          value={checkedInToday}
-          icon={UserCheck}
-          color="bg-primary"
-          sub="staff members"
-        />
-        <StatCard
-          title="Checked Out"
-          value={checkedOutToday}
-          icon={UserX}
-          color="bg-emerald-500"
-          sub="completed shifts"
-        />
-        <StatCard
-          title="Late Arrivals"
-          value={lateToday}
-          icon={AlertTriangle}
-          color="bg-amber-500"
-          sub="today"
-        />
-        <StatCard
-          title="Pending Approvals"
-          value={pendingApprovals}
-          icon={Clock}
-          color={pendingApprovals > 0 ? "bg-rose-500" : "bg-slate-400"}
-          sub="manual requests"
-        />
-      </div>
-
-      {/* ── Tabs ── */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="rounded-xl bg-secondary/50 p-1 h-auto">
-          <TabsTrigger value="today" className="rounded-lg text-[10px] font-black uppercase px-4 py-1.5">
-            Today
-          </TabsTrigger>
-          <TabsTrigger value="approvals" className="rounded-lg text-[10px] font-black uppercase px-4 py-1.5">
-            Approvals
-            {pendingApprovals > 0 && (
-              <span className="ml-2 bg-rose-500 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">
-                {pendingApprovals}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="monthly" className="rounded-lg text-[10px] font-black uppercase px-4 py-1.5">
-            Monthly Report
-          </TabsTrigger>
-        </TabsList>
-
-        {/* ── TODAY TAB ── */}
-        <TabsContent value="today" className="mt-4">
-          <Card className="rounded-2xl border-none shadow-sm">
-            <CardHeader className="pb-2 pt-4 px-5">
-              <CardTitle className="text-[11px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                <Clock className="w-3.5 h-3.5 text-primary" />
-                Today's Attendance — {today}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-5 pb-5">
-              {isLoading ? (
-                <div className="flex items-center justify-center py-10">
-                  <RefreshCw className="w-5 h-5 animate-spin text-primary" />
-                </div>
-              ) : todayRecords.length === 0 ? (
-                <div className="text-center py-10">
-                  <ClipboardCheck className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-                  <p className="text-[11px] font-bold text-muted-foreground uppercase">No attendance records today</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {todayRecords.map(record => (
-                    <div
-                      key={record.id}
-                      className={cn(
-                        "flex items-center justify-between p-3 rounded-xl border",
-                        record.isLate ? "bg-amber-50 border-amber-100" : "bg-slate-50 border-slate-100"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        {/* Avatar */}
-                        <div className={cn(
-                          "w-9 h-9 rounded-xl flex items-center justify-center font-black text-white text-xs",
-                          record.type === 'check_in' ? "bg-primary" : "bg-emerald-500"
-                        )}>
-                          {record.staffName?.charAt(0)?.toUpperCase() || '?'}
-                        </div>
-
-                        <div>
-                          <p className="font-black text-xs text-slate-800">{record.staffName}</p>
-                          <p className="text-[10px] text-muted-foreground font-medium capitalize">{record.staffRole}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        {record.isLate && (
-                          <Badge className="bg-amber-100 text-amber-700 border-none text-[9px] font-black uppercase rounded-lg h-5 px-2">
-                            Late
-                          </Badge>
-                        )}
-                        <Badge className={cn(
-                          "border-none text-[9px] font-black uppercase rounded-lg h-5 px-2",
-                          record.type === 'check_in'
-                            ? "bg-primary/10 text-primary"
-                            : "bg-emerald-100 text-emerald-700"
-                        )}>
-                          {record.type === 'check_in' ? '☀️ In' : '🌙 Out'}
-                        </Badge>
-                        <span className="text-[10px] font-black text-slate-600 bg-white px-2 py-0.5 rounded-lg border">
-                          {record.time}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ── APPROVALS TAB ── */}
-        <TabsContent value="approvals" className="mt-4">
-          <Card className="rounded-2xl border-none shadow-sm">
-            <CardHeader className="pb-2 pt-4 px-5">
-              <CardTitle className="text-[11px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                <Clock className="w-3.5 h-3.5 text-amber-500" />
-                Manual Approval Requests
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-5 pb-5">
-              {approvalRequests.length === 0 ? (
-                <div className="text-center py-10">
-                  <CheckCircle className="w-10 h-10 text-emerald-300 mx-auto mb-2" />
-                  <p className="text-[11px] font-bold text-muted-foreground uppercase">
-                    No pending approvals
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {approvalRequests.map(req => (
-                    <div
-                      key={req.id}
-                      className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-100"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center font-black text-white text-xs">
-                          {req.staffName?.charAt(0)?.toUpperCase() || '?'}
-                        </div>
-                        <div>
-                          <p className="font-black text-xs text-slate-800">{req.staffName}</p>
-                          <p className="text-[10px] text-muted-foreground font-medium">
-                            {req.date} • {req.time} • {req.type === 'check_in' ? 'Check In' : 'Check Out'}
-                          </p>
-                          {req.reason && (
-                            <p className="text-[10px] text-amber-700 font-medium mt-0.5">
-                              Reason: {req.reason}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          className="rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[9px] uppercase h-7 px-3"
-                          onClick={() => handleApproval(req.id, 'approved')}
-                        >
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          Approve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-lg border-rose-200 text-rose-600 hover:bg-rose-50 font-black text-[9px] uppercase h-7 px-3"
-                          onClick={() => handleApproval(req.id, 'rejected')}
-                        >
-                          <XCircle className="w-3 h-3 mr-1" />
-                          Reject
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ── MONTHLY TAB ── */}
-        <TabsContent value="monthly" className="mt-4 space-y-4">
-
-          {/* Month selector */}
-          <div className="flex items-center gap-3">
-            <Calendar className="w-3.5 h-3.5 text-primary" />
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-40 rounded-xl font-bold text-[10px] uppercase h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                {monthOptions.map(m => (
-                  <SelectItem key={m.value} value={m.value} className="font-bold text-[10px] uppercase">
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <span className="text-[10px] text-muted-foreground font-medium uppercase">
-              {monthlyRecords.length} records found
-            </span>
+      <div className="space-y-6 max-w-5xl mx-auto pb-20">
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2">
+              <ClipboardCheck className="w-7 h-7 text-primary" />
+              Attendance & Payroll
+            </h1>
+            <p className="text-[11px] text-muted-foreground font-black uppercase tracking-widest mt-1">Real-time Human Resource Audit</p>
           </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="rounded-xl h-9 text-[10px] font-black uppercase" onClick={() => window.location.reload()}>
+              <RefreshCw className="w-3.5 h-3.5 mr-2" /> Live Sync
+            </Button>
+          </div>
+        </header>
 
-          {/* Staff Summary Cards */}
-          {staffSummaries.length === 0 ? (
-            <Card className="rounded-2xl border-none shadow-sm">
-              <CardContent className="py-10 text-center">
-                <Users className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-[11px] font-bold text-muted-foreground uppercase">
-                  No attendance records for {formatMonth(selectedMonth)}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {staffSummaries.map((s, i) => (
-                <Card key={i} className="rounded-2xl border-none shadow-sm overflow-hidden">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center font-black text-primary text-base">
-                          {s.staffName?.charAt(0)?.toUpperCase() || '?'}
-                        </div>
-                        <div>
-                          <p className="font-black text-xs text-slate-800">{s.staffName}</p>
-                          <p className="text-[10px] text-muted-foreground font-medium capitalize">{s.staffRole}</p>
-                        </div>
-                      </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="bg-white border p-1 rounded-2xl h-14 shadow-sm w-full md:w-auto">
+            <TabsTrigger value="today" className="rounded-xl h-11 px-8 text-[11px] font-black uppercase">Today's Roll</TabsTrigger>
+            <TabsTrigger value="records" className="rounded-xl h-11 px-8 text-[11px] font-black uppercase">Attendance Ledger</TabsTrigger>
+            <TabsTrigger value="payroll" className="rounded-xl h-11 px-8 text-[11px] font-black uppercase text-primary">Financial Payroll</TabsTrigger>
+          </TabsList>
 
-                      <div className="flex items-center gap-4 text-center">
-                        <div>
-                          <p className="text-lg font-black text-emerald-600">{s.presentDays}</p>
-                          <p className="text-[8px] text-muted-foreground font-bold uppercase">Present</p>
-                        </div>
-                        <div>
-                          <p className="text-lg font-black text-amber-500">{s.lateDays}</p>
-                          <p className="text-[8px] text-muted-foreground font-bold uppercase">Late</p>
-                        </div>
-                        <div>
-                          <p className="text-lg font-black text-slate-400">{s.absentDays}</p>
-                          <p className="text-[8px] text-muted-foreground font-bold uppercase">Absent</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Progress bar */}
-                    <div className="mt-3">
-                      <div className="flex justify-between text-[9px] font-bold uppercase text-muted-foreground mb-1">
-                        <span>Attendance Rate</span>
-                        <span>{s.presentDays} / {s.presentDays + s.absentDays} days</span>
-                      </div>
-                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full transition-all"
-                          style={{
-                            width: s.presentDays + s.absentDays > 0
-                              ? `${(s.presentDays / (s.presentDays + s.absentDays)) * 100}%`
-                              : '0%'
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+          {/* TODAY TAB */}
+          <TabsContent value="today" className="space-y-4">
+            <div className="bg-white rounded-[2rem] border shadow-sm overflow-hidden">
+              <Table>
+                <TableHeader className="bg-primary">
+                  <TableRow className="hover:bg-transparent border-none">
+                    <TableHead className="h-14 pl-10 text-[10px] font-black uppercase text-white">Staff Name</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-white">Role</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-white text-center">Check In</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-white text-center">Check Out</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-white text-center">Hours</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-white text-center pr-10">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow><TableCell colSpan={6} className="text-center py-20"><RefreshCw className="animate-spin w-6 h-6 mx-auto text-primary" /></TableCell></TableRow>
+                  ) : pairedToday.length > 0 ? pairedToday.map((p, idx) => {
+                    const status = getStatus(p.checkIn?.time, p.checkIn?.isLate);
+                    return (
+                      <TableRow key={idx} className="border-b border-secondary/50 hover:bg-primary/5 transition-colors">
+                        <TableCell className="pl-10 py-5 font-black text-sm text-slate-800 uppercase tracking-tight">{p.name}</TableCell>
+                        <TableCell className="text-[10px] font-bold text-muted-foreground uppercase">{p.role}</TableCell>
+                        <TableCell className="text-center font-mono text-xs font-bold">{p.checkIn?.time || "--:--"}</TableCell>
+                        <TableCell className="text-center font-mono text-xs font-bold">{p.checkOut?.time || "--:--"}</TableCell>
+                        <TableCell className="text-center font-black text-primary text-sm">{calculateHours(p.checkIn?.time, p.checkOut?.time)}h</TableCell>
+                        <TableCell className="text-center pr-10">
+                          <Badge className={cn("text-[9px] font-black uppercase px-3 h-6 rounded-full", status.color)}>
+                            {status.label}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  }) : (
+                    <TableRow><TableCell colSpan={6} className="text-center py-24 text-[10px] font-black uppercase text-muted-foreground">No records found for today</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </div>
-          )}
+          </TabsContent>
 
-          {/* Monthly Records Table */}
-          {monthlyRecords.length > 0 && (
-            <Card className="rounded-2xl border-none shadow-sm">
-              <CardHeader className="pb-2 pt-4 px-5">
-                <CardTitle className="text-[11px] font-black uppercase tracking-wider text-slate-700">
-                  All Records — {formatMonth(selectedMonth)}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-5 pb-5">
-                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-                  {monthlyRecords.map(record => (
-                    <div
-                      key={record.id}
-                      className={cn(
-                        "flex items-center justify-between px-3 py-2 rounded-lg border text-xs",
-                        record.isLate ? "bg-amber-50 border-amber-100" : "bg-slate-50 border-slate-100"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "w-7 h-7 rounded-lg flex items-center justify-center font-black text-white text-[10px]",
-                          record.type === 'check_in' ? "bg-primary" : "bg-emerald-500"
-                        )}>
-                          {record.staffName?.charAt(0)?.toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="font-black text-[11px] text-slate-800">{record.staffName}</p>
-                          <p className="text-[9px] text-muted-foreground">{record.date}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {record.isLate && (
-                          <Badge className="bg-amber-100 text-amber-700 border-none text-[8px] font-black h-4 px-1.5 rounded">Late</Badge>
-                        )}
-                        <Badge className={cn(
-                          "border-none text-[8px] font-black h-4 px-1.5 rounded",
-                          record.type === 'check_in' ? "bg-primary/10 text-primary" : "bg-emerald-100 text-emerald-700"
-                        )}>
-                          {record.type === 'check_in' ? 'In' : 'Out'}
-                        </Badge>
-                        <span className="text-[10px] font-black text-slate-500">{record.time}</span>
-                      </div>
-                    </div>
-                  ))}
+          {/* RECORDS TAB */}
+          <TabsContent value="records" className="space-y-6">
+            <div className="flex flex-wrap gap-4 items-end bg-secondary/20 p-6 rounded-[2rem] border border-dashed border-primary/20">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Quick Filters</Label>
+                <div className="flex gap-2">
+                  <Button variant={quickFilter === 'this_month' ? 'default' : 'outline'} size="sm" className="h-9 px-4 rounded-xl text-[10px] font-black uppercase" onClick={() => { setQuickFilter('this_month'); setSelectedMonth("all"); }}>This Month</Button>
+                  <Button variant={quickFilter === 'last_month' ? 'default' : 'outline'} size="sm" className="h-9 px-4 rounded-xl text-[10px] font-black uppercase" onClick={() => { setQuickFilter('last_month'); setSelectedMonth("all"); }}>Last Month</Button>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
-    </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Month Dropdown</Label>
+                <Select value={selectedMonth} onValueChange={(v) => { setSelectedMonth(v); setQuickFilter("none"); }}>
+                  <SelectTrigger className="h-9 w-40 rounded-xl text-[10px] font-black uppercase"><SelectValue placeholder="Select Month" /></SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="all" className="text-[10px] font-bold">All Months</SelectItem>
+                    {distinctMonths.map(m => <SelectItem key={m} value={m} className="text-[10px] font-bold uppercase">{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 flex-1 min-w-[200px]">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Custom Range</Label>
+                <div className="flex items-center gap-2">
+                  <Input type="date" value={dateRange.from} onChange={e => setDateRange({...dateRange, from: e.target.value})} className="h-9 rounded-xl text-xs" />
+                  <span className="text-[10px] font-black text-muted-foreground">TO</span>
+                  <Input type="date" value={dateRange.to} onChange={e => setDateRange({...dateRange, to: e.target.value})} className="h-9 rounded-xl text-xs" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-[2rem] border shadow-sm overflow-hidden">
+              <Table>
+                <TableHeader className="bg-slate-800">
+                  <TableRow className="hover:bg-transparent border-none">
+                    <TableHead className="h-14 pl-10 text-[10px] font-black uppercase text-white">Staff</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-white text-center">Date</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-white text-center">In</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-white text-center">Out</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-white text-center">Hours</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-white text-center">Status</TableHead>
+                    <TableHead className="text-right text-[10px] font-black uppercase text-white pr-10">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredRecords.map((r, i) => {
+                    const status = getStatus(r.checkIn, r.isLate);
+                    return (
+                      <TableRow key={i} className="border-b border-secondary/50 group">
+                        <TableCell className="pl-10 py-4">
+                          <div className="flex flex-col">
+                            <span className="font-black text-[13px] uppercase text-slate-800">{r.name}</span>
+                            <span className="text-[9px] font-bold text-muted-foreground uppercase">{r.role}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center text-[11px] font-bold text-slate-600">{r.date}</TableCell>
+                        <TableCell className="text-center font-mono text-xs font-bold">{r.checkIn || "--:--"}</TableCell>
+                        <TableCell className="text-center font-mono text-xs font-bold">{r.checkOut || "--:--"}</TableCell>
+                        <TableCell className="text-center font-black text-slate-700">{calculateHours(r.checkIn, r.checkOut)}h</TableCell>
+                        <TableCell className="text-center">
+                          <Badge className={cn("text-[8px] font-black uppercase h-5 px-2", status.color)}>{status.label}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right pr-10">
+                          {isAdmin && (
+                            <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => setEditRecord(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500" onClick={() => setIsDeleting(r)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+
+          {/* PAYROLL TAB */}
+          <TabsContent value="payroll" className="space-y-8 animate-in fade-in duration-500">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Salary Config */}
+              <Card className="lg:col-span-1 border-none shadow-sm rounded-[2rem] bg-slate-50">
+                <CardHeader>
+                  <CardTitle className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                    <IndianRupee className="w-4 h-4" /> Salary Registry
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {staffProfiles.map(s => (
+                      <div key={s.id} className="p-4 bg-white rounded-2xl border shadow-sm flex items-center justify-between group hover:border-primary transition-all">
+                        <div>
+                          <p className="text-[11px] font-black uppercase text-slate-800">{s.name}</p>
+                          <p className="text-[9px] font-bold text-muted-foreground uppercase">Base: ₹{(s.monthlySalary || 0).toLocaleString()}</p>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary rounded-xl" onClick={() => setSalaryEdit({...s, amount: s.monthlySalary || ""})}>
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Payroll Results */}
+              <Card className="lg:col-span-2 border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
+                <CardHeader className="bg-primary p-8 text-white flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xl font-black uppercase tracking-tight">Monthly Payroll Audit</CardTitle>
+                    <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest mt-1">
+                      Cycle: {quickFilter === 'last_month' ? 'Last Month' : 'Current Month'} • {getWorkingDaysInMonth(quickFilter === 'last_month' ? format(new Date(new Date().setMonth(new Date().getMonth() - 1)), "MM-yyyy") : getCurrentMonth())} working days
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" className="h-9 text-[10px] font-black uppercase text-white hover:bg-white/10" onClick={() => setQuickFilter(quickFilter === 'last_month' ? 'this_month' : 'last_month')}>
+                      <RefreshCw className="w-3.5 h-3.5 mr-2" /> Switch Cycle
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader className="bg-primary/5">
+                      <TableRow className="border-none">
+                        <TableHead className="pl-8 text-[9px] font-black uppercase">Staff Member</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase text-center">P / H / A</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase text-center">Deductions</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase text-right">Net Salary</TableHead>
+                        <TableHead className="text-right pr-8 text-[9px] font-black uppercase">WhatsApp</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {payrollData.map((staff, i) => (
+                        <TableRow key={i} className="border-b border-secondary/50">
+                          <TableCell className="pl-8 py-5">
+                            <div className="flex flex-col">
+                              <span className="font-black text-sm uppercase text-slate-800">{staff.name}</span>
+                              <span className="text-[9px] font-bold text-muted-foreground uppercase">{staff.role}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-1.5 font-bold text-[11px]">
+                              <span className="text-emerald-600">{staff.presentDays}</span>
+                              <span className="text-slate-300">/</span>
+                              <span className="text-orange-500">{staff.halfDays}</span>
+                              <span className="text-slate-300">/</span>
+                              <span className="text-rose-500">{staff.absentDays}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center font-bold text-[11px] text-rose-600">- ₹{staff.deductions.toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-black text-primary text-sm">₹{staff.netSalary.toLocaleString()}</TableCell>
+                          <TableCell className="text-right pr-8">
+                            <Button variant="ghost" size="icon" className="h-10 w-10 text-emerald-600 hover:bg-emerald-50 rounded-2xl shadow-sm" onClick={() => handleShareWhatsApp(staff)}>
+                              <Share2 className="w-4.5 h-4.5" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        {/* DIALOGS */}
+        <Dialog open={!!salaryEdit} onOpenChange={o => !o && setSalaryEdit(null)}>
+          <DialogContent className="sm:max-w-[360px] rounded-[2rem]">
+            <DialogHeader><DialogTitle className="text-sm font-black uppercase">Set Monthly Salary</DialogTitle></DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase">Amount (₹)</Label>
+                <Input type="number" value={salaryEdit?.amount} onChange={e => setSalaryEdit({...salaryEdit, amount: e.target.value})} className="h-12 rounded-xl bg-secondary/50 border-none font-bold text-lg" />
+              </div>
+              <Button className="w-full h-12 font-black uppercase text-[11px]" onClick={handleUpdateSalary}>Save Configuration</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={!!isDeleting} onOpenChange={o => !o && setIsDeleting(null)}>
+          <AlertDialogContent className="rounded-[2rem]">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-rose-600"><Trash2 className="w-5 h-5" /> Purge Attendance Record?</AlertDialogTitle>
+              <AlertDialogDescription className="text-xs font-bold uppercase tracking-tight">Are you absolutely sure? This will remove the record for {isDeleting?.name} on {isDeleting?.date}.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-xl font-black text-[10px] uppercase">Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteRecord} className="bg-rose-600 hover:bg-rose-700 rounded-xl font-black text-[10px] uppercase text-white">Yes, Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+      </div>
     </AppLayout>
   );
+}
+
+function Edit2({ className }: { className?: string }) {
+  return <Pencil className={className} />;
 }
