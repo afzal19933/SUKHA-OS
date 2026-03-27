@@ -76,7 +76,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const SYSTEM_MODULES = [
   "Dashboard", "AI Insights", "Reservations", "Rooms", "Inventory", "Housekeeping", "Maintenance", 
-  "Laundry", "Accounting", "Communications", "Team", "Settings"
+  "Laundry", "Accounting", "Communications", "Team", "Settings", "Attendance"
 ];
 
 export default function TeamPage() {
@@ -138,7 +138,10 @@ export default function TeamPage() {
       secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
       const secondaryAuth = getAuth(secondaryApp);
       
-      const internalEmail = `${newMember.username.toLowerCase().trim()}@sukha.os`;
+      // Normalize: remove all spaces for the internal email part
+      const normalizedUser = newMember.username.toLowerCase().trim().replace(/\s+/g, '');
+      const internalEmail = `${normalizedUser}@sukha.os`;
+      
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, internalEmail, newMember.password);
       const newUser = userCredential.user;
 

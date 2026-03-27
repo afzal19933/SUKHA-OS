@@ -27,8 +27,10 @@ export default function LoginPage() {
   const { toast } = useToast();
 
   const getEmailFromUsername = (u: string) => {
-    const clean = u.toLowerCase().trim();
+    let clean = u.toLowerCase().trim();
     if (clean.includes('@')) return clean;
+    // Normalize: remove all spaces for the internal email part
+    clean = clean.replace(/\s+/g, '');
     return `${clean}@sukha.os`;
   };
 
@@ -56,7 +58,7 @@ export default function LoginPage() {
       role: "admin",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      permissions: ["Dashboard", "AI Insights", "Reservations", "Rooms", "Inventory", "Housekeeping", "Maintenance", "Laundry", "Accounting", "Team", "Settings"]
+      permissions: ["Dashboard", "AI Insights", "Reservations", "Rooms", "Inventory", "Housekeeping", "Maintenance", "Laundry", "Accounting", "Team", "Settings", "Attendance", "Communications"]
     });
 
     // Create Initial Property
@@ -87,6 +89,8 @@ export default function LoginPage() {
     const internalEmail = getEmailFromUsername(username);
     const normalizedUsername = username.toLowerCase().trim();
 
+    console.log(`[Auth] Attempting login for: ${normalizedUsername} as ${internalEmail}`);
+
     try {
       await signInWithEmailAndPassword(auth, internalEmail, password);
       router.push("/dashboard");
@@ -112,7 +116,7 @@ export default function LoginPage() {
           title: "Authentication Failed", 
           description: error.code === 'auth/network-request-failed' 
             ? "Network error. Check your connection." 
-            : "The system did not recognize these credentials." 
+            : "The system did not recognize these credentials. Please check your username and password." 
         });
         setLoading(false);
       }
