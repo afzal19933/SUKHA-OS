@@ -1,5 +1,7 @@
 "use client";
 
+import { AppLayout } from "@/components/layout/AppLayout";
+
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, getDocs, doc, updateDoc, onSnapshot } from "firebase/firestore";
@@ -239,6 +241,7 @@ export default function AttendancePage() {
   });
 
   return (
+    <AppLayout>
     <div className="space-y-6">
 
       {/* ── Page Header ── */}
@@ -591,5 +594,6 @@ export default function AttendancePage() {
         </TabsContent>
       </Tabs>
     </div>
+    </AppLayout>
   );
 }
