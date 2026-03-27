@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -16,7 +15,6 @@ import { Building2, KeyRound, User } from "lucide-react";
 /**
  * LoginPage
  * Handles authentication and initial system provisioning.
- * Ensures the first administrator has absolute read/write authority.
  */
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -45,24 +43,21 @@ export default function LoginPage() {
       displayName: "Administrator" 
     });
 
-    // Create default property context
     const hotelId = "property-001";
 
-    // Create Master Admin Profile (Full Read/Write)
+    // Create Master Admin Profile
     const userProfileRef = doc(db, "user_profiles", user.uid);
-    const userProfileData = {
+    await setDoc(userProfileRef, {
       id: user.uid,
       entityId: hotelId,
       name: "Administrator",
       email: internalEmail,
       isActive: true,
-      role: "admin", // GLOBAL MASTER
+      role: "admin",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      permissions: ["Reservations", "Rooms", "Inventory", "Housekeeping", "Maintenance", "Laundry", "Accounting", "Team", "Settings"]
-    };
-
-    await setDoc(userProfileRef, userProfileData);
+      permissions: ["Dashboard", "AI Insights", "Reservations", "Rooms", "Inventory", "Housekeeping", "Maintenance", "Laundry", "Accounting", "Team", "Settings"]
+    });
 
     // Create Initial Property
     const propertyRef = doc(db, "hotel_properties", hotelId);
@@ -80,34 +75,47 @@ export default function LoginPage() {
 
     toast({
       title: "System Initialized",
-      description: "Master Administrator account created with Global Rights.",
+      description: "Master Administrator account created.",
     });
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    if (loading) return;
     
+    setLoading(true);
     const internalEmail = getEmailFromUsername(username);
+    const normalizedUsername = username.toLowerCase().trim();
 
     try {
       await signInWithEmailAndPassword(auth, internalEmail, password);
       router.push("/dashboard");
     } catch (error: any) {
-      // Auto-Provisioning logic for first-time setup
-      if (username === "admin" && password === "sukha123" && (error.code === "auth/user-not-found" || error.code === "auth/invalid-credential")) {
+      console.error("Auth Error:", error.code, error.message);
+      
+      // Auto-Provisioning logic for first-time setup (normalized check)
+      const isInitialAdmin = normalizedUsername === "admin" && password === "sukha123";
+      const isNotFoundError = error.code === "auth/user-not-found" || error.code === "auth/invalid-credential" || error.code === "auth/invalid-login-credentials";
+
+      if (isInitialAdmin && isNotFoundError) {
         try {
           await initializeDefaultAdmin(internalEmail);
           router.push("/dashboard");
-          return;
         } catch (initError: any) {
+          console.error("Init Error:", initError);
           toast({ variant: "destructive", title: "Init Failed", description: initError.message });
+          setLoading(false);
         }
       } else {
-        toast({ variant: "destructive", title: "Authentication Failed", description: "The system did not recognize these credentials." });
+        toast({ 
+          variant: "destructive", 
+          title: "Authentication Failed", 
+          description: error.code === 'auth/network-request-failed' 
+            ? "Network error. Check your connection." 
+            : "The system did not recognize these credentials." 
+        });
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -135,6 +143,7 @@ export default function LoginPage() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
+                  autoComplete="username"
                   className="h-12 pl-11 rounded-2xl bg-secondary/50 border-none text-sm font-bold"
                 />
                 <User className="absolute left-4 top-3.5 w-4 h-4 text-primary" />
@@ -149,6 +158,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoComplete="current-password"
                   className="h-12 pl-11 rounded-2xl bg-secondary/50 border-none text-sm font-bold"
                 />
                 <KeyRound className="absolute left-4 top-3.5 w-4 h-4 text-primary" />

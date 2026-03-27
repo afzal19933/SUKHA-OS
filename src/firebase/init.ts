@@ -5,24 +5,22 @@ import { getFirestore } from 'firebase/firestore'
 
 /**
  * Initializes the Firebase Client SDKs.
- * Handles production environment variables and fallback to local config.
- * Designed to be called safely across the application without causing loops.
+ * Prioritizes the provided config for reliability in Firebase Studio.
  */
 export function initializeFirebase() {
   if (!getApps().length) {
     let firebaseApp;
     try {
-      // Attempt to initialize via Firebase App Hosting environment variables
-      firebaseApp = initializeApp();
-    } catch (e) {
-      // Fallback to local config if environment variables are missing (e.g. local dev)
+      // Prioritize explicit config for stability
       firebaseApp = initializeApp(firebaseConfig);
+    } catch (e) {
+      console.warn("Standard initialization failed, attempting parameterless init:", e);
+      firebaseApp = initializeApp();
     }
 
     return getSdks(firebaseApp);
   }
 
-  // If already initialized, return the SDKs with the already initialized App
   return getSdks(getApp());
 }
 

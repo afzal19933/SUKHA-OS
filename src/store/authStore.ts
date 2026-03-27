@@ -43,13 +43,24 @@ export const useAuthStore = create<AuthState>()(
       availableProperties: [],
       _hasHydrated: false,
       setUser: (user, claims) => {
-        const currentEntityId = get().entityId;
-        const currentRole = get().role;
+        // If logging out, clear everything
+        if (!user) {
+          set({ 
+            user: null, 
+            role: null, 
+            entityId: null,
+            userName: null,
+            permissions: null,
+            assignedEntityId: null
+          });
+          return;
+        }
         
+        // Update user and claims (roles/entities)
         set({ 
           user, 
-          role: claims?.role || currentRole || null, 
-          entityId: claims?.entityId || currentEntityId || null 
+          role: claims?.role || null, 
+          entityId: claims?.entityId || null 
         });
       },
       setUserName: (userName) => set({ userName }),
@@ -63,9 +74,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'sukha-auth-storage',
-      // CRITICAL FIX: Only persist UI-related settings like theme.
-      // Persisting roles or entity IDs causes race conditions where data hooks 
-      // trigger before the Firebase SDK has initialized the auth token.
+      // Only persist UI-related settings like theme to prevent state leakage
       partialize: (state) => ({
         theme: state.theme,
       }),
