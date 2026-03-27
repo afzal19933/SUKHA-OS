@@ -165,22 +165,24 @@ export default function HousekeepingPage() {
 
   const stats = useMemo(() => {
     if (!rooms) return { total: 0, available: 0, cleaning: 0, occupied: 0, dirty: 0, maintenance: 0, occupied_dirty: 0, occupied_cleaning: 0, skipped: 0 };
-    return rooms.reduce((acc: any, room: any) => {
+    return (rooms ?? []).reduce((acc: any, room: any) => {
       acc.total++;
-      acc[room.status] = (acc[room.status] || 0) + 1;
+      if (room?.status) {
+        acc[room.status] = (acc[room.status] || 0) + 1;
+      }
       return acc;
     }, { total: 0, available: 0, cleaning: 0, occupied: 0, dirty: 0, maintenance: 0, occupied_dirty: 0, occupied_cleaning: 0, skipped: 0 });
   }, [rooms]);
 
   const filteredRooms = useMemo(() => {
     if (!rooms) return [];
-    const sorted = [...rooms].sort((a,b) => a.roomNumber.localeCompare(b.roomNumber));
+    const sorted = [...(rooms ?? [])].sort((a,b) => (a?.roomNumber ?? "").localeCompare(b?.roomNumber ?? ""));
     if (!activeFilter) return sorted;
     return sorted.filter(r => r.status === activeFilter);
   }, [rooms, activeFilter]);
 
   const updateStatus = (room: any, status: string) => {
-    if (!entityId || !canAssignTasks) return;
+    if (!entityId || !canAssignTasks || !room?.id) return;
     
     if (status === "skipped_trigger") {
       setRoomToSkip(room);
@@ -238,7 +240,7 @@ export default function HousekeepingPage() {
   };
 
   const handleSkipConfirm = () => {
-    if (!entityId || !roomToSkip || !selectedSkipReason || !canAssignTasks) return;
+    if (!entityId || !roomToSkip?.id || !selectedSkipReason || !canAssignTasks) return;
 
     const roomRef = doc(db, "hotel_properties", entityId, "rooms", roomToSkip.id);
     updateDocumentNonBlocking(roomRef, { status: 'skipped', updatedAt: new Date().toISOString() });
@@ -334,7 +336,7 @@ export default function HousekeepingPage() {
   };
 
   const roomCleaningLogs = useMemo(() => {
-    return taskHistory?.filter(t => !t.isCommonArea && (t.taskType === 'cleaning' || t.taskType === 'cleaning_exception')) || [];
+    return (taskHistory ?? []).filter(t => !t?.isCommonArea && (t?.taskType === 'cleaning' || t?.taskType === 'cleaning_exception'));
   }, [taskHistory]);
 
   const StatCard = ({ id, label, value, icon: Icon, colorClass, active }: any) => (
@@ -396,7 +398,7 @@ export default function HousekeepingPage() {
                     {filteredRooms.map((room) => {
                       const config = STATUS_CONFIG[room.status] || STATUS_CONFIG.available;
                       const activeTask = activeTasks?.find(t => t.roomId === room.id);
-                      const isOccupied = room.status.includes('occupied') || room.status === 'skipped';
+                      const isOccupied = room.status?.includes('occupied') || room.status === 'skipped';
                       
                       return (
                         <Card key={room.id} className="border-none shadow-sm hover:shadow-md transition-all group overflow-hidden bg-white">
@@ -546,7 +548,7 @@ export default function HousekeepingPage() {
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">2. Select Units ({selectedRoomIds.length})</Label>
                 <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1">
-                  {rooms?.sort((a,b) => a.roomNumber.localeCompare(b.roomNumber)).map((room) => (
+                  {[...(rooms ?? [])].sort((a,b) => (a?.roomNumber ?? "").localeCompare(b?.roomNumber ?? "")).map((room) => (
                     <div key={room.id} className={cn("relative flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all cursor-pointer", selectedRoomIds.includes(room.id) ? "bg-primary border-primary text-white" : "bg-white border-secondary text-muted-foreground")} onClick={() => setSelectedRoomIds(prev => selectedRoomIds.includes(room.id) ? prev.filter(id => id !== room.id) : [...prev, room.id])}>
                       <span className="text-xs font-black">{room.roomNumber}</span>
                     </div>

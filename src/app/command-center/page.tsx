@@ -37,11 +37,11 @@ function EntityCommandPanel({ entity, db }: { entity: any; db: any }) {
   }, []);
 
   // Real-time Data Listeners for the specific entity
-  const roomsRef = useMemoFirebase(() => collection(db, "hotel_properties", entity.id, "rooms"), [entity.id]);
-  const tasksRef = useMemoFirebase(() => collection(db, "hotel_properties", entity.id, "housekeeping_tasks"), [entity.id]);
-  const laundryRef = useMemoFirebase(() => collection(db, "hotel_properties", entity.id, "guest_laundry_orders"), [entity.id]);
-  const invoicesRef = useMemoFirebase(() => collection(db, "hotel_properties", entity.id, "invoices"), [entity.id]);
-  const reservationsRef = useMemoFirebase(() => collection(db, "hotel_properties", entity.id, "reservations"), [entity.id]);
+  const roomsRef = useMemoFirebase(() => entity?.id ? collection(db, "hotel_properties", entity.id, "rooms") : null, [entity?.id]);
+  const tasksRef = useMemoFirebase(() => entity?.id ? collection(db, "hotel_properties", entity.id, "housekeeping_tasks") : null, [entity?.id]);
+  const laundryRef = useMemoFirebase(() => entity?.id ? collection(db, "hotel_properties", entity.id, "guest_laundry_orders") : null, [entity?.id]);
+  const invoicesRef = useMemoFirebase(() => entity?.id ? collection(db, "hotel_properties", entity.id, "invoices") : null, [entity?.id]);
+  const reservationsRef = useMemoFirebase(() => entity?.id ? collection(db, "hotel_properties", entity.id, "reservations") : null, [entity?.id]);
 
   const { data: rooms } = useCollection(roomsRef);
   const { data: tasks } = useCollection(tasksRef);
@@ -51,72 +51,87 @@ function EntityCommandPanel({ entity, db }: { entity: any; db: any }) {
 
   // Stats Aggregation
   const stats = useMemo(() => {
-    const referenceDate = today || new Date().toISOString().split('T')[0];
-    const monthStart = referenceDate.substring(0, 7);
+    try {
+      const referenceDate = today || new Date().toISOString().split('T')[0];
+      const monthStart = referenceDate.substring(0, 7);
 
-    // Occupancy
-    const totalRooms = rooms?.length || 0;
-    const occupied = rooms?.filter(r => r.status.includes('occupied')).length || 0;
-    const vacant = totalRooms - occupied;
+      // Occupancy
+      const totalRooms = rooms?.length || 0;
+      const occupied = (rooms ?? []).filter(r => r?.status?.includes('occupied')).length || 0;
+      const vacant = totalRooms - occupied;
 
-    // Housekeeping
-    const clean = rooms?.filter(r => r.status === 'available' || r.status === 'occupied').length || 0;
-    const dirty = rooms?.filter(r => r.status === 'dirty' || r.status === 'occupied_dirty').length || 0;
-    const cleaning = rooms?.filter(r => r.status.includes('cleaning')).length || 0;
-    const ready = rooms?.filter(r => r.status === 'available').length || 0;
+      // Housekeeping
+      const clean = (rooms ?? []).filter(r => r?.status === 'available' || r?.status === 'occupied').length || 0;
+      const dirty = (rooms ?? []).filter(r => r?.status === 'dirty' || r?.status === 'occupied_dirty').length || 0;
+      const cleaning = (rooms ?? []).filter(r => r?.status?.includes('cleaning')).length || 0;
+      const ready = (rooms ?? []).filter(r => r?.status === 'available').length || 0;
 
-    // Maintenance
-    const maintRooms = rooms?.filter(r => r.status === 'maintenance').length || 0;
-    const openMaint = tasks?.filter(t => t.taskType === 'repair' && t.status !== 'completed').length || 0;
-    const completedMaintToday = tasks?.filter(t => t.taskType === 'repair' && t.status === 'completed' && t.updatedAt?.startsWith(referenceDate)).length || 0;
+      // Maintenance
+      const maintRooms = (rooms ?? []).filter(r => r?.status === 'maintenance').length || 0;
+      const openMaint = (tasks ?? []).filter(t => t?.taskType === 'repair' && t?.status !== 'completed').length || 0;
+      const completedMaintToday = (tasks ?? []).filter(t => t?.taskType === 'repair' && t?.status === 'completed' && t?.updatedAt?.startsWith(referenceDate)).length || 0;
 
-    // Laundry
-    const laundrySentToday = laundry?.filter(l => l.createdAt?.startsWith(referenceDate)).length || 0;
-    const laundryReturnedToday = laundry?.filter(l => l.status === 'returned' && l.updatedAt?.startsWith(referenceDate)).length || 0;
-    const laundryPending = laundry?.filter(l => l.status === 'sent').length || 0;
+      // Laundry
+      const laundrySentToday = (laundry ?? []).filter(l => l?.createdAt?.startsWith(referenceDate)).length || 0;
+      const laundryReturnedToday = (laundry ?? []).filter(l => l?.status === 'returned' && l?.updatedAt?.startsWith(referenceDate)).length || 0;
+      const laundryPending = (laundry ?? []).filter(l => l?.status === 'sent').length || 0;
 
-    // Revenue
-    const todayRev = invoices?.filter(i => i.createdAt?.startsWith(referenceDate)).reduce((acc, i) => acc + (i.totalAmount || 0), 0) || 0;
-    const monthRev = invoices?.filter(i => i.createdAt?.startsWith(monthStart)).reduce((acc, i) => acc + (i.totalAmount || 0), 0) || 0;
+      // Revenue
+      const todayRev = (invoices ?? []).filter(i => i?.createdAt?.startsWith(referenceDate)).reduce((acc, i) => acc + (i?.totalAmount || 0), 0) || 0;
+      const monthRev = (invoices ?? []).filter(i => i?.createdAt?.startsWith(monthStart)).reduce((acc, i) => acc + (i?.totalAmount || 0), 0) || 0;
 
-    // Ayursiha Specifics
-    const ayurRes = reservations?.filter(r => r.status === 'checked_in' && r.bookingSource === 'Ayursiha');
-    const ayurRooms = ayurRes?.length || 0;
-    // Current cycle revenue (assuming cycle is month or specific Ayur stays)
-    const ayurCycleRev = invoices?.filter(i => {
-      const res = reservations?.find(r => r.id === i.reservationId);
-      return res?.bookingSource === 'Ayursiha' && i.createdAt?.startsWith(monthStart);
-    }).reduce((acc, i) => acc + (i.totalAmount || 0), 0) || 0;
+      // Ayursiha Specifics
+      const ayurRes = (reservations ?? []).filter(r => r?.status === 'checked_in' && r?.bookingSource === 'Ayursiha');
+      const ayurRooms = ayurRes?.length || 0;
+      // Current cycle revenue
+      const ayurCycleRev = (invoices ?? []).filter(i => {
+        const res = (reservations ?? []).find(r => r?.id === i?.reservationId);
+        return res?.bookingSource === 'Ayursiha' && i?.createdAt?.startsWith(monthStart);
+      }).reduce((acc, i) => acc + (i?.totalAmount || 0), 0) || 0;
 
-    // Alerts
-    const alerts = [];
-    if (dirty > (totalRooms * 0.3)) alerts.push("High volume of dirty rooms");
-    if (openMaint > 3) alerts.push("Maintenance backlog detected");
-    
-    const overdueLaundry = laundry?.filter(l => {
-      if (l.status !== 'sent') return false;
-      const sentDate = new Date(l.createdAt);
-      const now = new Date();
-      return (now.getTime() - sentDate.getTime()) > (24 * 60 * 60 * 1000);
-    });
-    if (overdueLaundry?.length) alerts.push("Laundry pending > 24 hours");
+      // Alerts
+      const alerts = [];
+      if (dirty > (totalRooms * 0.3)) alerts.push("High volume of dirty rooms");
+      if (openMaint > 3) alerts.push("Maintenance backlog detected");
+      
+      const overdueLaundry = (laundry ?? []).filter(l => {
+        if (l?.status !== 'sent' || !l?.createdAt) return false;
+        const sentDate = new Date(l.createdAt);
+        const now = new Date();
+        return (now.getTime() - sentDate.getTime()) > (24 * 60 * 60 * 1000);
+      });
+      if (overdueLaundry?.length) alerts.push("Laundry pending > 24 hours");
 
-    return {
-      totalRooms, occupied, vacant,
-      clean, dirty, cleaning, ready,
-      maintRooms, openMaint, completedMaintToday,
-      laundrySentToday, laundryReturnedToday, laundryPending,
-      todayRev, monthRev,
-      ayurRooms, ayurCycleRev,
-      alerts
-    };
+      return {
+        totalRooms, occupied, vacant,
+        clean, dirty, cleaning, ready,
+        maintRooms, openMaint, completedMaintToday,
+        laundrySentToday, laundryReturnedToday, laundryPending,
+        todayRev, monthRev,
+        ayurRooms, ayurCycleRev,
+        alerts
+      };
+    } catch (err) {
+      console.error("Aggregation error", err);
+      return {
+        totalRooms: 0, occupied: 0, vacant: 0,
+        clean: 0, dirty: 0, cleaning: 0, ready: 0,
+        maintRooms: 0, openMaint: 0, completedMaintToday: 0,
+        laundrySentToday: 0, laundryReturnedToday: 0, laundryPending: 0,
+        todayRev: 0, monthRev: 0,
+        ayurRooms: 0, ayurCycleRev: 0,
+        alerts: []
+      };
+    }
   }, [rooms, tasks, laundry, invoices, reservations, today]);
+
+  if (!entity) return null;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 pb-2 border-b-2 border-primary/20">
         <Building2 className="w-5 h-5 text-primary" />
-        <h2 className="text-lg font-black uppercase tracking-tighter text-primary">{entity.name}</h2>
+        <h2 className="text-lg font-black uppercase tracking-tighter text-primary">{entity?.name ?? "N/A"}</h2>
       </div>
 
       {/* Occupancy Grid */}
@@ -251,8 +266,8 @@ export default function CommandCenterPage() {
 
   const isAuthorized = ["owner", "admin", "manager"].includes(role || "");
 
-  const retreatEntity = availableProperties.find(p => p.name.toLowerCase().includes('retreat'));
-  const paradiseEntity = availableProperties.find(p => p.name.toLowerCase().includes('paradise'));
+  const retreatEntity = availableProperties.find(p => (p?.name ?? "").toLowerCase().includes('retreat'));
+  const paradiseEntity = availableProperties.find(p => (p?.name ?? "").toLowerCase().includes('paradise'));
 
   if (!isAuthorized) {
     return (
@@ -279,7 +294,7 @@ export default function CommandCenterPage() {
             </div>
             <p className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Consolidated Multi-Property Operations</p>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 shadow-sm">
             <Activity className="w-3.5 h-3.5 animate-pulse" />
             <span className="text-[11px] font-black uppercase">Live Sync Active</span>
           </div>

@@ -92,7 +92,11 @@ export default function MaintenancePage() {
 
   const { data: allTasks, isLoading } = useCollection(allTasksQuery);
 
-  const activeTasks = useMemo(() => allTasks?.filter(t => t.taskType === "repair" && t.status !== "completed").sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()) || [], [allTasks]);
+  const activeTasks = useMemo(() => {
+    return (allTasks ?? [])
+      .filter(t => t?.taskType === "repair" && t?.status !== "completed")
+      .sort((a, b) => (b?.createdAt ?? "").localeCompare(a?.createdAt ?? ""));
+  }, [allTasks]);
 
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,8 +131,13 @@ export default function MaintenancePage() {
   };
 
   const updateStatus = (task: any, status: string) => {
-    if (!entityId || !canUpdateStatus || !user) return;
-    updateDocumentNonBlocking(doc(db, "hotel_properties", entityId, "housekeeping_tasks", task.id), { status, updatedAt: new Date().toISOString(), completedAt: status === 'completed' ? new Date().toISOString() : null, completedBy: status === 'completed' ? user.displayName : null });
+    if (!entityId || !canUpdateStatus || !user || !task?.id) return;
+    updateDocumentNonBlocking(doc(db, "hotel_properties", entityId, "housekeeping_tasks", task.id), { 
+      status, 
+      updatedAt: new Date().toISOString(), 
+      completedAt: status === 'completed' ? new Date().toISOString() : null, 
+      completedBy: status === 'completed' ? user.displayName : null 
+    });
     
     if (status === 'completed') {
       broadcastNotification(db, {
@@ -168,9 +177,9 @@ export default function MaintenancePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {activeTasks.map((task) => (
                   <Card key={task.id} className="border-none shadow-sm bg-white overflow-hidden relative">
-                    <div className={cn("absolute top-0 left-0 w-1 h-full", task.priority === "high" ? "bg-rose-500" : "bg-amber-500")} />
+                    <div className={cn("absolute top-0 left-0 w-1 h-full", task?.priority === "high" ? "bg-rose-500" : "bg-amber-500")} />
                     <CardHeader className="p-3 pb-1 flex flex-row items-start justify-between">
-                      <div><Badge className="text-[7px] uppercase">{task.priority}</Badge><CardTitle className="text-xs font-bold mt-1">{task.isCommonArea ? task.roomId : `Room ${task.roomId}`}</CardTitle></div>
+                      <div><Badge className="text-[7px] uppercase">{task?.priority ?? "medium"}</Badge><CardTitle className="text-xs font-bold mt-1">{task?.isCommonArea ? task.roomId : `Room ${task?.roomId ?? "N/A"}`}</CardTitle></div>
                       {canUpdateStatus && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-6 w-6"><MoreVertical className="w-3 h-3" /></Button></DropdownMenuTrigger>
@@ -180,7 +189,7 @@ export default function MaintenancePage() {
                         </DropdownMenu>
                       )}
                     </CardHeader>
-                    <CardContent className="p-3 pt-1.5 space-y-2"><div className="p-2 bg-secondary/30 rounded-lg text-[10px]">{task.notes}</div></CardContent>
+                    <CardContent className="p-3 pt-1.5 space-y-2"><div className="p-2 bg-secondary/30 rounded-lg text-[10px]">{task?.notes ?? "No issue description provided."}</div></CardContent>
                   </Card>
                 ))}
               </div>

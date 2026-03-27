@@ -212,8 +212,8 @@ export default function TeamPage() {
   const filteredMembers = useMemo(() => {
     if (!teamMembers) return [];
     return teamMembers.filter(m => 
-      m.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      m.email?.toLowerCase().includes(searchQuery.toLowerCase())
+      (m?.name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) || 
+      (m?.email ?? "").toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [teamMembers, searchQuery]);
 
@@ -271,35 +271,35 @@ export default function TeamPage() {
                     <TableCell className="pl-10 py-5">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary text-sm font-black shadow-inner">
-                          {member.name?.charAt(0) || "U"}
+                          {member?.name?.charAt(0) || "U"}
                         </div>
                         <div className="flex flex-col">
-                          <span className="font-black text-sm uppercase tracking-tight text-slate-800">{member.name}</span>
-                          <span className="text-[10px] font-mono text-muted-foreground">{member.email}</span>
+                          <span className="font-black text-sm uppercase tracking-tight text-slate-800">{member?.name ?? "Unknown"}</span>
+                          <span className="text-[10px] font-mono text-muted-foreground">{member?.email ?? "N/A"}</span>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn(
                         "text-[10px] font-black h-7 px-3 rounded-xl border-none",
-                        member.entityId === 'all' ? "bg-indigo-100 text-indigo-700" : "bg-secondary/80 text-slate-600"
+                        member?.entityId === 'all' ? "bg-indigo-100 text-indigo-700" : "bg-secondary/80 text-slate-600"
                       )}>
-                        {member.entityId === 'all' ? "GLOBAL ACCESS" : (availableProperties.find(p => p.id === member.entityId)?.name || "Restricted")}
+                        {member?.entityId === 'all' ? "GLOBAL ACCESS" : (availableProperties.find(p => p.id === member?.entityId)?.name || "Restricted")}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn(
                         "font-black text-[10px] h-6 px-2.5 bg-white uppercase",
-                        member.role === 'admin' ? "border-indigo-500 text-indigo-600" : 
-                        member.role === 'owner' ? "border-amber-500 text-amber-600" : "border-primary/10 text-primary"
+                        member?.role === 'admin' ? "border-indigo-500 text-indigo-600" : 
+                        member?.role === 'owner' ? "border-amber-500 text-amber-600" : "border-primary/10 text-primary"
                       )}>
-                        {member.role === 'admin' ? "Master Admin" : member.role === 'owner' ? "Property Owner" : member.role?.replace('_', ' ')}
+                        {member?.role === 'admin' ? "Master Admin" : member?.role === 'owner' ? "Property Owner" : (member?.role?.replace('_', ' ') ?? "Staff")}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {member.isActive ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <XCircle className="w-4 h-4 text-rose-500" />}
-                        <span className="text-[10px] font-black uppercase text-slate-500">{member.isActive ? "Active" : "Disabled"}</span>
+                        {member?.isActive ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <XCircle className="w-4 h-4 text-rose-500" />}
+                        <span className="text-[10px] font-black uppercase text-slate-500">{member?.isActive ? "Active" : "Disabled"}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-right pr-10">

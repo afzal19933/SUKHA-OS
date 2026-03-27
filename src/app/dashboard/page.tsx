@@ -194,7 +194,7 @@ function DashboardContent() {
           
           <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm">
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-4">
-              {rooms?.map((room) => {
+              {(rooms ?? []).map((room) => {
                 const config = STATUS_CONFIG[room?.status] || STATUS_CONFIG.available;
                 return (
                   <div 
@@ -208,7 +208,7 @@ function DashboardContent() {
                       room?.status?.includes('occupied') ? "bg-blue-50 border-blue-100" :
                       "bg-orange-50 border-orange-100"
                     )}>
-                      <span className={cn("text-lg font-black", config.color)}>{room?.roomNumber}</span>
+                      <span className={cn("text-lg font-black", config.color)}>{room?.roomNumber ?? "N/A"}</span>
                       <config.icon className={cn("w-4 h-4 mt-1", config.color)} />
                     </div>
                     <p className="text-[9px] font-black uppercase text-center text-muted-foreground truncate px-1">
@@ -227,17 +227,17 @@ function DashboardContent() {
               <MessageSquare className="w-4 h-4" /> WhatsApp Activity
             </h3>
             <div className="bg-white rounded-[2rem] border shadow-sm overflow-hidden divide-y">
-              {recentLogs?.map((log) => (
+              {(recentLogs ?? []).map((log) => (
                 <div key={log.id} className="p-4 hover:bg-secondary/10 transition-colors">
                   <div className="flex justify-between items-start mb-1">
-                    <span className="text-[11px] font-black text-primary uppercase">{log?.direction}</span>
-                    <span className="text-[9px] font-bold text-muted-foreground">{formatAppTime(log?.createdAt)}</span>
+                    <span className="text-[11px] font-black text-primary uppercase">{log?.direction ?? "N/A"}</span>
+                    <span className="text-[9px] font-bold text-muted-foreground">{log?.createdAt ? formatAppTime(log.createdAt) : "N/A"}</span>
                   </div>
                   <p className="text-[12px] font-medium leading-relaxed line-clamp-2 text-slate-700 italic">
-                    "{log?.message}"
+                    "{log?.message ?? "No message content"}"
                   </p>
                   <p className="text-[10px] font-bold text-muted-foreground mt-1.5 uppercase tracking-tighter">
-                    {log?.phoneNumber} • {log?.role}
+                    {log?.phoneNumber ?? "N/A"} • {log?.role ?? "N/A"}
                   </p>
                 </div>
               ))}
@@ -311,11 +311,11 @@ function DashboardContent() {
                 </TableHeader>
                 <TableBody>
                   {detailView === 'occupied' && (
-                    rooms?.filter(r => r?.status?.includes('occupied')).map(room => {
+                    (rooms ?? []).filter(r => r?.status?.includes('occupied')).map(room => {
                       const res = checkedInReservations?.find(res => res?.roomNumber?.toString() === room?.roomNumber?.toString());
                       return (
                         <TableRow key={`detail-occ-${room?.id}`}>
-                          <TableCell className="font-black text-blue-600">{room?.roomNumber}</TableCell>
+                          <TableCell className="font-black text-blue-600">{room?.roomNumber ?? "N/A"}</TableCell>
                           <TableCell className="font-bold text-[11px] uppercase">{res?.guestName ?? "Processing..."}</TableCell>
                           <TableCell className="text-right">
                             <Badge className="bg-blue-50 text-blue-600 border-blue-100 text-[8px] font-black uppercase">In-House</Badge>
@@ -326,10 +326,10 @@ function DashboardContent() {
                   )}
 
                   {detailView === 'vacant' && (
-                    rooms?.filter(r => r?.status === 'available').map(room => (
+                    (rooms ?? []).filter(r => r?.status === 'available').map(room => (
                       <TableRow key={`detail-vac-${room?.id}`}>
-                        <TableCell className="font-black text-emerald-600">{room?.roomNumber}</TableCell>
-                        <TableCell className="text-[10px] font-bold text-muted-foreground uppercase">Floor {room?.floor}</TableCell>
+                        <TableCell className="font-black text-emerald-600">{room?.roomNumber ?? "N/A"}</TableCell>
+                        <TableCell className="text-[10px] font-bold text-muted-foreground uppercase">Floor {room?.floor ?? "N/A"}</TableCell>
                         <TableCell className="text-right">
                           <Badge className="bg-emerald-50 text-emerald-600 border-blue-100 text-[8px] font-black uppercase">Ready</Badge>
                         </TableCell>
@@ -338,9 +338,9 @@ function DashboardContent() {
                   )}
 
                   {detailView === 'dirty' && (
-                    rooms?.filter(r => r?.status === 'dirty' || r?.status === 'occupied_dirty').map(room => (
+                    (rooms ?? []).filter(r => r?.status === 'dirty' || r?.status === 'occupied_dirty').map(room => (
                       <TableRow key={`detail-dirty-${room?.id}`}>
-                        <TableCell className="font-black text-orange-600">{room?.roomNumber}</TableCell>
+                        <TableCell className="font-black text-orange-600">{room?.roomNumber ?? "N/A"}</TableCell>
                         <TableCell className="text-[10px] font-bold text-muted-foreground uppercase">
                           {room?.status === 'dirty' ? 'Vacant - Requires Service' : 'Occupied - Requires Service'}
                         </TableCell>
@@ -352,13 +352,13 @@ function DashboardContent() {
                   )}
 
                   {detailView === 'revenue' && (
-                    stats.todayInvoices.map((inv: any) => (
+                    (stats.todayInvoices ?? []).map((inv: any) => (
                       <TableRow key={`detail-rev-${inv?.id}`}>
                         <TableCell className="font-black text-primary">{inv?.roomNumber || inv?.stayDetails?.roomNumber || "N/A"}</TableCell>
                         <TableCell>
                           <div className="flex flex-col">
-                            <span className="font-bold text-[11px] uppercase">{inv?.guestDetails?.name || inv?.guestName}</span>
-                            <span className="text-[8px] font-mono text-muted-foreground">{inv?.invoiceNumber}</span>
+                            <span className="font-bold text-[11px] uppercase">{inv?.guestDetails?.name || inv?.guestName || "N/A"}</span>
+                            <span className="text-[8px] font-mono text-muted-foreground">{inv?.invoiceNumber ?? "N/A"}</span>
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-black text-primary">₹{(inv?.totalAmount ?? 0).toLocaleString()}</TableCell>
@@ -367,8 +367,8 @@ function DashboardContent() {
                   )}
 
                   {((detailView === 'revenue' && stats.todayInvoices.length === 0) || 
-                    (detailView === 'occupied' && rooms?.filter(r => r?.status?.includes('occupied')).length === 0) ||
-                    (detailView === 'dirty' && rooms?.filter(r => r?.status?.includes('dirty')).length === 0)) && (
+                    (detailView === 'occupied' && (rooms ?? []).filter(r => r?.status?.includes('occupied')).length === 0) ||
+                    (detailView === 'dirty' && (rooms ?? []).filter(r => r?.status?.includes('dirty')).length === 0)) && (
                     <TableRow>
                       <TableCell colSpan={3} className="text-center py-12 text-[10px] font-black uppercase text-muted-foreground">
                         No active records for this category today

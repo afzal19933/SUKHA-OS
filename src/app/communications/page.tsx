@@ -110,11 +110,11 @@ export default function WhatsAppDashboard() {
 
   const stats = useMemo(() => {
     if (!logs) return { sent: 0, received: 0, failed: 0, ai: 0 };
-    return logs.reduce((acc, log) => {
-      if (log.direction === 'outgoing') acc.sent++;
-      if (log.direction === 'incoming') acc.received++;
-      if (log.status === 'failed') acc.failed++;
-      if (log.isAiQuery) acc.ai++;
+    return (logs ?? []).reduce((acc, log) => {
+      if (log?.direction === 'outgoing') acc.sent++;
+      if (log?.direction === 'incoming') acc.received++;
+      if (log?.status === 'failed') acc.failed++;
+      if (log?.isAiQuery) acc.ai++;
       return acc;
     }, { sent: 0, received: 0, failed: 0, ai: 0 });
   }, [logs]);
@@ -135,7 +135,7 @@ export default function WhatsAppDashboard() {
   };
 
   const confirmDeleteContact = () => {
-    if (!entityId || !contactToDelete) return;
+    if (!entityId || !contactToDelete?.id) return;
     deleteDocumentNonBlocking(doc(db, "hotel_properties", entityId, "whatsapp_contacts", contactToDelete.id));
     toast({ title: "Contact Removed" });
     setContactToDelete(null);
@@ -235,35 +235,35 @@ export default function WhatsAppDashboard() {
                         <TableCell className="text-center">
                           <Badge variant="outline" className={cn(
                             "text-[8px] font-black uppercase px-2 h-5 rounded-lg",
-                            log.direction === 'outgoing' ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                            log?.direction === 'outgoing' ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
                           )}>
-                            {log.direction}
+                            {log?.direction ?? "N/A"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="flex flex-col items-center">
-                            <span className="text-[10px] font-black">{log.phoneNumber}</span>
-                            <span className="text-[8px] uppercase font-bold text-muted-foreground">{log.role}</span>
+                            <span className="text-[10px] font-black">{log?.phoneNumber ?? "N/A"}</span>
+                            <span className="text-[8px] uppercase font-bold text-muted-foreground">{log?.role ?? "N/A"}</span>
                           </div>
                         </TableCell>
                         <TableCell>
                           <p className="text-[11px] leading-relaxed max-w-md line-clamp-2 font-medium">
-                            {log.message}
+                            {log?.message ?? "No content"}
                           </p>
-                          {log.isAiQuery && (
+                          {log?.isAiQuery && (
                             <div className="mt-1 flex items-center gap-1.5 text-[9px] font-black text-indigo-600 uppercase">
-                              <Bot className="w-3 h-3" /> AI Engine: {log.intent}
+                              <Bot className="w-3 h-3" /> AI Engine: {log?.intent ?? "N/A"}
                             </div>
                           )}
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="text-[9px] font-bold">
-                            {formatAppDate(log.createdAt)}<br/>
-                            <span className="text-muted-foreground font-medium">{formatAppTime(log.createdAt)}</span>
+                            {log?.createdAt ? formatAppDate(log.createdAt) : "N/A"}<br/>
+                            <span className="text-muted-foreground font-medium">{log?.createdAt ? formatAppTime(log.createdAt) : ""}</span>
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
-                          {log.status === 'sent' || log.status === 'received' ? (
+                          {log?.status === 'sent' || log?.status === 'received' ? (
                             <CheckCircle2 className="w-4 h-4 text-emerald-500 mx-auto" />
                           ) : (
                             <XCircle className="w-4 h-4 text-rose-500 mx-auto" />
@@ -281,28 +281,28 @@ export default function WhatsAppDashboard() {
 
           <TabsContent value="ai-queries">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               {logs?.filter(l => l.isAiQuery).length ? logs?.filter(l => l.isAiQuery).map(log => (
+               {logs?.filter(l => l?.isAiQuery).length ? logs?.filter(l => l?.isAiQuery).map(log => (
                  <Card key={log.id} className="border-none shadow-sm bg-indigo-50/30 rounded-[2rem]">
                    <CardHeader className="p-5 pb-3 border-b border-indigo-100/50 bg-indigo-600 text-white rounded-t-[2rem]">
                      <div className="flex justify-between items-center">
-                       <Badge className="bg-white/20 text-white border-none text-[8px] font-black uppercase px-2 h-5 rounded-lg">{log.intent}</Badge>
-                       <span className="text-[9px] font-bold text-indigo-100">{formatAppTime(log.createdAt)}</span>
+                       <Badge className="bg-white/20 text-white border-none text-[8px] font-black uppercase px-2 h-5 rounded-lg">{log?.intent ?? "N/A"}</Badge>
+                       <span className="text-[9px] font-bold text-indigo-100">{log?.createdAt ? formatAppTime(log.createdAt) : "N/A"}</span>
                      </div>
                    </CardHeader>
                    <CardContent className="p-5 space-y-4">
                      <div>
                        <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">User Request</p>
-                       <p className="text-xs font-bold mt-1.5 text-slate-800">"{log.message}"</p>
+                       <p className="text-xs font-bold mt-1.5 text-slate-800">"{log?.message ?? "N/A"}"</p>
                      </div>
                      <div className="p-3 bg-white rounded-2xl border border-indigo-100/50">
                        <p className="text-[8px] font-black uppercase text-indigo-600 tracking-widest mb-1.5">Internal System Command</p>
                        <code className="text-[10px] block font-mono text-indigo-700 bg-indigo-50/50 p-2 rounded-lg">
-                         {log.structuredQuery || "GET /reports/today_status"}
+                         {log?.structuredQuery || "GET /reports/today_status"}
                        </code>
                      </div>
                      <div>
                        <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Automated AI Response</p>
-                       <p className="text-[10px] text-slate-600 font-medium italic mt-1.5 leading-relaxed">{log.response}</p>
+                       <p className="text-[10px] text-slate-600 font-medium italic mt-1.5 leading-relaxed">{log?.response ?? "No response"}</p>
                      </div>
                    </CardContent>
                  </Card>
@@ -336,15 +336,15 @@ export default function WhatsAppDashboard() {
                         <TableCell className="pl-8 py-4">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-black">
-                              {contact.name.charAt(0)}
+                              {contact?.name?.charAt(0) || "U"}
                             </div>
-                            <span className="text-[11px] font-black uppercase tracking-tight">{contact.name}</span>
+                            <span className="text-[11px] font-black uppercase tracking-tight">{contact?.name ?? "N/A"}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-[11px] font-bold text-muted-foreground">{contact.phoneNumber}</TableCell>
+                        <TableCell className="text-[11px] font-bold text-muted-foreground">{contact?.phoneNumber ?? "N/A"}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-[8px] font-black uppercase bg-primary/5 text-primary border-primary/10 px-2 h-5 rounded-lg">
-                            {contact.role}
+                            {contact?.role ?? "N/A"}
                           </Badge>
                         </TableCell>
                         <TableCell>

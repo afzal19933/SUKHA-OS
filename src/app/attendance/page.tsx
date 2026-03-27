@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, where, orderBy, getDocs, doc, updateDoc, onSnapshot } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, updateDoc, onSnapshot } from "firebase/firestore";
 import { useAuthStore } from "@/store/authStore";
 import { 
   ClipboardCheck, Clock, UserCheck, UserX, AlertTriangle, 
@@ -113,12 +113,13 @@ export default function AttendancePage() {
   useEffect(() => {
     const q = query(
       collection(db, 'attendance_records'),
-      where('date', '==', today),
-      orderBy('createdAt', 'desc')
+      where('date', '==', today)
     );
 
     const unsub = onSnapshot(q, (snap) => {
-      setTodayRecords(snap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceRecord)));
+      const records = snap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceRecord));
+      records.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+      setTodayRecords(records);
       setIsLoading(false);
     });
 
@@ -129,12 +130,13 @@ export default function AttendancePage() {
   useEffect(() => {
     const q = query(
       collection(db, 'attendance_approvals'),
-      where('status', '==', 'pending'),
-      orderBy('createdAt', 'desc')
+      where('status', '==', 'pending')
     );
 
     const unsub = onSnapshot(q, (snap) => {
-      setApprovalRequests(snap.docs.map(d => ({ id: d.id, ...d.data() } as ApprovalRequest)));
+      const requests = snap.docs.map(d => ({ id: d.id, ...d.data() } as ApprovalRequest));
+      requests.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+      setApprovalRequests(requests);
     });
 
     return () => unsub();
@@ -149,11 +151,11 @@ export default function AttendancePage() {
     try {
       const q = query(
         collection(db, 'attendance_records'),
-        where('month', '==', selectedMonth),
-        orderBy('createdAt', 'desc')
+        where('month', '==', selectedMonth)
       );
       const snap = await getDocs(q);
       const records = snap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceRecord));
+      records.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
       setMonthlyRecords(records);
       generateStaffSummaries(records);
     } catch (err) {
