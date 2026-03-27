@@ -98,18 +98,8 @@ export function generateInvoiceNumber() {
 
   return `${financialYear}/${randomSuffix}`;
 }
-// ===== FIRESTORE NORMALIZERS =====
 
-export function normalizeStaff(data: any) {
-  return {
-    id: data?.id ?? "",
-    name: data?.name ?? "Unknown",
-    checkIn: data?.checkIn ?? null,
-    checkOut: data?.checkOut ?? null,
-  };
-}
 // ===== RETRY SYSTEM =====
-
 export async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   retries = 3,

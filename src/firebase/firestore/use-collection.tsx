@@ -12,7 +12,6 @@ import {
 
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { normalizeStaff } from '@/lib/utils'; // ✅ NEW
 
 export type WithId<T> = T & { id: string };
 
@@ -62,13 +61,11 @@ export function useCollection<T = any>(
         (snapshot: QuerySnapshot<DocumentData>) => {
           try {
             const results: ResultItemType[] = snapshot.docs.map((doc) => {
+              // Return full document data to ensure all fields like roomNumber, floor, etc. are available
               const rawData = doc.data();
 
-              // ✅ SAFE NORMALIZATION
-              const safeData = normalizeStaff(rawData);
-
               return {
-                ...(safeData as T),
+                ...(rawData as T),
                 id: doc.id,
               };
             });

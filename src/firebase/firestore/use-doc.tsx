@@ -11,7 +11,6 @@ import {
 
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { normalizeStaff } from '@/lib/utils'; // ✅ reuse for safety
 
 type WithId<T> = T & { id: string };
 
@@ -53,11 +52,9 @@ export function useDoc<T = any>(
             if (snapshot.exists()) {
               const rawData = snapshot.data();
 
-              // ✅ SAFE NORMALIZATION
-              const safeData = normalizeStaff(rawData);
-
+              // Return full document data
               setData({
-                ...(safeData as T),
+                ...(rawData as T),
                 id: snapshot.id,
               });
             } else {
