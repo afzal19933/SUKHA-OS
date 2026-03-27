@@ -1,18 +1,34 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
+// ===== EXISTING FUNCTION =====
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/**
- * Standardizes date formatting to DD-MM-YYYY across the app.
- * Handles both ISO strings and YYYY-MM-DD input strings.
- */
+// ===== SAFETY HELPERS (NEW) =====
+export async function safeAsync<T>(
+  fn: () => Promise<T>,
+  fallback: T,
+  context: string
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    console.error(`[SAFE_ASYNC_ERROR] ${context}`, error);
+    return fallback;
+  }
+}
+
+export function safeGet<T>(value: T | null | undefined, fallback: T): T {
+  return value ?? fallback;
+}
+
+// ===== DATE FORMAT =====
 export function formatAppDate(dateInput: any) {
   if (!dateInput) return "N/A";
   
-  // Handle YYYY-MM-DD strings directly to avoid timezone shifts
+  // Handle YYYY-MM-DD safely
   if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
     const [y, m, d] = dateInput.split('-');
     return `${d}-${m}-${y}`;
@@ -20,28 +36,32 @@ export function formatAppDate(dateInput: any) {
 
   const d = new Date(dateInput);
   if (isNaN(d.getTime())) return "N/A";
+
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const year = d.getFullYear();
+
   return `${day}-${month}-${year}`;
 }
 
-/**
- * Formats a time string or Date object to HH:mm format.
- */
+// ===== TIME FORMAT =====
 export function formatAppTime(dateInput: any) {
   if (!dateInput) return "N/A";
+
   const d = new Date(dateInput);
   if (isNaN(d.getTime())) return "N/A";
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  return d.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
 }
 
-/**
- * Converts a number to words (Indian Numbering System)
- */
+// ===== NUMBER TO WORDS =====
 export function numberToWords(num: number): string {
   if (num === 0) return "Zero";
-  
+
   const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
   const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 
@@ -56,24 +76,52 @@ export function numberToWords(num: number): string {
 
   const integerPart = Math.floor(num);
   const words = inWords(integerPart).trim();
+
   return words + " Rupees Only";
 }
 
-/**
- * Generates an invoice number in YYYY-YY/XXXXX format
- */
+// ===== INVOICE NUMBER =====
 export function generateInvoiceNumber() {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
-  
+
   let financialYear = "";
-  if (month >= 3) { // April onwards
+
+  if (month >= 3) {
     financialYear = `${year}-${(year + 1).toString().slice(-2)}`;
   } else {
     financialYear = `${year - 1}-${year.toString().slice(-2)}`;
   }
-  
+
   const randomSuffix = Math.floor(10000 + Math.random() * 90000);
+
   return `${financialYear}/${randomSuffix}`;
+}
+// ===== FIRESTORE NORMALIZERS =====
+
+export function normalizeStaff(data: any) {
+  return {
+    id: data?.id ?? "",
+    name: data?.name ?? "Unknown",
+    checkIn: data?.checkIn ?? null,
+    checkOut: data?.checkOut ?? null,
+  };
+}
+// ===== RETRY SYSTEM =====
+
+export async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delay = 500
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (retries === 0) throw err;
+
+    await new Promise(res => setTimeout(res, delay));
+
+    return retryWithBackoff(fn, retries - 1, delay * 2);
+  }
 }

@@ -9,13 +9,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { useUser } from "@/firebase";
 import { doc, onSnapshot, collection } from "firebase/firestore";
 
-/**
- * AuthSync Component
- * Synchronizes Firebase Auth state with the global Zustand store and Firestore Profile.
- */
 function AuthSync() {
   const { user } = useUser();
   const db = useFirestore();
+
   const { 
     setUser, 
     setUserName,
@@ -30,7 +27,7 @@ function AuthSync() {
     theme 
   } = useAuthStore();
 
-  // 1. Theme Sync
+  // ✅ Theme Sync
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('theme-emerald', 'theme-rose', 'theme-amber', 'theme-slate');
@@ -39,14 +36,16 @@ function AuthSync() {
     }
   }, [theme]);
 
-  // 2. Auth Basic Sync (Claims)
+  // ✅ Auth Sync
   useEffect(() => {
     if (user) {
       user.getIdTokenResult(true).then((idTokenResult) => {
         const claims = { ...idTokenResult.claims };
+
         if (user.email === 'admin@sukha.os') {
           claims.role = 'admin';
         }
+
         setUser(user, claims);
       });
     } else {
@@ -58,50 +57,92 @@ function AuthSync() {
       setAssignedEntityId(null);
       setAvailableProperties([]);
     }
-  }, [user, setUser, setUserName, setPermissions, setRole, setEntityId, setAssignedEntityId, setAvailableProperties]);
+  }, [user]);
 
-  // 3. Firestore Profile Listener (Stable dependencies)
+  // ✅ Firestore Profile Listener (SAFE)
   useEffect(() => {
     if (!user?.uid) return;
 
-    const unsubscribeProfile = onSnapshot(doc(db, "user_profiles", user.uid), (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        if (data.name) setUserName(data.name);
-        if (data.permissions) setPermissions(data.permissions);
-        
-        let assignedRole = data.role;
-        if (user.email === 'admin@sukha.os') assignedRole = 'admin';
-        if (assignedRole) setRole(assignedRole);
-        
-        if (data.entityId) {
-          setAssignedEntityId(data.entityId);
+    let unsubscribe = () => {};
+
+    try {
+      unsubscribe = onSnapshot(
+        doc(db, "user_profiles", user.uid),
+
+        (snapshot) => {
+          try {
+            if (!snapshot.exists()) return;
+
+            const data = snapshot.data();
+
+            if (data?.name) setUserName(data.name);
+            if (data?.permissions) setPermissions(data.permissions);
+
+            let assignedRole = data?.role;
+
+            if (user.email === 'admin@sukha.os') {
+              assignedRole = 'admin';
+            }
+
+            if (assignedRole) setRole(assignedRole);
+            if (data?.entityId) setAssignedEntityId(data.entityId);
+
+          } catch (err) {
+            console.error("Profile parsing error", err);
+          }
+        },
+
+        (error) => {
+          console.error("Profile listener error", error);
         }
-      }
-    });
+      );
+    } catch (err) {
+      console.error("Profile listener failed", err);
+    }
 
-    return () => unsubscribeProfile();
-  }, [user?.uid, db, setUserName, setPermissions, setRole, setAssignedEntityId]);
+    return () => unsubscribe();
 
-  // 4. Properties List Listener
+  }, [user?.uid, db]);
+
+  // ✅ Properties Listener (SAFE)
   useEffect(() => {
     if (!user) return;
 
-    const unsubscribeProperties = onSnapshot(collection(db, "hotel_properties"), (snapshot) => {
-      const properties = snapshot.docs.map(doc => ({
-        id: doc.id,
-        name: doc.data().name || "Unnamed Property"
-      }));
-      setAvailableProperties(properties);
-    });
+    let unsubscribe = () => {};
 
-    return () => unsubscribeProperties();
-  }, [user, db, setAvailableProperties]);
+    try {
+      unsubscribe = onSnapshot(
+        collection(db, "hotel_properties"),
 
-  // 5. Initial Session Entity Resolution
-  // Only trigger this when essential context changes, but don't loop on entityId itself
+        (snapshot) => {
+          try {
+            const properties = snapshot.docs.map(doc => ({
+              id: doc.id,
+              name: doc.data()?.name ?? "Unnamed Property",
+            }));
+
+            setAvailableProperties(properties);
+
+          } catch (err) {
+            console.error("Properties parsing error", err);
+          }
+        },
+
+        (error) => {
+          console.error("Properties listener error", error);
+        }
+      );
+    } catch (err) {
+      console.error("Properties listener failed", err);
+    }
+
+    return () => unsubscribe();
+
+  }, [user, db]);
+
+  // ✅ Entity Logic (unchanged)
   const hasInitializedEntity = useRef(false);
-  
+
   useEffect(() => {
     if (!assignedEntityId || availableProperties.length === 0 || hasInitializedEntity.current) return;
 
@@ -110,11 +151,11 @@ function AuthSync() {
     } else {
       setEntityId(assignedEntityId);
     }
-    
-    hasInitializedEntity.current = true;
-  }, [assignedEntityId, availableProperties, entityId, setEntityId]);
 
-  // Reset initialization flag when user logs out
+    hasInitializedEntity.current = true;
+
+  }, [assignedEntityId, availableProperties, entityId]);
+
   useEffect(() => {
     if (!user) hasInitializedEntity.current = false;
   }, [user]);

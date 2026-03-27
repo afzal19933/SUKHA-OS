@@ -6,7 +6,7 @@ import { useAuthStore } from "@/store/authStore";
 import { 
   LayoutDashboard, CalendarDays, BedDouble, Wrench, Calculator, LogOut,
   Menu, Users, Settings, WashingMachine, DoorOpen, Building2, Monitor,
-  MessageSquare, Package, Cpu, Loader2, X,
+  MessageSquare, Package, Cpu, Loader2, X, ClipboardCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -34,6 +34,7 @@ const NAV_ITEMS = [
   { name: "Maintenance", href: "/maintenance", icon: Wrench },
   { name: "Laundry", href: "/laundry", icon: WashingMachine },
   { name: "Accounting", href: "/accounting", icon: Calculator },
+  { name: "Attendance", href: "/attendance", icon: ClipboardCheck, restricted: ["admin", "manager"] },
   { name: "Communications", href: "/communications", icon: MessageSquare, restricted: ["admin", "manager"] },
   { name: "Team", href: "/team", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
@@ -56,7 +57,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Auto close sidebar on mobile when navigating
   useEffect(() => {
     if (isMobile) setSidebarOpen(false);
   }, [pathname, isMobile]);
@@ -75,7 +75,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!firebaseUser) return null;
 
   const handleLogout = async () => {
-    // Clear the greeting session lock so it triggers on next login
     if (firebaseUser?.uid) {
       sessionStorage.removeItem(`greeted_${firebaseUser.uid}`);
     }
@@ -140,7 +139,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* Sidebar - desktop always visible, mobile slides in */}
+      {/* Sidebar */}
       <div className={cn(
         "fixed md:relative z-50 md:z-auto h-full transition-transform duration-300 border-r shadow-sm",
         isMobile 
