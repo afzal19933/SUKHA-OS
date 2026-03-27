@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,14 @@ import {
   ShoppingBag,
   Package,
   Layers,
-  FileText
+  FileText,
+  Sparkles,
+  ClipboardList,
+  ChevronRight,
+  ArrowRight,
+  Receipt,
+  UserCheck,
+  Calendar
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
@@ -33,10 +41,10 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { cn, formatAppDate, formatAppTime, safeAsync } from "@/lib/utils";
+import { cn, formatAppDate, formatAppTime } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
-import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
-import { collection, query, orderBy, doc, where, limit } from "firebase/firestore";
+import { useCollection, useMemoFirebase, useFirestore, useDoc } from "@/firebase";
+import { collection, query, orderBy, doc, where, limit, addDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { 
   Dialog, 
   DialogContent, 
@@ -67,6 +75,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { reconcileLaundryInvoice } from "@/ai/flows/reconcile-laundry-invoice-flow";
+
+const ORDER_STATUSES = ["sent", "in_progress", "completed", "delivered", "paid"];
 
 export default function LaundryPage() {
   const { entityId, role: currentUserRole } = useAuthStore();
@@ -74,284 +85,469 @@ export default function LaundryPage() {
   const { toast } = useToast();
 
   const canEdit = currentUserRole === "admin";
-  const canManageOrders = ["admin", "manager", "supervisor", "staff"].includes(currentUserRole || "");
+  const canManage = ["admin", "manager", "supervisor", "staff"].includes(currentUserRole || "");
 
+  // UI State
   const [activeTab, setActiveTab] = useState("orders");
   const [isOrderOpen, setIsOrderOpen] = useState(false);
-  const [isLinenOpen, setIsLinenOpen] = useState(false);
+  const [isBatchOpen, setIsLinenOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isRateOpen, setIsRateOpen] = useState(false);
+  const [isAIAuditOpen, setIsAIAuditOpen] = useState(false);
+  const [orderToDelete, setOrderToDelete] = useState<any>(null);
 
-  const [newOrder, setNewOrder] = useState({
-    roomId: "",
-    roomNumber: "",
-    guestName: "",
-    reservationId: "",
-    items: [] as any[],
-  });
-
-  const [newVendorPayment, setNewVendorPayment] = useState({
-    amount: "",
-    method: "UPI",
-    reference: "",
-    notes: "",
-    category: "hotel",
-  });
+  // Form States
+  const [newOrder, setNewOrder] = useState({ roomId: "", roomNumber: "", guestName: "", items: [] as any[] });
+  const [newBatch, setNewBatch] = useState({ items: [] as any[], notes: "" });
+  const [newRate, setNewRate] = useState({ itemName: "", rate: "", itemType: "guest" });
+  const [newPayment, setNewPayment] = useState({ amount: "", method: "UPI", reference: "", notes: "" });
 
   // Data Fetching
-  const guestOrdersQuery = useMemoFirebase(() => {
+  const ordersQuery = useMemoFirebase(() => {
     if (!entityId) return null;
-    return query(
-      collection(db, "hotel_properties", entityId, "guest_laundry_orders"),
-      orderBy("createdAt", "desc")
-    );
+    return query(collection(db, "hotel_properties", entityId, "guest_laundry_orders"), orderBy("createdAt", "desc"));
+  }, [db, entityId]);
+
+  const batchesQuery = useMemoFirebase(() => {
+    if (!entityId) return null;
+    return query(collection(db, "hotel_properties", entityId, "linen_laundry_batches"), orderBy("createdAt", "desc"));
   }, [db, entityId]);
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!entityId) return null;
-    return query(
-      collection(db, "hotel_properties", entityId, "laundry_vendor_payments"),
-      orderBy("createdAt", "desc"),
-      limit(50)
-    );
+    return query(collection(db, "hotel_properties", entityId, "laundry_vendor_payments"), orderBy("createdAt", "desc"));
   }, [db, entityId]);
 
-  const { data: guestOrders, isLoading: ordersLoading } = useCollection(guestOrdersQuery);
-  const { data: vendorPayments, isLoading: paymentsLoading } = useCollection(paymentsQuery);
+  const ratesQuery = useMemoFirebase(() => {
+    if (!entityId) return null;
+    return query(collection(db, "hotel_properties", entityId, "laundry_items"), orderBy("itemName"));
+  }, [db, entityId]);
 
-  const stats = useMemo(() => {
-    if (!guestOrders) return { pending: 0, revenue: 0, deliveredToday: 0 };
-    return guestOrders.reduce((acc, order) => {
-      if (order?.status === "sent") acc.pending++;
-      if (order?.status === "paid") acc.revenue += (order?.hotelTotal || 0);
-      return acc;
-    }, { pending: 0, revenue: 0, deliveredToday: 0 });
+  const roomsQuery = useMemoFirebase(() => {
+    if (!entityId) return null;
+    return query(collection(db, "hotel_properties", entityId, "rooms"), orderBy("roomNumber"));
+  }, [db, entityId]);
+
+  const { data: guestOrders, isLoading: ordersLoading } = useCollection(ordersQuery);
+  const { data: linenBatches, isLoading: batchesLoading } = useCollection(batchesQuery);
+  const { data: payments, isLoading: paymentsLoading } = useCollection(paymentsQuery);
+  const { data: rates, isLoading: ratesLoading } = useCollection(ratesQuery);
+  const { data: rooms } = useCollection(roomsQuery);
+
+  // Computed Data
+  const duesTracker = useMemo(() => {
+    if (!guestOrders) return [];
+    const tracker: Record<string, any> = {};
+    guestOrders.forEach(order => {
+      if (order.status !== 'paid') {
+        const key = order.roomId || order.roomNumber;
+        if (!tracker[key]) {
+          tracker[key] = { 
+            room: order.roomNumber, 
+            guest: order.guestName, 
+            totalDue: 0, 
+            lastOrder: order.createdAt,
+            orderIds: [] 
+          };
+        }
+        tracker[key].totalDue += (order.hotelTotal || 0);
+        tracker[key].orderIds.push(order.id);
+      }
+    });
+    return Object.values(tracker);
   }, [guestOrders]);
 
+  // Handlers
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!entityId || !newOrder.roomId || !canManageOrders) return;
+    if (!entityId || !newOrder.roomNumber) return;
 
-    await safeAsync(async () => {
-      addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "guest_laundry_orders"), {
-        ...newOrder,
-        status: "sent",
-        createdAt: new Date().toISOString(),
-      });
-      toast({ title: "Order Dispatched" });
-      setIsOrderOpen(false);
-    }, null, "CREATE_LAUNDRY_ORDER");
+    const selectedRoom = rooms?.find(r => r.roomNumber === newOrder.roomNumber);
+    const orderData = {
+      ...newOrder,
+      roomId: selectedRoom?.id || "",
+      status: "sent",
+      hotelTotal: newOrder.items.reduce((acc, item) => acc + (item.quantity * item.rate), 0),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await addDoc(collection(db, "hotel_properties", entityId, "guest_laundry_orders"), orderData);
+    toast({ title: "Laundry Order Logged" });
+    setIsOrderOpen(false);
+    setNewOrder({ roomId: "", roomNumber: "", guestName: "", items: [] });
   };
 
-  const handleRecordPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!entityId || !newVendorPayment.amount || !canEdit) return;
+  const handleUpdateStatus = async (orderId: string, newStatus: string) => {
+    if (!entityId) return;
+    await updateDoc(doc(db, "hotel_properties", entityId, "guest_laundry_orders", orderId), {
+      status: newStatus,
+      updatedAt: new Date().toISOString()
+    });
+    toast({ title: `Order status: ${newStatus}` });
+  };
 
-    await safeAsync(async () => {
-      addDocumentNonBlocking(collection(db, "hotel_properties", entityId, "laundry_vendor_payments"), {
-        amount: parseFloat(newVendorPayment.amount),
-        method: newVendorPayment.method,
-        reference: newVendorPayment.reference,
-        notes: newVendorPayment.notes,
-        category: newVendorPayment.category,
-        createdAt: new Date().toISOString(),
+  const handleDeleteOrder = async () => {
+    if (!entityId || !orderToDelete) return;
+    await deleteDoc(doc(db, "hotel_properties", entityId, "guest_laundry_orders", orderToDelete.id));
+    toast({ title: "Order deleted" });
+    setOrderToDelete(null);
+  };
+
+  const handleSettleGuest = async (dues: any) => {
+    if (!entityId) return;
+    for (const id of dues.orderIds) {
+      await updateDoc(doc(db, "hotel_properties", entityId, "guest_laundry_orders", id), {
+        status: 'paid',
+        updatedAt: new Date().toISOString()
       });
-      toast({ title: "Payment Recorded" });
-      setIsPaymentOpen(false);
-    }, null, "RECORD_LAUNDRY_PAYMENT");
+    }
+    toast({ title: "Dues settled", description: `Cleared ₹${dues.totalDue} for Room ${dues.room}` });
   };
 
   return (
     <AppLayout>
-      <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500">
-        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in duration-700">
+        
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div>
-            <h1 className="text-3xl font-black text-primary uppercase tracking-tighter">Laundry Management</h1>
-            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] mt-1">Signature Laundry Operations Hub</p>
+            <h1 className="text-3xl font-black text-primary uppercase tracking-tighter">Signature Laundry Hub</h1>
+            <p className="text-[11px] font-black uppercase text-muted-foreground tracking-[0.2em] mt-1">Operations & Settlement Audit</p>
           </div>
-          <div className="flex gap-2">
-            {canManageOrders && (
-              <Button className="h-11 px-6 font-black uppercase text-[11px] tracking-widest shadow-xl rounded-xl" onClick={() => setIsOrderOpen(true)}>
-                <Plus className="w-4 h-4 mr-2" /> Guest Order
-              </Button>
-            )}
-            {canEdit && (
-              <Button variant="outline" className="h-11 px-6 font-black uppercase text-[11px] tracking-widest rounded-xl bg-white" onClick={() => setIsPaymentOpen(true)}>
-                <IndianRupee className="w-4 h-4 mr-2" /> Vendor Payment
-              </Button>
-            )}
+          
+          <div className="flex flex-wrap items-center gap-3">
+            <Button 
+              className="h-11 px-6 bg-[#5F5FA7] hover:bg-[#4F4F8F] text-white font-black uppercase text-[11px] tracking-widest shadow-xl rounded-xl"
+              onClick={() => setIsAIAuditOpen(true)}
+            >
+              <Sparkles className="w-4 h-4 mr-2" /> AI Invoice Audit
+            </Button>
+            <div className="flex items-center gap-2 px-4 h-11 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 shadow-sm">
+              <CheckCircle2 className="w-4 h-4" />
+              <span className="text-[11px] font-black uppercase tracking-tight">Vendor Connected</span>
+            </div>
           </div>
-        </header>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <StatCard label="Orders Pending" value={stats.pending} icon={Truck} color="text-amber-600" bg="bg-amber-50" />
-          <StatCard label="Collected Revenue" value={`₹${stats.revenue.toLocaleString()}`} icon={IndianRupee} color="text-emerald-600" bg="bg-emerald-50" />
-          <StatCard label="Vendor Status" value="Active" icon={CheckCircle2} color="text-primary" bg="bg-primary/5" />
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="bg-white border p-1 rounded-xl h-12 shadow-sm">
-            <TabsTrigger value="orders" className="rounded-lg h-10 px-8 text-[11px] font-bold uppercase">Guest Orders</TabsTrigger>
-            <TabsTrigger value="payments" className="rounded-lg h-10 px-8 text-[11px] font-bold uppercase">Vendor Payments</TabsTrigger>
-          </TabsList>
+        {/* Global Tabs */}
+        <Tabs defaultValue="orders" className="space-y-6" onValueChange={setActiveTab}>
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <TabsList className="bg-white border p-1.5 rounded-[1.5rem] h-14 shadow-sm w-full md:w-auto">
+              <TabsTrigger value="orders" className="rounded-xl h-11 px-6 text-[11px] font-bold uppercase">Active Orders</TabsTrigger>
+              <TabsTrigger value="dues" className="rounded-xl h-11 px-6 text-[11px] font-bold uppercase">Guest Dues Tracker</TabsTrigger>
+              <TabsTrigger value="linen" className="rounded-xl h-11 px-6 text-[11px] font-bold uppercase">Linen Batches</TabsTrigger>
+              <TabsTrigger value="vendor" className="rounded-xl h-11 px-6 text-[11px] font-bold uppercase">Vendor Accounts</TabsTrigger>
+              <TabsTrigger value="rates" className="rounded-xl h-11 px-6 text-[11px] font-bold uppercase">Rate Card</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="orders" className="space-y-4">
-            <div className="bg-white rounded-[2.5rem] shadow-sm border overflow-hidden">
+            {activeTab === 'orders' && (
+              <Button 
+                onClick={() => setIsOrderOpen(true)}
+                className="h-11 px-8 bg-[#5F5FA7] hover:bg-[#4F4F8F] font-black uppercase text-[11px] tracking-widest shadow-xl rounded-xl"
+              >
+                <Plus className="w-4 h-4 mr-2" /> Log Room Order
+              </Button>
+            )}
+          </div>
+
+          {/* ============ ACTIVE ORDERS TAB ============ */}
+          <TabsContent value="orders" className="animate-in slide-in-from-bottom-2 duration-500">
+            <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
               <Table>
                 <TableHeader className="bg-primary">
                   <TableRow className="hover:bg-transparent border-none">
-                    <TableHead className="h-14 text-[10px] font-black uppercase pl-10 text-primary-foreground">Order Date</TableHead>
-                    <TableHead className="h-14 text-[10px] font-black uppercase text-primary-foreground">Room & Guest</TableHead>
-                    <TableHead className="h-14 text-[10px] font-black uppercase text-center text-primary-foreground">Items</TableHead>
-                    <TableHead className="h-14 text-[10px] font-black uppercase text-right text-primary-foreground">Total ₹</TableHead>
+                    <TableHead className="h-14 text-[10px] font-black uppercase pl-10 text-primary-foreground">Room</TableHead>
+                    <TableHead className="h-14 text-[10px] font-black uppercase text-primary-foreground">Items & Content</TableHead>
+                    <TableHead className="h-14 text-[10px] font-black uppercase text-center text-primary-foreground">Billed ₹</TableHead>
                     <TableHead className="h-14 text-[10px] font-black uppercase text-center text-primary-foreground">Status</TableHead>
-                    <TableHead className="w-16"></TableHead>
+                    <TableHead className="h-14 text-[10px] font-black uppercase pr-10 text-right text-primary-foreground">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {ordersLoading ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-24"><Loader2 className="animate-spin w-8 h-8 mx-auto text-primary" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="animate-spin w-8 h-8 mx-auto text-primary" /></TableCell></TableRow>
                   ) : guestOrders && guestOrders.length > 0 ? (
-                    guestOrders.map((order) => (
+                    guestOrders.filter(o => o.status !== 'paid').map((order) => (
                       <TableRow key={order.id} className="group hover:bg-primary/5 transition-colors border-b border-secondary/50">
-                        <TableCell className="pl-10 py-5">
+                        <TableCell className="pl-10 py-6">
                           <div className="flex flex-col">
-                            <span className="text-[11px] font-black uppercase">{order?.createdAt ? formatAppDate(order.createdAt) : "N/A"}</span>
-                            <span className="text-[9px] font-bold text-muted-foreground">{order?.createdAt ? formatAppTime(order.createdAt) : ""}</span>
+                            <span className="text-sm font-black text-primary">Room {order.roomNumber}</span>
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase">{order.guestName}</span>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-black text-sm text-slate-800">Room {order?.roomNumber ?? "N/A"}</span>
-                            <span className="text-[10px] font-bold text-muted-foreground uppercase">{order?.guestName ?? "Guest"}</span>
+                          <div className="text-[11px] font-medium leading-relaxed max-w-md">
+                            {order.items?.map((item: any, idx: number) => (
+                              <span key={idx} className="inline-flex items-center bg-secondary/50 px-2 py-0.5 rounded-lg mr-1.5 mb-1">
+                                {item.quantity}x {item.itemName}
+                              </span>
+                            ))}
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
-                          <span className="text-[11px] font-bold">{(order?.items ?? []).length} Units</span>
+                          <span className="text-sm font-black text-slate-800">₹{(order.hotelTotal || 0).toLocaleString()}</span>
                         </TableCell>
-                        <TableCell className="text-right font-black text-primary">₹{(order?.hotelTotal || 0).toLocaleString()}</TableCell>
                         <TableCell className="text-center">
-                          <Badge className={cn(
-                            "text-[9px] font-black uppercase px-3 h-6 rounded-xl",
-                            order?.status === 'paid' ? "bg-emerald-500" : 
-                            order?.status === 'sent' ? "bg-amber-500" : "bg-slate-500"
-                          )}>
-                            {order?.status ?? "unknown"}
-                          </Badge>
+                          <Select onValueChange={(val) => handleUpdateStatus(order.id, val)} value={order.status}>
+                            <SelectTrigger className="h-8 w-32 mx-auto rounded-full text-[9px] font-black uppercase border-none shadow-sm">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                              {ORDER_STATUSES.map(s => <SelectItem key={s} value={s} className="text-[10px] font-bold uppercase">{s}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
                         </TableCell>
                         <TableCell className="pr-10 text-right">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100"><MoreVertical className="w-4 h-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 opacity-0 group-hover:opacity-100" onClick={() => setOrderToDelete(order)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-32 opacity-20">
-                        <WashingMachine className="w-12 h-12 mx-auto mb-2" />
-                        <p className="text-[11px] font-black uppercase">No active laundry orders</p>
-                      </TableCell>
-                    </TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-32 opacity-20 flex flex-col items-center"><WashingMachine className="w-12 h-12 mb-2" /><p className="text-[11px] font-black uppercase">No active guest orders</p></TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
             </div>
           </TabsContent>
 
-          <TabsContent value="payments" className="space-y-4">
-            <div className="bg-white rounded-[2.5rem] shadow-sm border overflow-hidden">
+          {/* ============ GUEST DUES TAB ============ */}
+          <TabsContent value="dues">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {duesTracker.map((dues: any, idx: number) => (
+                <Card key={idx} className="border-none shadow-sm rounded-[2rem] overflow-hidden group hover:shadow-xl transition-all">
+                  <CardHeader className="bg-[#5F5FA7] p-6 text-white">
+                    <div className="flex justify-between items-start">
+                      <div className="bg-white/20 p-2 rounded-xl"><UserCheck className="w-5 h-5" /></div>
+                      <Badge className="bg-white/20 text-white border-none text-[10px] font-black uppercase">Unpaid Folio</Badge>
+                    </div>
+                    <div className="mt-4">
+                      <CardTitle className="text-lg font-black uppercase tracking-tight">{dues.guest}</CardTitle>
+                      <CardDescription className="text-white/70 font-bold uppercase text-[10px]">Room {dues.room}</CardDescription>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-6">
+                    <div className="flex justify-between items-center">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black uppercase text-muted-foreground">Outstanding Due</p>
+                        <p className="text-2xl font-black text-rose-600">₹{dues.totalDue.toLocaleString()}</p>
+                      </div>
+                      <div className="text-right space-y-1">
+                        <p className="text-[10px] font-black uppercase text-muted-foreground">Last Request</p>
+                        <p className="text-[11px] font-bold">{formatAppDate(dues.lastOrder)}</p>
+                      </div>
+                    </div>
+                    <Button 
+                      className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest"
+                      onClick={() => handleSettleGuest(dues)}
+                    >
+                      <Receipt className="w-4 h-4 mr-2" /> Settle Payment
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+              {duesTracker.length === 0 && (
+                <div className="col-span-full py-32 text-center opacity-30 flex flex-col items-center">
+                  <CheckCircle2 className="w-12 h-12 mb-2 text-emerald-500" />
+                  <p className="text-[11px] font-black uppercase">All guest accounts are clear</p>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* ============ LINEN BATCHES TAB ============ */}
+          <TabsContent value="linen">
+            <div className="flex justify-end mb-4">
+              <Button size="sm" className="h-9 px-6 bg-slate-800 text-white font-bold uppercase text-[10px] rounded-xl" onClick={() => setIsLinenOpen(true)}>
+                <Plus className="w-3.5 h-3.5 mr-2" /> Dispatch Linen Batch
+              </Button>
+            </div>
+            <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
               <Table>
-                <TableHeader className="bg-secondary/50">
-                  <TableRow>
-                    <TableHead className="h-14 text-[10px] font-black uppercase pl-10">Payment Date</TableHead>
-                    <TableHead className="h-14 text-[10px] font-black uppercase">Category</TableHead>
-                    <TableHead className="h-14 text-[10px] font-black uppercase text-center">Method</TableHead>
-                    <TableHead className="h-14 text-[10px] font-black uppercase text-right">Amount ₹</TableHead>
-                    <TableHead className="h-14 text-[10px] font-black uppercase text-right pr-10">Reference</TableHead>
+                <TableHeader className="bg-slate-800 text-white">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="h-12 pl-10 text-[10px] font-black uppercase text-white">Batch ID</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-white">Content Inventory</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-white text-center">Dispatch Date</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-white text-center">Expected Return</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-white text-center">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paymentsLoading ? (
-                    <TableRow><TableCell colSpan={5} className="text-center py-24"><Loader2 className="animate-spin w-8 h-8 mx-auto text-primary" /></TableCell></TableRow>
-                  ) : vendorPayments && vendorPayments.length > 0 ? (
-                    vendorPayments.map((p) => (
-                      <TableRow key={p.id} className="border-b border-secondary/50">
-                        <TableCell className="pl-10 py-5">
-                          <span className="text-[11px] font-black uppercase">{p?.createdAt ? formatAppDate(p.createdAt) : "N/A"}</span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-[9px] font-black uppercase bg-secondary/50 border-none">{p?.category ?? "General"}</Badge>
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-slate-600 text-[11px]">{p?.method ?? "N/A"}</TableCell>
-                        <TableCell className="text-right font-black text-rose-600">₹{(p?.amount || 0).toLocaleString()}</TableCell>
-                        <TableCell className="text-right pr-10 font-mono text-[10px] text-muted-foreground">{p?.reference || "N/A"}</TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-32 opacity-20">
-                        <FileText className="w-12 h-12 mx-auto mb-2" />
-                        <p className="text-[11px] font-black uppercase">No vendor payment records</p>
+                  {linenBatches?.map((batch) => (
+                    <TableRow key={batch.id} className="border-b border-secondary/50">
+                      <TableCell className="pl-10 font-mono text-[11px] font-bold text-slate-600">#{batch.id.slice(-6).toUpperCase()}</TableCell>
+                      <TableCell>
+                        <div className="text-[11px] font-medium py-4">
+                          {batch.items?.map((i: any, idx: number) => (
+                            <Badge key={idx} variant="outline" className="mr-1.5 mb-1 bg-slate-50 text-[10px]">{i.quantity}x {i.itemName}</Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center text-[11px] font-bold">{formatAppDate(batch.createdAt)}</TableCell>
+                      <TableCell className="text-center text-[11px] font-bold text-muted-foreground">{batch.returnDate ? formatAppDate(batch.returnDate) : "TBD"}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge className={cn("text-[9px] font-black uppercase", batch.status === 'returned' ? "bg-emerald-500" : "bg-amber-500")}>
+                          {batch.status}
+                        </Badge>
                       </TableCell>
                     </TableRow>
-                  )}
+                  ))}
                 </TableBody>
               </Table>
+            </div>
+          </TabsContent>
+
+          {/* ============ VENDOR ACCOUNTS TAB ============ */}
+          <TabsContent value="vendor">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="border-none shadow-sm rounded-[2rem] bg-slate-900 text-white">
+                <CardHeader>
+                  <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-400">Total Outbound Billed</CardTitle>
+                  <div className="mt-2 flex items-baseline gap-2">
+                    <span className="text-4xl font-black">₹{guestOrders?.reduce((acc, o) => acc + (o.hotelTotal || 0), 0).toLocaleString()}</span>
+                    <span className="text-xs text-slate-500 font-bold uppercase">All Time</span>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="p-4 bg-white/5 rounded-2xl border border-white/10 flex justify-between items-center">
+                    <div>
+                      <p className="text-[10px] font-black uppercase text-slate-500">Unpaid Vendor Balance</p>
+                      <p className="text-xl font-black text-rose-400">₹{(guestOrders?.reduce((acc, o) => acc + (o.hotelTotal || 0), 0) - payments?.reduce((acc, p) => acc + (p.amount || 0), 0)).toLocaleString()}</p>
+                    </div>
+                    <Button size="sm" className="h-9 px-6 bg-white text-slate-900 font-black text-[10px] uppercase rounded-xl" onClick={() => setIsPaymentOpen(true)}>
+                      Record Payment
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden flex flex-col">
+                <div className="p-6 border-b bg-secondary/20"><h3 className="text-xs font-black uppercase tracking-widest">Recent Settlements</h3></div>
+                <ScrollArea className="flex-1 max-h-[300px]">
+                  <Table>
+                    <TableBody>
+                      {payments?.map((p) => (
+                        <TableRow key={p.id}>
+                          <TableCell className="pl-6 font-bold text-[11px]">{formatAppDate(p.createdAt)}</TableCell>
+                          <TableCell className="text-[11px] font-medium text-muted-foreground">{p.method} • {p.reference || "No Ref"}</TableCell>
+                          <TableCell className="text-right pr-6 font-black text-emerald-600">₹{p.amount.toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ============ RATE CARD TAB ============ */}
+          <TabsContent value="rates">
+            <div className="flex justify-end mb-4">
+              <Button size="sm" className="h-9 px-6 bg-[#5F5FA7] text-white font-bold uppercase text-[10px] rounded-xl" onClick={() => setIsRateOpen(true)}>
+                <Plus className="w-3.5 h-3.5 mr-2" /> Add Item
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {rates?.map((rate) => (
+                <Card key={rate.id} className="border-none shadow-sm rounded-2xl group hover:scale-[1.02] transition-all">
+                  <CardContent className="p-5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-primary/5 p-2.5 rounded-xl text-primary"><ShoppingBag className="w-4.5 h-4.5" /></div>
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-tight">{rate.itemName}</p>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase">{rate.itemType} Service</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-black text-primary">₹{rate.rate}</p>
+                      <p className="text-[8px] font-bold text-muted-foreground uppercase">per piece</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           </TabsContent>
         </Tabs>
 
-        {/* Create Order Dialog */}
+        {/* LOG ROOM ORDER DIALOG */}
         <Dialog open={isOrderOpen} onOpenChange={setIsOrderOpen}>
-          <DialogContent className="sm:max-w-[500px] rounded-[2.5rem] p-0 overflow-hidden">
-            <div className="bg-primary p-8 text-white">
-              <DialogTitle className="text-xl font-black uppercase">Dispatch Guest Laundry</DialogTitle>
-              <DialogDescription className="text-[10px] font-bold uppercase text-white/70 mt-1">Record a new outbound order to Signature Laundry.</DialogDescription>
+          <DialogContent className="sm:max-w-[500px] rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
+            <div className="bg-[#5F5FA7] p-8 text-white">
+              <DialogTitle className="text-xl font-black uppercase tracking-tight">Log Guest Order</DialogTitle>
+              <DialogDescription className="text-[10px] font-bold uppercase text-white/70 mt-1">Record items collected from guest room.</DialogDescription>
             </div>
             <form onSubmit={handleCreateOrder} className="p-8 space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase">Room Number</Label>
-                  <Input placeholder="Ex: 101" value={newOrder.roomNumber} onChange={e => setNewOrder({...newOrder, roomNumber: e.target.value})} required className="h-11 rounded-xl bg-secondary/50 border-none font-bold" />
+                  <Select onValueChange={(val) => setNewOrder({...newOrder, roomNumber: val})}>
+                    <SelectTrigger className="h-11 rounded-xl bg-secondary/50 border-none font-bold"><SelectValue placeholder="Select Room" /></SelectTrigger>
+                    <SelectContent>
+                      {rooms?.map(r => <SelectItem key={r.id} value={r.roomNumber}>{r.roomNumber}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase">Guest Name</Label>
-                  <Input placeholder="Guest Full Name" value={newOrder.guestName} onChange={e => setNewOrder({...newOrder, guestName: e.target.value})} required className="h-11 rounded-xl bg-secondary/50 border-none font-bold" />
+                  <Input value={newOrder.guestName} onChange={e => setNewOrder({...newOrder, guestName: e.target.value})} placeholder="Mohammed Aslam" className="h-11 rounded-xl bg-secondary/50 border-none font-bold" />
                 </div>
               </div>
-              <Button type="submit" className="w-full h-14 font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-primary/20">Dispatch Order</Button>
+
+              <div className="space-y-3">
+                <div className="flex justify-between items-center px-1">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Order Items</Label>
+                  <Button type="button" variant="ghost" className="h-6 text-[9px] font-black text-primary" onClick={() => setNewOrder({...newOrder, items: [...newOrder.items, { itemName: "", quantity: 1, rate: 0 }]})}>+ Add Item</Button>
+                </div>
+                <ScrollArea className="h-40 border rounded-2xl p-2 bg-secondary/30">
+                  {newOrder.items.map((item, idx) => (
+                    <div key={idx} className="flex gap-2 mb-2">
+                      <Select onValueChange={(val) => {
+                        const rateItem = rates?.find(r => r.itemName === val);
+                        const updated = [...newOrder.items];
+                        updated[idx] = { ...updated[idx], itemName: val, rate: rateItem?.rate || 0 };
+                        setNewOrder({...newOrder, items: updated});
+                      }}>
+                        <SelectTrigger className="flex-1 h-10 rounded-xl bg-white border-none text-xs"><SelectValue placeholder="Item" /></SelectTrigger>
+                        <SelectContent>{rates?.filter(r => r.itemType === 'guest').map(r => <SelectItem key={r.id} value={r.itemName}>{r.itemName}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <Input type="number" className="w-16 h-10 rounded-xl bg-white border-none text-center" value={item.quantity} onChange={e => {
+                        const updated = [...newOrder.items];
+                        updated[idx].quantity = parseInt(e.target.value) || 1;
+                        setNewOrder({...newOrder, items: updated});
+                      }} />
+                      <Button type="button" variant="ghost" className="h-10 text-rose-500" onClick={() => setNewOrder({...newOrder, items: newOrder.items.filter((_, i) => i !== idx)})}><Trash2 className="w-4 h-4" /></Button>
+                    </div>
+                  ))}
+                </ScrollArea>
+              </div>
+
+              <div className="flex justify-between items-center p-4 bg-primary/5 rounded-2xl">
+                <span className="text-[11px] font-black uppercase text-primary">Estimated Total</span>
+                <span className="text-xl font-black text-primary">₹{newOrder.items.reduce((acc, i) => acc + (i.quantity * i.rate), 0).toLocaleString()}</span>
+              </div>
+
+              <Button type="submit" className="w-full h-14 bg-[#5F5FA7] hover:bg-[#4F4F8F] font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-primary/20">Dispatch Order</Button>
             </form>
           </DialogContent>
         </Dialog>
 
-        {/* Record Payment Dialog */}
-        <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
-          <DialogContent className="sm:max-w-[450px] rounded-[2.5rem] p-0 overflow-hidden">
-            <div className="bg-slate-900 p-8 text-white">
-              <DialogTitle className="text-xl font-black uppercase">Record Vendor Payment</DialogTitle>
-              <DialogDescription className="text-[10px] font-bold uppercase text-white/70 mt-1">Log payments made to Signature Laundry services.</DialogDescription>
-            </div>
-            <form onSubmit={handleRecordPayment} className="p-8 space-y-6">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase">Payment Amount (₹)</Label>
-                <Input type="number" placeholder="0.00" value={newVendorPayment.amount} onChange={e => setNewVendorPayment({...newVendorPayment, amount: e.target.value})} required className="h-11 rounded-xl bg-secondary/50 border-none font-black text-lg" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase">Method</Label>
-                  <Select value={newVendorPayment.method} onValueChange={v => setNewVendorPayment({...newVendorPayment, method: v})}>
-                    <SelectTrigger className="h-11 rounded-xl bg-secondary/50 border-none font-bold"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="UPI">UPI / PhonePe</SelectItem><SelectItem value="CASH">Cash</SelectItem><SelectItem value="BANK">Bank Transfer</SelectItem></SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase">Reference</Label>
-                  <Input placeholder="Ref ID" value={newVendorPayment.reference} onChange={e => setNewVendorPayment({...newVendorPayment, reference: e.target.value})} className="h-11 rounded-xl bg-secondary/50 border-none font-bold" />
-                </div>
-              </div>
-              <Button type="submit" className="w-full h-14 font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-slate-200 bg-slate-900 hover:bg-black">Commit Payment Record</Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+        {/* DELETE CONFIRMATION */}
+        <AlertDialog open={!!orderToDelete} onOpenChange={() => setOrderToDelete(null)}>
+          <AlertDialogContent className="rounded-[2rem]">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-rose-600"><AlertTriangle className="w-5 h-5" /> Purge Laundry Order</AlertDialogTitle>
+              <AlertDialogDescription className="text-xs font-bold uppercase tracking-tight">Are you absolutely sure? This will permanently remove the record for Room {orderToDelete?.roomNumber}.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-xl font-black text-[10px] uppercase">Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteOrder} className="bg-rose-600 hover:bg-rose-700 rounded-xl font-black text-[10px] uppercase">Confirm Purge</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
       </div>
     </AppLayout>
   );
