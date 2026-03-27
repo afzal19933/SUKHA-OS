@@ -80,15 +80,15 @@ const StatCard = ({ title, value, icon: Icon, color, sub }: {
   icon: any; color: string; sub?: string;
 }) => (
   <Card className="rounded-2xl border-none shadow-sm hover:shadow-md transition-shadow">
-    <CardContent className="p-5">
+    <CardContent className="p-4">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">{title}</p>
-          <p className="text-3xl font-black mt-1 text-slate-800">{value}</p>
-          {sub && <p className="text-xs text-muted-foreground mt-1 font-medium">{sub}</p>}
+          <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">{title}</p>
+          <p className="text-2xl font-black mt-0.5 text-slate-800">{value}</p>
+          {sub && <p className="text-[10px] text-muted-foreground mt-0.5 font-medium">{sub}</p>}
         </div>
-        <div className={cn("p-3 rounded-2xl", color)}>
-          <Icon className="w-5 h-5 text-white" />
+        <div className={cn("p-2.5 rounded-xl", color)}>
+          <Icon className="w-4 h-4 text-white" />
         </div>
       </div>
     </CardContent>
@@ -244,32 +244,32 @@ export default function AttendancePage() {
 
   return (
     <AppLayout>
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl mx-auto">
 
       {/* ── Page Header ── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2">
-            <ClipboardCheck className="w-7 h-7 text-primary" />
+          <h1 className="text-xl font-black text-slate-800 flex items-center gap-2">
+            <ClipboardCheck className="w-6 h-6 text-primary" />
             Attendance
           </h1>
-          <p className="text-sm text-muted-foreground font-medium mt-1">
+          <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
             Today: {today} • Real-time monitoring
           </p>
         </div>
         <Button
           variant="outline"
           size="sm"
-          className="rounded-xl font-bold text-xs uppercase"
+          className="rounded-xl font-bold text-[10px] uppercase h-8"
           onClick={loadMonthlyRecords}
         >
-          <RefreshCw className="w-4 h-4 mr-2" />
+          <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
           Refresh
         </Button>
       </div>
 
       {/* ── Stats Row ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard
           title="Checked In Today"
           value={checkedInToday}
@@ -302,19 +302,19 @@ export default function AttendancePage() {
 
       {/* ── Tabs ── */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="rounded-2xl bg-secondary p-1 h-auto">
-          <TabsTrigger value="today" className="rounded-xl text-xs font-black uppercase px-4 py-2">
+        <TabsList className="rounded-xl bg-secondary/50 p-1 h-auto">
+          <TabsTrigger value="today" className="rounded-lg text-[10px] font-black uppercase px-4 py-1.5">
             Today
           </TabsTrigger>
-          <TabsTrigger value="approvals" className="rounded-xl text-xs font-black uppercase px-4 py-2">
+          <TabsTrigger value="approvals" className="rounded-lg text-[10px] font-black uppercase px-4 py-1.5">
             Approvals
             {pendingApprovals > 0 && (
-              <span className="ml-2 bg-rose-500 text-white text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center">
+              <span className="ml-2 bg-rose-500 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">
                 {pendingApprovals}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="monthly" className="rounded-xl text-xs font-black uppercase px-4 py-2">
+          <TabsTrigger value="monthly" className="rounded-lg text-[10px] font-black uppercase px-4 py-1.5">
             Monthly Report
           </TabsTrigger>
         </TabsList>
@@ -322,21 +322,21 @@ export default function AttendancePage() {
         {/* ── TODAY TAB ── */}
         <TabsContent value="today" className="mt-4">
           <Card className="rounded-2xl border-none shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-primary" />
+            <CardHeader className="pb-2 pt-4 px-5">
+              <CardTitle className="text-[11px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5 text-primary" />
                 Today's Attendance — {today}
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-5 pb-5">
               {isLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <RefreshCw className="w-6 h-6 animate-spin text-primary" />
+                <div className="flex items-center justify-center py-10">
+                  <RefreshCw className="w-5 h-5 animate-spin text-primary" />
                 </div>
               ) : todayRecords.length === 0 ? (
-                <div className="text-center py-12">
-                  <ClipboardCheck className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                  <p className="text-sm font-bold text-muted-foreground">No attendance records today</p>
+                <div className="text-center py-10">
+                  <ClipboardCheck className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
+                  <p className="text-[11px] font-bold text-muted-foreground uppercase">No attendance records today</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -344,40 +344,40 @@ export default function AttendancePage() {
                     <div
                       key={record.id}
                       className={cn(
-                        "flex items-center justify-between p-4 rounded-2xl border",
+                        "flex items-center justify-between p-3 rounded-xl border",
                         record.isLate ? "bg-amber-50 border-amber-100" : "bg-slate-50 border-slate-100"
                       )}
                     >
                       <div className="flex items-center gap-3">
                         {/* Avatar */}
                         <div className={cn(
-                          "w-10 h-10 rounded-2xl flex items-center justify-center font-black text-white text-sm",
+                          "w-9 h-9 rounded-xl flex items-center justify-center font-black text-white text-xs",
                           record.type === 'check_in' ? "bg-primary" : "bg-emerald-500"
                         )}>
                           {record.staffName?.charAt(0)?.toUpperCase() || '?'}
                         </div>
 
                         <div>
-                          <p className="font-black text-sm text-slate-800">{record.staffName}</p>
-                          <p className="text-xs text-muted-foreground font-medium capitalize">{record.staffRole}</p>
+                          <p className="font-black text-xs text-slate-800">{record.staffName}</p>
+                          <p className="text-[10px] text-muted-foreground font-medium capitalize">{record.staffRole}</p>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-3">
                         {record.isLate && (
-                          <Badge className="bg-amber-100 text-amber-700 border-none text-[10px] font-black uppercase rounded-xl">
+                          <Badge className="bg-amber-100 text-amber-700 border-none text-[9px] font-black uppercase rounded-lg h-5 px-2">
                             Late
                           </Badge>
                         )}
                         <Badge className={cn(
-                          "border-none text-[10px] font-black uppercase rounded-xl",
+                          "border-none text-[9px] font-black uppercase rounded-lg h-5 px-2",
                           record.type === 'check_in'
                             ? "bg-primary/10 text-primary"
                             : "bg-emerald-100 text-emerald-700"
                         )}>
                           {record.type === 'check_in' ? '☀️ In' : '🌙 Out'}
                         </Badge>
-                        <span className="text-xs font-black text-slate-600 bg-white px-3 py-1 rounded-xl border">
+                        <span className="text-[10px] font-black text-slate-600 bg-white px-2 py-0.5 rounded-lg border">
                           {record.time}
                         </span>
                       </div>
@@ -392,17 +392,17 @@ export default function AttendancePage() {
         {/* ── APPROVALS TAB ── */}
         <TabsContent value="approvals" className="mt-4">
           <Card className="rounded-2xl border-none shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-500" />
+            <CardHeader className="pb-2 pt-4 px-5">
+              <CardTitle className="text-[11px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5 text-amber-500" />
                 Manual Approval Requests
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-5 pb-5">
               {approvalRequests.length === 0 ? (
-                <div className="text-center py-12">
-                  <CheckCircle className="w-12 h-12 text-emerald-300 mx-auto mb-3" />
-                  <p className="text-sm font-bold text-muted-foreground">
+                <div className="text-center py-10">
+                  <CheckCircle className="w-10 h-10 text-emerald-300 mx-auto mb-2" />
+                  <p className="text-[11px] font-bold text-muted-foreground uppercase">
                     No pending approvals
                   </p>
                 </div>
@@ -411,19 +411,19 @@ export default function AttendancePage() {
                   {approvalRequests.map(req => (
                     <div
                       key={req.id}
-                      className="flex items-center justify-between p-4 rounded-2xl bg-amber-50 border border-amber-100"
+                      className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-100"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-amber-500 flex items-center justify-center font-black text-white text-sm">
+                        <div className="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center font-black text-white text-xs">
                           {req.staffName?.charAt(0)?.toUpperCase() || '?'}
                         </div>
                         <div>
-                          <p className="font-black text-sm text-slate-800">{req.staffName}</p>
-                          <p className="text-xs text-muted-foreground font-medium">
+                          <p className="font-black text-xs text-slate-800">{req.staffName}</p>
+                          <p className="text-[10px] text-muted-foreground font-medium">
                             {req.date} • {req.time} • {req.type === 'check_in' ? 'Check In' : 'Check Out'}
                           </p>
                           {req.reason && (
-                            <p className="text-xs text-amber-700 font-medium mt-0.5">
+                            <p className="text-[10px] text-amber-700 font-medium mt-0.5">
                               Reason: {req.reason}
                             </p>
                           )}
@@ -433,19 +433,19 @@ export default function AttendancePage() {
                       <div className="flex items-center gap-2">
                         <Button
                           size="sm"
-                          className="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs uppercase h-8 px-4"
+                          className="rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[9px] uppercase h-7 px-3"
                           onClick={() => handleApproval(req.id, 'approved')}
                         >
-                          <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                          <CheckCircle className="w-3 h-3 mr-1" />
                           Approve
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          className="rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 font-black text-xs uppercase h-8 px-4"
+                          className="rounded-lg border-rose-200 text-rose-600 hover:bg-rose-50 font-black text-[9px] uppercase h-7 px-3"
                           onClick={() => handleApproval(req.id, 'rejected')}
                         >
-                          <XCircle className="w-3.5 h-3.5 mr-1" />
+                          <XCircle className="w-3 h-3 mr-1" />
                           Reject
                         </Button>
                       </div>
@@ -462,20 +462,20 @@ export default function AttendancePage() {
 
           {/* Month selector */}
           <div className="flex items-center gap-3">
-            <Calendar className="w-4 h-4 text-primary" />
+            <Calendar className="w-3.5 h-3.5 text-primary" />
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-48 rounded-xl font-bold text-xs uppercase">
+              <SelectTrigger className="w-40 rounded-xl font-bold text-[10px] uppercase h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
                 {monthOptions.map(m => (
-                  <SelectItem key={m.value} value={m.value} className="font-bold text-xs uppercase">
+                  <SelectItem key={m.value} value={m.value} className="font-bold text-[10px] uppercase">
                     {m.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <span className="text-xs text-muted-foreground font-medium">
+            <span className="text-[10px] text-muted-foreground font-medium uppercase">
               {monthlyRecords.length} records found
             </span>
           </div>
@@ -483,9 +483,9 @@ export default function AttendancePage() {
           {/* Staff Summary Cards */}
           {staffSummaries.length === 0 ? (
             <Card className="rounded-2xl border-none shadow-sm">
-              <CardContent className="py-12 text-center">
-                <Users className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                <p className="text-sm font-bold text-muted-foreground">
+              <CardContent className="py-10 text-center">
+                <Users className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
+                <p className="text-[11px] font-bold text-muted-foreground uppercase">
                   No attendance records for {formatMonth(selectedMonth)}
                 </p>
               </CardContent>
@@ -493,42 +493,42 @@ export default function AttendancePage() {
           ) : (
             <div className="space-y-3">
               {staffSummaries.map((s, i) => (
-                <Card key={i} className="rounded-2xl border-none shadow-sm">
+                <Card key={i} className="rounded-2xl border-none shadow-sm overflow-hidden">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center font-black text-primary text-lg">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center font-black text-primary text-base">
                           {s.staffName?.charAt(0)?.toUpperCase() || '?'}
                         </div>
                         <div>
-                          <p className="font-black text-sm text-slate-800">{s.staffName}</p>
-                          <p className="text-xs text-muted-foreground font-medium capitalize">{s.staffRole}</p>
+                          <p className="font-black text-xs text-slate-800">{s.staffName}</p>
+                          <p className="text-[10px] text-muted-foreground font-medium capitalize">{s.staffRole}</p>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-4 text-center">
                         <div>
-                          <p className="text-xl font-black text-emerald-600">{s.presentDays}</p>
-                          <p className="text-[10px] text-muted-foreground font-bold uppercase">Present</p>
+                          <p className="text-lg font-black text-emerald-600">{s.presentDays}</p>
+                          <p className="text-[8px] text-muted-foreground font-bold uppercase">Present</p>
                         </div>
                         <div>
-                          <p className="text-xl font-black text-amber-500">{s.lateDays}</p>
-                          <p className="text-[10px] text-muted-foreground font-bold uppercase">Late</p>
+                          <p className="text-lg font-black text-amber-500">{s.lateDays}</p>
+                          <p className="text-[8px] text-muted-foreground font-bold uppercase">Late</p>
                         </div>
                         <div>
-                          <p className="text-xl font-black text-slate-400">{s.absentDays}</p>
-                          <p className="text-[10px] text-muted-foreground font-bold uppercase">Absent</p>
+                          <p className="text-lg font-black text-slate-400">{s.absentDays}</p>
+                          <p className="text-[8px] text-muted-foreground font-bold uppercase">Absent</p>
                         </div>
                       </div>
                     </div>
 
                     {/* Progress bar */}
                     <div className="mt-3">
-                      <div className="flex justify-between text-[10px] font-bold uppercase text-muted-foreground mb-1">
+                      <div className="flex justify-between text-[9px] font-bold uppercase text-muted-foreground mb-1">
                         <span>Attendance Rate</span>
                         <span>{s.presentDays} / {s.presentDays + s.absentDays} days</span>
                       </div>
-                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-primary rounded-full transition-all"
                           style={{
@@ -548,44 +548,44 @@ export default function AttendancePage() {
           {/* Monthly Records Table */}
           {monthlyRecords.length > 0 && (
             <Card className="rounded-2xl border-none shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-700">
+              <CardHeader className="pb-2 pt-4 px-5">
+                <CardTitle className="text-[11px] font-black uppercase tracking-wider text-slate-700">
                   All Records — {formatMonth(selectedMonth)}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
+              <CardContent className="px-5 pb-5">
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                   {monthlyRecords.map(record => (
                     <div
                       key={record.id}
                       className={cn(
-                        "flex items-center justify-between px-4 py-3 rounded-xl border text-sm",
+                        "flex items-center justify-between px-3 py-2 rounded-lg border text-xs",
                         record.isLate ? "bg-amber-50 border-amber-100" : "bg-slate-50 border-slate-100"
                       )}
                     >
                       <div className="flex items-center gap-3">
                         <div className={cn(
-                          "w-8 h-8 rounded-xl flex items-center justify-center font-black text-white text-xs",
+                          "w-7 h-7 rounded-lg flex items-center justify-center font-black text-white text-[10px]",
                           record.type === 'check_in' ? "bg-primary" : "bg-emerald-500"
                         )}>
                           {record.staffName?.charAt(0)?.toUpperCase()}
                         </div>
                         <div>
-                          <p className="font-black text-xs text-slate-800">{record.staffName}</p>
-                          <p className="text-[10px] text-muted-foreground">{record.date}</p>
+                          <p className="font-black text-[11px] text-slate-800">{record.staffName}</p>
+                          <p className="text-[9px] text-muted-foreground">{record.date}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         {record.isLate && (
-                          <Badge className="bg-amber-100 text-amber-700 border-none text-[10px] font-black rounded-lg">Late</Badge>
+                          <Badge className="bg-amber-100 text-amber-700 border-none text-[8px] font-black h-4 px-1.5 rounded">Late</Badge>
                         )}
                         <Badge className={cn(
-                          "border-none text-[10px] font-black rounded-lg",
+                          "border-none text-[8px] font-black h-4 px-1.5 rounded",
                           record.type === 'check_in' ? "bg-primary/10 text-primary" : "bg-emerald-100 text-emerald-700"
                         )}>
                           {record.type === 'check_in' ? 'In' : 'Out'}
                         </Badge>
-                        <span className="text-xs font-black text-slate-500">{record.time}</span>
+                        <span className="text-[10px] font-black text-slate-500">{record.time}</span>
                       </div>
                     </div>
                   ))}
