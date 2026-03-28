@@ -20,7 +20,7 @@ import {
   ClipboardCheck, Clock, UserCheck, UserX, AlertTriangle, 
   CheckCircle, XCircle, Calendar, TrendingUp, Users,
   Download, RefreshCw, Eye, Pencil, Trash2, IndianRupee,
-  Share2, ChevronRight, Filter, CalendarDays
+  Share2, ChevronRight, Filter, CalendarDays, Send
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -74,6 +74,12 @@ interface StaffProfile {
   phoneNumber?: string;
 }
 
+interface OwnerContact {
+  name: string;
+  phoneNumber: string;
+  role: string;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────
 const getCurrentMonth = () => format(new Date(), "MM-yyyy");
 const getCurrentDate = () => format(new Date(), "dd-MM-yyyy");
@@ -122,6 +128,7 @@ export default function AttendancePage() {
   const [todayRecords, setTodayRecords] = useState<AttendanceRecord[]>([]);
   const [allRecords, setAllRecords] = useState<AttendanceRecord[]>([]);
   const [staffProfiles, setStaffProfiles] = useState<StaffProfile[]>([]);
+  const [ownerContact, setOwnerContact] = useState<OwnerContact | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
   // Filters
@@ -161,6 +168,17 @@ export default function AttendancePage() {
       setAllRecords(snap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceRecord)));
     });
   }, []);
+
+  // 4. Fetch Owner Contact for Reporting
+  useEffect(() => {
+    if (!entityId) return;
+    const q = query(collection(db, 'hotel_properties', entityId, 'whatsapp_contacts'), where('role', '==', 'Owner'));
+    return onSnapshot(q, (snap) => {
+      if (!snap.empty) {
+        setOwnerContact(snap.docs[0].data() as OwnerContact);
+      }
+    });
+  }, [entityId]);
 
   // Compute Today's Attendance Pairs
   const pairedToday = useMemo(() => {
@@ -267,15 +285,34 @@ export default function AttendancePage() {
     setSalaryEdit(null);
   };
 
-  const handleShareWhatsApp = (staff: any) => {
-    const phone = staff.phoneNumber || "9895556667";
-    const msg = `*SUKHA OS - Salary Advice*\nMonth: ${staff.monthStr}\nStaff: ${staff.name}\n\nPresent: ${staff.presentDays}\nHalf Days: ${staff.halfDays}\nAbsent: ${staff.absentDays}\nDeductions: ₹${staff.deductions}\n*Net Salary: ₹${staff.netSalary}*`;
-    window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+  const handleSendReportToOwner = () => {
+    if (!payrollData.length) return;
+    
+    const ownerPhone = ownerContact?.phoneNumber || "919895556667";
+    const monthStr = payrollData[0].monthStr;
+    
+    let message = `*SUKHA OS - Monthly Payroll Audit*\n`;
+    message += `Month: *${monthStr}*\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+    
+    let totalPayout = 0;
+    
+    payrollData.forEach(staff => {
+      message += `• *${staff.name}*\n`;
+      message += `  Net Salary: ₹${staff.netSalary.toLocaleString()}\n`;
+      message += `  (P:${staff.presentDays} / H:${staff.halfDays} / A:${staff.absentDays})\n\n`;
+      totalPayout += staff.netSalary;
+    });
+    
+    message += `━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `*Total Disbursement: ₹${totalPayout.toLocaleString()}*\n\n`;
+    message += `_Generated via SUKHA OS Master Admin_`;
+
+    window.open(`https://wa.me/${ownerPhone}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   const handleDeleteRecord = async () => {
     if (!isDeleting) return;
-    // Note: This only deletes the specific grouped record representative ID
     await deleteDoc(doc(db, 'attendance_records', isDeleting.id));
     toast({ title: "Record Deleted" });
     setIsDeleting(null);
@@ -443,7 +480,7 @@ export default function AttendancePage() {
                           <p className="text-[9px] font-bold text-muted-foreground uppercase">Base: ₹{(s.monthlySalary || 0).toLocaleString()}</p>
                         </div>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-primary rounded-xl" onClick={() => setSalaryEdit({...s, amount: s.monthlySalary || ""})}>
-                          <Edit2 className="w-3.5 h-3.5" />
+                          <Pencil className="w-3.5 h-3.5" />
                         </Button>
                       </div>
                     ))}
@@ -453,7 +490,7 @@ export default function AttendancePage() {
 
               {/* Payroll Results */}
               <Card className="lg:col-span-2 border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
-                <CardHeader className="bg-primary p-8 text-white flex flex-row items-center justify-between">
+                <CardHeader className="bg-primary p-8 text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <CardTitle className="text-xl font-black uppercase tracking-tight">Monthly Payroll Audit</CardTitle>
                     <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest mt-1">
@@ -461,7 +498,13 @@ export default function AttendancePage() {
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="ghost" className="h-9 text-[10px] font-black uppercase text-white hover:bg-white/10" onClick={() => setQuickFilter(quickFilter === 'last_month' ? 'this_month' : 'last_month')}>
+                    <Button 
+                      className="h-10 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest rounded-xl shadow-lg"
+                      onClick={handleSendReportToOwner}
+                    >
+                      <Send className="w-3.5 h-3.5 mr-2" /> Send Report to Owner
+                    </Button>
+                    <Button variant="ghost" className="h-10 px-4 text-[10px] font-black uppercase text-white hover:bg-white/10" onClick={() => setQuickFilter(quickFilter === 'last_month' ? 'this_month' : 'last_month')}>
                       <RefreshCw className="w-3.5 h-3.5 mr-2" /> Switch Cycle
                     </Button>
                   </div>
@@ -470,11 +513,10 @@ export default function AttendancePage() {
                   <Table>
                     <TableHeader className="bg-primary/5">
                       <TableRow className="border-none">
-                        <TableHead className="pl-8 text-[9px] font-black uppercase">Staff Member</TableHead>
+                        <TableHead className="pl-8 h-12 text-[9px] font-black uppercase">Staff Member</TableHead>
                         <TableHead className="text-[9px] font-black uppercase text-center">P / H / A</TableHead>
                         <TableHead className="text-[9px] font-black uppercase text-center">Deductions</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase text-right">Net Salary</TableHead>
-                        <TableHead className="text-right pr-8 text-[9px] font-black uppercase">WhatsApp</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase text-right pr-10">Net Salary</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -496,12 +538,7 @@ export default function AttendancePage() {
                             </div>
                           </TableCell>
                           <TableCell className="text-center font-bold text-[11px] text-rose-600">- ₹{staff.deductions.toLocaleString()}</TableCell>
-                          <TableCell className="text-right font-black text-primary text-sm">₹{staff.netSalary.toLocaleString()}</TableCell>
-                          <TableCell className="text-right pr-8">
-                            <Button variant="ghost" size="icon" className="h-10 w-10 text-emerald-600 hover:bg-emerald-50 rounded-2xl shadow-sm" onClick={() => handleShareWhatsApp(staff)}>
-                              <Share2 className="w-4.5 h-4.5" />
-                            </Button>
-                          </TableCell>
+                          <TableCell className="text-right pr-10 font-black text-primary text-sm">₹{staff.netSalary.toLocaleString()}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -542,8 +579,4 @@ export default function AttendancePage() {
       </div>
     </AppLayout>
   );
-}
-
-function Edit2({ className }: { className?: string }) {
-  return <Pencil className={className} />;
 }
