@@ -72,6 +72,7 @@ interface StaffProfile {
   role: string;
   monthlySalary?: number;
   phoneNumber?: string;
+  isActive?: boolean;
 }
 
 interface OwnerContact {
@@ -152,12 +153,19 @@ export default function AttendancePage() {
     });
   }, [today]);
 
-  // 2. Load Staff Profiles for Payroll
+  // 2. Load Staff Profiles for Payroll (Filtered to exclude owners/admins)
   useEffect(() => {
     if (!entityId) return;
     const q = query(collection(db, 'user_profiles'), where('entityId', '==', entityId));
     return onSnapshot(q, (snap) => {
-      setStaffProfiles(snap.docs.map(d => ({ id: d.id, ...d.data() } as StaffProfile)));
+      const allProfiles = snap.docs.map(d => ({ id: d.id, ...d.data() } as StaffProfile));
+      // ✅ Exclude owners and admins from financial payroll modules
+      const filtered = allProfiles.filter(p => 
+        p.role?.toLowerCase() !== 'owner' && 
+        p.role?.toLowerCase() !== 'admin' &&
+        p.isActive !== false
+      );
+      setStaffProfiles(filtered);
     });
   }, [entityId]);
 
