@@ -498,10 +498,10 @@ export default function AttendancePage() {
 
               {/* Payroll Results */}
               <Card className="lg:col-span-2 border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
-                <CardHeader className="bg-primary p-8 text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-xl font-black uppercase tracking-tight">Monthly Payroll Audit</CardTitle>
-                    <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest mt-1">
+                <CardHeader className="bg-primary px-[20px] py-[16px] text-white flex flex-row items-center justify-between">
+                  <div className="flex flex-col">
+                    <CardTitle className="text-[16px] font-[700] uppercase tracking-tight">Monthly Payroll Audit</CardTitle>
+                    <p className="text-[12px] opacity-80 font-bold uppercase tracking-widest mt-0.5">
                       Cycle: {quickFilter === 'last_month' ? 'Last Month' : 'Current Month'} • {getWorkingDaysInMonth(quickFilter === 'last_month' ? format(new Date(new Date().setMonth(new Date().getMonth() - 1)), "MM-yyyy") : getCurrentMonth())} working days
                     </p>
                   </div>
@@ -521,22 +521,22 @@ export default function AttendancePage() {
                   <Table>
                     <TableHeader className="bg-primary/5">
                       <TableRow className="border-none">
-                        <TableHead className="pl-8 h-12 text-[9px] font-black uppercase">Staff Member</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase text-center">P / H / A</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase text-center">Deductions</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase text-right pr-10">Net Salary</TableHead>
+                        <TableHead className="px-[16px] py-[12px] text-[13px] font-semibold uppercase text-primary border-b-2 border-primary">Staff Member</TableHead>
+                        <TableHead className="px-[16px] py-[12px] text-[13px] font-semibold uppercase text-primary border-b-2 border-primary text-center">P / H / A</TableHead>
+                        <TableHead className="px-[16px] py-[12px] text-[13px] font-semibold uppercase text-primary border-b-2 border-primary text-center">Deductions</TableHead>
+                        <TableHead className="px-[16px] py-[12px] text-[13px] font-semibold uppercase text-primary border-b-2 border-primary text-right">Net Salary</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {payrollData.map((staff, i) => (
                         <TableRow key={i} className="border-b border-secondary/50">
-                          <TableCell className="pl-8 py-5">
+                          <TableCell className="px-[16px] py-5">
                             <div className="flex flex-col">
                               <span className="font-black text-sm uppercase text-slate-800">{staff.name}</span>
                               <span className="text-[9px] font-bold text-muted-foreground uppercase">{staff.role}</span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="px-[16px] py-5 text-center">
                             <div className="flex items-center justify-center gap-1.5 font-bold text-[11px]">
                               <span className="text-emerald-600">{staff.presentDays}</span>
                               <span className="text-slate-300">/</span>
@@ -545,8 +545,8 @@ export default function AttendancePage() {
                               <span className="text-rose-500">{staff.absentDays}</span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-center font-bold text-[11px] text-rose-600">- ₹{staff.deductions.toLocaleString()}</TableCell>
-                          <TableCell className="text-right pr-10 font-black text-primary text-sm">₹{staff.netSalary.toLocaleString()}</TableCell>
+                          <TableCell className="px-[16px] py-5 text-center font-bold text-[11px] text-rose-600">- ₹{staff.deductions.toLocaleString()}</TableCell>
+                          <TableCell className="px-[16px] py-5 text-right font-black text-primary text-sm">₹{staff.netSalary.toLocaleString()}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
