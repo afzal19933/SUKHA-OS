@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { 
@@ -49,12 +49,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  
+  // Stabilization ref to prevent race conditions on re-renders/rotation
+  const mountedRef = useRef(false);
 
   useEffect(() => {
+    mountedRef.current = true;
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
+    return () => {
+      mountedRef.current = false;
+      window.removeEventListener("resize", checkMobile);
+    }
   }, []);
 
   useEffect(() => {
@@ -62,13 +69,25 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, [pathname, isMobile]);
 
   useEffect(() => {
+    // Check if hydration is complete and auth state is determined
     if (_hasHydrated && !isUserLoading && !firebaseUser && pathname !== "/login") {
-      router.push("/login");
+      // Wait 500ms before redirecting to avoid re-render flashes (like device rotation)
+      const timer = setTimeout(() => {
+        if (mountedRef.current && !firebaseUser) {
+          router.push("/login");
+        }
+      }, 500);
+      return () => clearTimeout(timer);
     }
   }, [_hasHydrated, isUserLoading, firebaseUser, pathname, router]);
 
-  if (!_hasHydrated || isUserLoading) {
-    return <div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin text-primary" /></div>;
+  // Show loading screen only if not yet hydrated OR if loading and user isn't already found
+  if (!_hasHydrated || (isUserLoading && !firebaseUser)) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="animate-spin text-primary" />
+      </div>
+    );
   }
 
   if (pathname === "/login") return <>{children}</>;
